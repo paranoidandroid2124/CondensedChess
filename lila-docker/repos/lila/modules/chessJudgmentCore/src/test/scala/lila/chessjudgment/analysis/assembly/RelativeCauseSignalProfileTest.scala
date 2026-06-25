@@ -5,6 +5,15 @@ import lila.chessjudgment.model.judgment.*
 
 class RelativeCauseSignalProfileTest extends munit.FunSuite:
 
+  test("scores plan contradiction below concrete structural causes"):
+    val plan = relativeCauseWithLongTermProof(RelativeCauseKind.PlanContradiction)
+    val activity = relativeCauseWithLongTermProof(RelativeCauseKind.ActivityGain)
+
+    assert(
+      ClaimArbitrator.relativeCauseSalienceForAudit(activity) >
+        ClaimArbitrator.relativeCauseSalienceForAudit(plan)
+    )
+
   test("does not mark contrast-only context attribution as root mismatch"):
     val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
     val line = LineNodeRef("line", "g1f3", 1, LineNodeRole.BestReference)
@@ -27,6 +36,66 @@ class RelativeCauseSignalProfileTest extends munit.FunSuite:
     )
 
     assertEquals(attribution.rootMismatch, false)
+
+  private def relativeCauseWithLongTermProof(kind: RelativeCauseKind): RelativeCauseFact =
+    val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val after = PositionNodeRef("8/8/8/8/8/8/8/8 b - - 1 1", 2, Some(Color.Black), Some("after"))
+    val referenceLine = LineNodeRef("best-line", "g1f3", 1, LineNodeRole.BestReference)
+    val candidateLine = LineNodeRef("played-line", "d2d4", 2, LineNodeRole.Played)
+    val proofRef = EvidenceRef(
+      id = s"transition-proof:${kind.toString}",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(candidateLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val transition = StructuralTransitionBinding(
+      moveUci = candidateLine.rootMove,
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = after,
+      line = Some(candidateLine),
+      perspective = Color.White
+    )
+    val consequence = TransitionConsequence(
+      kind = TransitionConsequenceKind.DevelopmentMobilityGain,
+      polarity = StructuralSignalPolarity.Gain,
+      strength = 2,
+      subjects = List("activity")
+    )
+    RelativeCauseFact(
+      kind = kind,
+      comparisonKind = CandidateComparisonKind.PlayedVsBest,
+      referenceLine = referenceLine,
+      candidateLine = candidateLine,
+      verdict = MoveChoiceVerdict.Mistake,
+      winPercentLossForMover = 12.0,
+      candidateWinPercentDeltaForMover = -12.0,
+      supportEvidence = Nil,
+      evidenceLines = List(referenceLine, candidateLine),
+      role = RelativeCauseRole.PrimaryPlayedCause,
+      eventLine = candidateLine,
+      sourceSide = RelativeCauseSourceSide.Candidate,
+      importance = RelativeCauseImportance.Primary,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.CandidateAllowsLiability,
+        ownedEvidence = List(proofRef),
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(
+      Some(
+        RelativeCauseProof(
+          directProof = RelativeCauseProofSection(
+            role = RelativeCauseProofRole.DirectProof,
+            strength = RelativeCauseProofStrength.Primary,
+            transitionConsequences = List(TransitionConsequenceProof(proofRef, transition, consequence))
+          )
+        )
+      )
+    )
 
   test("ignores strategic contrast records from other comparison identities"):
     val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
@@ -335,7 +404,7 @@ class RelativeCauseSignalProfileTest extends munit.FunSuite:
     assertEquals(drafts.map(_.kind), List(RelativeCauseKind.ActivityLoss))
     assertEquals(drafts.map(_.sourceSide), List(Some(RelativeCauseSourceSide.Candidate)))
 
-  test("does not relabel reference activity gain as candidate activity loss"):
+  test("maps reference activity gain to a concrete activity gain root"):
     val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
     val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
     val playedLine = LineNodeRef("played-line", "d2d4", 2, LineNodeRole.Played)
@@ -354,7 +423,128 @@ class RelativeCauseSignalProfileTest extends munit.FunSuite:
     val profile = playedVsBestProfile(referenceLine, playedLine, List(contrastRecord))
 
     val drafts = RelativeCauseDraftPlanner.drafts(profile)
-    assertEquals(drafts.map(_.kind), List(RelativeCauseKind.MissedStrategicImprovement))
+    assertEquals(drafts.map(_.kind), List(RelativeCauseKind.ActivityGain))
+    assertEquals(drafts.map(_.sourceSide), List(Some(RelativeCauseSourceSide.Reference)))
+
+  test("preserves outpost transitions as activity axis details"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val afterReference = PositionNodeRef("8/8/8/3N4/8/8/8/8 b - - 0 1", 2, Some(Color.Black), Some("after-reference"))
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+    val transition =
+      StructuralTransitionBinding(
+        moveUci = "g1f3",
+        role = TransitionEdgeRole.Reference,
+        from = root,
+        to = afterReference,
+        line = Some(referenceLine),
+        perspective = Color.White
+      )
+    def outpostRecord(
+        id: String,
+        kind: TransitionConsequenceKind,
+        polarity: StructuralSignalPolarity
+    ): EvidenceRecord =
+      EvidenceRecord(
+        ref = EvidenceRef(
+          id = id,
+          producer = EvidenceProducer.StructuralDeltaProducer,
+          layer = EvidenceLayer.StructuralDelta,
+          position = root,
+          line = Some(referenceLine),
+          scope = EvidenceScope.Counterfactual,
+          confidence = EvidenceConfidence.EngineBacked
+        ),
+        payload = StructuralDeltaEvidence(
+          transition = transition,
+          signals = Nil,
+          consequences = List(TransitionConsequence(kind, polarity, 1, List("d5")))
+        )
+      )
+
+    val gainSignals =
+      StrategicMechanismEvidence
+        .sourceMechanisms(outpostRecord("structural-delta:outpost-gain", TransitionConsequenceKind.OutpostGain, StructuralSignalPolarity.Gain))
+        .collect { case (StrategicMechanismKind.Activity, signal) => signal }
+    val concessionSignals =
+      StrategicMechanismEvidence
+        .sourceMechanisms(outpostRecord("structural-delta:outpost-concession", TransitionConsequenceKind.OutpostConcession, StructuralSignalPolarity.Loss))
+        .collect { case (StrategicMechanismKind.Activity, signal) => signal }
+
+    assertEquals(gainSignals.map(_.label), List("outpost-gain"))
+    assertEquals(gainSignals.flatMap(_.axisKey), List("Activity:Gain:outpost-gain"))
+    assertEquals(concessionSignals.map(_.label), List("outpost-concession"))
+    assertEquals(concessionSignals.flatMap(_.axisKey), List("Activity:Loss:outpost-concession"))
+
+  test("preserves opponent restriction target and axis detail"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val ref =
+      EvidenceRef(
+        id = "strategic:counterplay-restraint",
+        producer = EvidenceProducer.StrategicFeatureProducer,
+        layer = EvidenceLayer.Strategic,
+        position = root,
+        line = None,
+        scope = EvidenceScope.BeforePosition,
+        confidence = EvidenceConfidence.Heuristic
+      )
+    val anchor =
+      BoardAnchor(
+        kind = BoardAnchorKind.CounterplayRestraint,
+        side = Color.White,
+        signal = BoardAnchorSignal.OpponentLowMobility,
+        magnitude = 4,
+        confidence = 0.72,
+        detail = Some(BoardAnchorDetail(subjectColor = Some(Color.Black)))
+      )
+    val record =
+      EvidenceRecord(
+        ref = ref,
+        payload = StrategicFactEvidence(
+          kind = StrategicFactKind.CounterplayRestraint,
+          facts = Nil,
+          relatedPlans = Nil,
+          confidence = 0.72
+        )(boardAnchors = List(anchor))
+      )
+
+    val signals = StrategicMechanismEvidence.sourceMechanisms(record).map(_._2)
+    val signatures = EvidenceObjectBinding.objectSignatures(EvidenceObjectBinding.fromEvidenceRefs(TypedEvidenceGraph(List(record)), List(ref)))
+
+    assertEquals(signals.map(_.label), List("opponent-low-mobility"))
+    assertEquals(signals.flatMap(_.axisKey), List("Counterplay:Restrain:opponent-low-mobility"))
+    assert(signatures.exists(_.contains("target=Side:black")))
+    assert(signatures.exists(_.contains("mechanism=Mechanism:opponentlowmobility")))
+
+  test("prefers opponent restriction root over plan contradiction when counterplay restraint axis is concrete"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val referenceLine = LineNodeRef("reference-line", "h2h3", 1, LineNodeRole.BestReference)
+    val playedLine = LineNodeRef("played-line", "g1f3", 2, LineNodeRole.Played)
+    val contrastRecord = strategicContrastRecord(
+      root = root,
+      referenceLine = referenceLine,
+      candidateLine = playedLine,
+      comparisons = List(
+        strategicAxisComparison(
+          StrategicAxisDetail(StrategicAxisKind.Counterplay, StrategicAxisPolarity.Restrain, "opponent-low-mobility"),
+          StrategicAxisComparisonOutcome.ReferenceOnly
+        ),
+        strategicAxisComparison(
+          StrategicAxisDetail(StrategicAxisKind.PlanCoherence, StrategicAxisPolarity.Support, "ProphylaxisRestraint"),
+          StrategicAxisComparisonOutcome.ReferenceOnly
+        )
+      ),
+      planComparison = Some(
+        StrategicPlanComparison(
+          referencePlanIds = List("ProphylaxisRestraint"),
+          candidatePlanIds = Nil,
+          outcome = StrategicAxisComparisonOutcome.ReferenceOnly
+        )
+      )
+    )
+    val profile = playedVsBestProfile(referenceLine, playedLine, List(contrastRecord))
+
+    val drafts = RelativeCauseDraftPlanner.drafts(profile)
+    assertEquals(drafts.map(_.kind), List(RelativeCauseKind.OpponentRestriction))
     assertEquals(drafts.map(_.sourceSide), List(Some(RelativeCauseSourceSide.Reference)))
 
   test("does not relabel reference target pressure release as target pressure gain"):

@@ -411,10 +411,7 @@ class MoveJudgmentViewTest extends munit.FunSuite:
     assertEquals(
       structuralRoot.contextualTacticalWitnessCauseKinds.toSet,
       Set(
-        RelativeCauseKind.TacticalRefutationOfPlayed,
-        RelativeCauseKind.RecaptureRecoveryWindow,
-        RelativeCauseKind.DefensiveResource,
-        RelativeCauseKind.MaterialSwing
+        RelativeCauseKind.TacticalRefutationOfPlayed
       )
     )
     assertEquals(
@@ -432,15 +429,15 @@ class MoveJudgmentViewTest extends munit.FunSuite:
     )
     assertEquals(
       primaryByKind(RelativeCauseKind.RecaptureRecoveryWindow).narrativeRole,
-      MoveJudgmentCauseNarrativeRole.TacticalWitness
+      MoveJudgmentCauseNarrativeRole.ContextCause
     )
     assertEquals(
       primaryByKind(RelativeCauseKind.DefensiveResource).narrativeRole,
-      MoveJudgmentCauseNarrativeRole.TacticalWitness
+      MoveJudgmentCauseNarrativeRole.ContextCause
     )
     assertEquals(
       primaryByKind(RelativeCauseKind.MaterialSwing).narrativeRole,
-      MoveJudgmentCauseNarrativeRole.TacticalWitness
+      MoveJudgmentCauseNarrativeRole.ContextCause
     )
     assertEquals(
       primaryByKind(RelativeCauseKind.MaterialSwing).witnessBindingLevel,

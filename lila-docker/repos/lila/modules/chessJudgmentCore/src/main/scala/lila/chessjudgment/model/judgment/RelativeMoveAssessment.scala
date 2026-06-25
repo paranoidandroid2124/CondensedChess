@@ -217,7 +217,9 @@ enum RelativeCauseKind:
   case KingSafetyConcession
   case PawnWeaknessTarget
   case PawnBreakOpportunity
+  case ActivityGain
   case ActivityLoss
+  case OpponentRestriction
   case StrategicConcession
   case MissedStrategicImprovement
   case PlanImprovement
@@ -274,7 +276,7 @@ object RelativeCauseKind:
           RelativeCauseKind.TargetPressureRelease |
           RelativeCauseKind.CenterControlGain | RelativeCauseKind.KingSafetyConcession |
           RelativeCauseKind.PawnWeaknessTarget | RelativeCauseKind.PawnBreakOpportunity |
-          RelativeCauseKind.ActivityLoss |
+          RelativeCauseKind.ActivityGain | RelativeCauseKind.ActivityLoss | RelativeCauseKind.OpponentRestriction |
           RelativeCauseKind.StrategicConcession | RelativeCauseKind.MissedStrategicImprovement |
           RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
         true

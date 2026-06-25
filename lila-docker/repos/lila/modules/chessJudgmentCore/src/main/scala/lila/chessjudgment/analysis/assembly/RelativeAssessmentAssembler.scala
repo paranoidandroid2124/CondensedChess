@@ -1047,8 +1047,12 @@ object RelativeAssessmentAssembler:
         axis.kind == StrategicAxisKind.PawnBreak
       case RelativeCauseKind.CenterControlGain =>
         axis.kind == StrategicAxisKind.SpaceCenter
+      case RelativeCauseKind.ActivityGain =>
+        axis.kind == StrategicAxisKind.Activity && sourceSide == RelativeCauseSourceSide.Reference
       case RelativeCauseKind.ActivityLoss =>
         axis.kind == StrategicAxisKind.Activity && sourceSide == RelativeCauseSourceSide.Candidate
+      case RelativeCauseKind.OpponentRestriction =>
+        axis.kind == StrategicAxisKind.Counterplay && axis.polarity == StrategicAxisPolarity.Restrain
       case RelativeCauseKind.KingSafetyConcession =>
         axis.kind == StrategicAxisKind.Counterplay && axis.label.contains("king-safety")
       case RelativeCauseKind.StructuralImprovement | RelativeCauseKind.MissedStrategicImprovement |
@@ -1115,6 +1119,16 @@ object RelativeAssessmentAssembler:
       case RelativeCauseKind.PawnBreakOpportunity =>
         payload.consequencesOf(PawnTensionGain) ++
           payload.consequencesOf(PawnTensionResolution)
+      case RelativeCauseKind.ActivityGain =>
+        payload.consequencesOf(DevelopmentLagReduced) ++
+          payload.consequencesOf(DevelopmentPieceActivated) ++
+          payload.consequencesOf(DevelopmentMobilityGain) ++
+          payload.consequencesOf(DevelopmentCenterControlGain) ++
+          payload.consequencesOf(DevelopmentSafePlacement) ++
+          payload.consequencesOf(MobilityGain) ++
+          payload.consequencesOf(LineUnlockGain) ++
+          payload.consequencesOf(FileAccessGain) ++
+          payload.consequencesOf(OutpostGain)
       case RelativeCauseKind.ActivityLoss =>
         payload.consequencesOf(DevelopmentLagIncreased) ++
           payload.consequencesOf(DevelopmentPieceRetreated) ++
@@ -1122,7 +1136,8 @@ object RelativeAssessmentAssembler:
           payload.consequencesOf(DevelopmentCenterControlLoss) ++
           payload.consequencesOf(DevelopmentUnsafePlacement) ++
           payload.consequencesOf(MobilityLoss) ++
-          payload.consequencesOf(FileAccessLoss)
+          payload.consequencesOf(FileAccessLoss) ++
+          payload.consequencesOf(OutpostConcession)
       case RelativeCauseKind.StructuralImprovement | RelativeCauseKind.MissedStrategicImprovement |
           RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
         payload.positiveConsequences.filter(consequence =>

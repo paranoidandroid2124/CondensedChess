@@ -1986,7 +1986,10 @@ object MoveJudgmentView:
             witness
           }
         val contextualWitnesses =
-          witnessBindings.collect { case (witness, binding) if binding.level != MoveJudgmentCauseWitnessBindingLevel.Punishment =>
+          witnessBindings.collect {
+            case (witness, binding)
+                if binding.level != MoveJudgmentCauseWitnessBindingLevel.Punishment &&
+                  binding.level != MoveJudgmentCauseWitnessBindingLevel.SameComparisonOnly =>
             witness
           }
         frame.copy(
@@ -2000,12 +2003,20 @@ object MoveJudgmentView:
         )
       else if tacticalWitnessFrame(frame) && matchingLongTermRoots.nonEmpty then
         val binding = strongestWitnessBinding(frame, matchingLongTermRoots)
-        frame.copy(
-          narrativeRole = MoveJudgmentCauseNarrativeRole.TacticalWitness,
-          witnessBindingLevel = binding.level,
-          witnessBindingSignals = binding.signals,
-          witnessBindingRootCauseEvidenceIds = binding.rootCauseEvidenceIds
-        )
+        if binding.level == MoveJudgmentCauseWitnessBindingLevel.SameComparisonOnly then
+          frame.copy(
+            narrativeRole = MoveJudgmentCauseNarrativeRole.ContextCause,
+            witnessBindingLevel = binding.level,
+            witnessBindingSignals = binding.signals,
+            witnessBindingRootCauseEvidenceIds = binding.rootCauseEvidenceIds
+          )
+        else
+          frame.copy(
+            narrativeRole = MoveJudgmentCauseNarrativeRole.TacticalWitness,
+            witnessBindingLevel = binding.level,
+            witnessBindingSignals = binding.signals,
+            witnessBindingRootCauseEvidenceIds = binding.rootCauseEvidenceIds
+          )
       else
         frame.copy(narrativeRole = defaultNarrativeRole(frame.role))
     }

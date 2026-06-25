@@ -312,7 +312,12 @@ object EvidenceObjectBinding:
         squareObject(detail.targetSquare) ++
           roleObject(detail.targetRole) ++
           fileObject(detail.file) ++
-          detail.relatedSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key))
+          detail.relatedSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)) ++
+          Option
+            .when(anchor.kind == BoardAnchorKind.CounterplayRestraint)(detail.subjectColor)
+            .flatten
+            .toList
+            .flatMap(color => objectOf(EvidenceObjectKind.Side, colorKey(color)))
       ) ++
         Option.when(detail.isEmpty)(anchor.focusSquares).toList.flatten.flatMap(square =>
           objectOf(EvidenceObjectKind.Square, square.key)
@@ -1498,10 +1503,10 @@ object StrategicMechanismEvidence:
         List(
           mechanism -> signal(
             StrategicMechanismSignalKind.StrategicFact,
-            kind.toString,
+            strategicFactSignalLabel(payload),
             record.ref,
             math.round(confidence * 5).toInt.max(1),
-            concreteAxis(record, strategicFactAxis(kind))
+            concreteAxis(record, strategicFactAxis(payload))
           )
         )
       case payload: PawnStructureFactEvidence if pawnStructureCanAnchorPlan(payload) =>
@@ -1575,6 +1580,15 @@ object StrategicMechanismEvidence:
               concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Activity, StrategicAxisPolarity.Gain, "activity-gain"))
             )
           ),
+          Option.when(payload.hasOutpostGain)(
+            StrategicMechanismKind.Activity -> signal(
+              StrategicMechanismSignalKind.StructuralDelta,
+              "outpost-gain",
+              record.ref,
+              3,
+              concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Activity, StrategicAxisPolarity.Gain, "outpost-gain"))
+            )
+          ),
           Option.when(
             payload.hasAnyConsequence(
               Set(
@@ -1594,6 +1608,15 @@ object StrategicMechanismEvidence:
               record.ref,
               2,
               concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Activity, StrategicAxisPolarity.Loss, "activity-loss"))
+            )
+          ),
+          Option.when(payload.hasConsequence(TransitionConsequenceKind.OutpostConcession))(
+            StrategicMechanismKind.Activity -> signal(
+              StrategicMechanismSignalKind.StructuralDelta,
+              "outpost-concession",
+              record.ref,
+              3,
+              concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Activity, StrategicAxisPolarity.Loss, "outpost-concession"))
             )
           ),
           Option.when(payload.hasPawnStructureDelta)(
@@ -1758,6 +1781,9 @@ object StrategicMechanismEvidence:
       case payload: StrategicFactEvidence =>
         payload.relatedPlans.nonEmpty ||
           payload.boardAnchors.exists(anchor => anchor.targetHintSquares.nonEmpty || anchor.focusSquares.nonEmpty) ||
+          payload.boardAnchors.exists(anchor =>
+            anchor.kind == BoardAnchorKind.CounterplayRestraint && anchor.detail.exists(_.subjectColor.nonEmpty)
+          ) ||
           payload.facts.exists(factHasAxisSubject)
       case payload: PawnStructureFactEvidence =>
         payload.alignment.exists(_.matchedPlanIds.nonEmpty) ||
@@ -1790,22 +1816,30 @@ object StrategicMechanismEvidence:
       focus.subjectSquares.nonEmpty ||
       fact.isInstanceOf[Fact.FileControl]
 
-  private def strategicFactAxis(kind: StrategicFactKind): Option[StrategicAxisDetail] =
-    kind match
+  private def strategicFactAxis(payload: StrategicFactEvidence): Option[StrategicAxisDetail] =
+    payload.kind match
       case StrategicFactKind.TargetFixation =>
-        Some(StrategicAxisDetail(StrategicAxisKind.Target, StrategicAxisPolarity.Support, kind.toString))
+        Some(StrategicAxisDetail(StrategicAxisKind.Target, StrategicAxisPolarity.Support, payload.kind.toString))
       case StrategicFactKind.CounterplayRestraint =>
-        Some(StrategicAxisDetail(StrategicAxisKind.Counterplay, StrategicAxisPolarity.Restrain, kind.toString))
+        Some(StrategicAxisDetail(StrategicAxisKind.Counterplay, StrategicAxisPolarity.Restrain, strategicFactSignalLabel(payload)))
       case StrategicFactKind.Space =>
-        Some(StrategicAxisDetail(StrategicAxisKind.SpaceCenter, StrategicAxisPolarity.Support, kind.toString))
+        Some(StrategicAxisDetail(StrategicAxisKind.SpaceCenter, StrategicAxisPolarity.Support, payload.kind.toString))
       case StrategicFactKind.Structure =>
         None
       case StrategicFactKind.Activity | StrategicFactKind.Outpost | StrategicFactKind.FileControl =>
-        Some(StrategicAxisDetail(StrategicAxisKind.Activity, StrategicAxisPolarity.Support, kind.toString))
+        Some(StrategicAxisDetail(StrategicAxisKind.Activity, StrategicAxisPolarity.Support, payload.kind.toString))
       case StrategicFactKind.PlanPressure =>
-        Some(StrategicAxisDetail(StrategicAxisKind.PlanCoherence, StrategicAxisPolarity.Support, kind.toString))
+        Some(StrategicAxisDetail(StrategicAxisKind.PlanCoherence, StrategicAxisPolarity.Support, payload.kind.toString))
       case StrategicFactKind.Practicality | StrategicFactKind.Compensation | StrategicFactKind.Endgame =>
         None
+
+  private def strategicFactSignalLabel(payload: StrategicFactEvidence): String =
+    payload.kind match
+      case StrategicFactKind.CounterplayRestraint
+          if payload.boardAnchors.exists(_.signal == BoardAnchorSignal.OpponentLowMobility) =>
+        "opponent-low-mobility"
+      case _ =>
+        payload.kind.toString
 
   private def pawnPlayAxis(pawnPlay: PawnPlayAnalysis): Option[StrategicAxisDetail] =
     pawnPlay.primaryDriver match

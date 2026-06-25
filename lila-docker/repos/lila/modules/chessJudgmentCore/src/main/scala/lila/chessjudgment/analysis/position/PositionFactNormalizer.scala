@@ -473,7 +473,14 @@ object PositionFactNormalizer:
         BoardAnchor(BoardAnchorKind.Activity, side, BoardAnchorSignal.MobilityEdge, mobilityEdge, 0.70)
       ),
       Option.when(opponentLowMobility >= 2)(
-        BoardAnchor(BoardAnchorKind.CounterplayRestraint, side, BoardAnchorSignal.OpponentLowMobility, opponentLowMobility, 0.72)
+        BoardAnchor(
+          BoardAnchorKind.CounterplayRestraint,
+          side,
+          BoardAnchorSignal.OpponentLowMobility,
+          opponentLowMobility,
+          0.72,
+          detail = Some(BoardAnchorDetail(subjectColor = Some(opponent)))
+        )
       ),
       Option.when(opponentExposure >= 2)(
         BoardAnchor(BoardAnchorKind.KingSafety, side, BoardAnchorSignal.KingExposure, opponentExposure, 0.72)

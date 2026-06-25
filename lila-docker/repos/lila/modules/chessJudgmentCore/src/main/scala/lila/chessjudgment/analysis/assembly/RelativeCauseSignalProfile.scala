@@ -355,6 +355,10 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
         RelativeCauseKind.CenterControlGain
       case StrategicAxisKind.PawnBreak =>
         RelativeCauseKind.PawnBreakOpportunity
+      case StrategicAxisKind.Activity =>
+        RelativeCauseKind.ActivityGain
+      case StrategicAxisKind.Counterplay if axis.polarity == StrategicAxisPolarity.Restrain =>
+        RelativeCauseKind.OpponentRestriction
       case StrategicAxisKind.Counterplay if axis.label.contains("king-safety") =>
         RelativeCauseKind.KingSafetyConcession
       case StrategicAxisKind.PlanCoherence =>
@@ -390,6 +394,8 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
         RelativeCauseKind.PawnBreakOpportunity
       case StrategicAxisKind.Activity =>
         RelativeCauseKind.ActivityLoss
+      case StrategicAxisKind.Counterplay if axis.polarity == StrategicAxisPolarity.Restrain =>
+        RelativeCauseKind.OpponentRestriction
       case StrategicAxisKind.Counterplay if axis.label.contains("king-safety") =>
         RelativeCauseKind.KingSafetyConcession
       case StrategicAxisKind.PlanCoherence =>
@@ -417,7 +423,8 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
       case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.TargetPressureRelease |
           RelativeCauseKind.CenterControlGain |
           RelativeCauseKind.PawnWeaknessTarget | RelativeCauseKind.PawnBreakOpportunity |
-          RelativeCauseKind.ActivityLoss | RelativeCauseKind.KingSafetyConcession =>
+          RelativeCauseKind.ActivityGain | RelativeCauseKind.ActivityLoss | RelativeCauseKind.OpponentRestriction |
+          RelativeCauseKind.KingSafetyConcession =>
         true
       case _ =>
         false
@@ -478,6 +485,8 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
               RelativeCauseKind.SacrificeCompensation | RelativeCauseKind.StructuralImprovement |
               RelativeCauseKind.TargetPressureGain | RelativeCauseKind.CenterControlGain |
               RelativeCauseKind.PawnWeaknessTarget | RelativeCauseKind.PawnBreakOpportunity |
+              RelativeCauseKind.ActivityGain |
+              RelativeCauseKind.OpponentRestriction |
               RelativeCauseKind.PlanImprovement |
               RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource =>
             CauseAttributionKind.CandidateCreatesValue
@@ -495,7 +504,7 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
               RelativeCauseKind.TempoLoss | RelativeCauseKind.TacticalRefutationOfPlayed |
               RelativeCauseKind.CandidateTacticalLiability | RelativeCauseKind.MaterialSwing |
               RelativeCauseKind.PlanContradiction | RelativeCauseKind.TargetPressureRelease |
-              RelativeCauseKind.ActivityLoss |
+              RelativeCauseKind.ActivityLoss | RelativeCauseKind.OpponentRestriction |
               RelativeCauseKind.StrategicConcession | RelativeCauseKind.KingSafetyConcession =>
             CauseAttributionKind.CandidateAllowsLiability
           case _ =>
@@ -516,7 +525,8 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
       case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.TargetPressureRelease |
           RelativeCauseKind.CenterControlGain |
           RelativeCauseKind.KingSafetyConcession | RelativeCauseKind.PawnWeaknessTarget |
-          RelativeCauseKind.PawnBreakOpportunity | RelativeCauseKind.ActivityLoss |
+          RelativeCauseKind.PawnBreakOpportunity | RelativeCauseKind.ActivityGain | RelativeCauseKind.ActivityLoss |
+          RelativeCauseKind.OpponentRestriction |
           RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction |
           RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.StrategicConcession |
           RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured =>
