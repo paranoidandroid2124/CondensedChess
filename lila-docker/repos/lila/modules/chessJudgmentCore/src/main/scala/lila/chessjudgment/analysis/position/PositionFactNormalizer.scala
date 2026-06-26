@@ -368,14 +368,19 @@ object PositionFactNormalizer:
             )
           )
         )
-      case Fact.RookEndgamePattern(_, _) =>
+      case Fact.RookEndgamePattern(pattern, _, primaryPattern) =>
         Some(
           BoardAnchor(
             kind = BoardAnchorKind.EndgameTechnique,
             side = side,
             signal = BoardAnchorSignal.EndgameRookPattern,
             magnitude = 2,
-            confidence = 0.74
+            confidence = 0.74,
+            detail = Some(
+              BoardAnchorDetail(
+                tags = (List(s"rook-pattern:$pattern") ++ primaryPattern.map(pattern => s"pattern:$pattern")).distinct
+              )
+            )
           )
         )
       case Fact.EndgameOutcome(_, confidence, _) =>

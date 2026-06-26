@@ -1136,7 +1136,8 @@ final case class BoardAnchorDetail(
     file: Option[EvidenceFile] = None,
     axis: Option[BoardAnchorAxis] = None,
     isAbsolute: Option[Boolean] = None,
-    materialLossCp: Option[Int] = None
+    materialLossCp: Option[Int] = None,
+    tags: List[String] = Nil
 ):
   def focusSquares: List[EvidenceSquare] =
     (
@@ -1179,7 +1180,7 @@ final case class BoardAnchor(
             .when(detail.relatedSquares.nonEmpty)(s"related:${detail.relatedSquares.map(_.key).sorted.mkString(",")}"),
           detail.file.map(file => s"file:${file.key}"),
           detail.axis.map(axis => s"axis:$axis")
-        ).flatten
+        ).flatten ++ detail.tags
       )
     EvidenceSemanticAnchor.of(
       EvidenceSemanticAnchorKind.BoardAnchor,

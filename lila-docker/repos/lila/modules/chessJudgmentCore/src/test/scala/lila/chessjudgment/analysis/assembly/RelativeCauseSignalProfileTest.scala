@@ -665,6 +665,149 @@ class RelativeCauseSignalProfileTest extends munit.FunSuite:
     val drafts = RelativeCauseDraftPlanner.drafts(profile)
     assertEquals(drafts.map(_.kind), Nil)
 
+  test("maps candidate positive activity axis to concrete activity gain"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+    val candidateLine = LineNodeRef("candidate-line", "d2d4", 2, LineNodeRole.Alternative)
+    val activitySource = EvidenceRef(
+      id = "strategic-mechanism:activity-gain:candidate",
+      producer = EvidenceProducer.StrategicMechanismProducer,
+      layer = EvidenceLayer.StrategicMechanism,
+      position = root,
+      line = Some(candidateLine),
+      scope = EvidenceScope.Counterfactual,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val contrastRecord = strategicContrastRecord(
+      root = root,
+      referenceLine = referenceLine,
+      candidateLine = candidateLine,
+      comparisons = List(
+        strategicAxisComparison(
+          StrategicAxisDetail(StrategicAxisKind.Activity, StrategicAxisPolarity.Gain, "activity-gain"),
+          StrategicAxisComparisonOutcome.CandidateOnly,
+          candidateSources = List(activitySource)
+        )
+      ),
+      planComparison = None,
+      comparisonKind = CandidateComparisonKind.PlayedVsAlternative
+    )
+    val profile = candidateBetterProfile(referenceLine, candidateLine, List(contrastRecord))
+
+    val drafts = RelativeCauseDraftPlanner.drafts(profile)
+    assertEquals(drafts.map(_.kind), List(RelativeCauseKind.ActivityGain))
+    assertEquals(drafts.map(_.sourceSide), List(Some(RelativeCauseSourceSide.Candidate)))
+
+  test("maps candidate positive counterplay restraint axis to opponent restriction"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+    val candidateLine = LineNodeRef("candidate-line", "h2h3", 2, LineNodeRole.Alternative)
+    val restraintSource = EvidenceRef(
+      id = "strategic-mechanism:counterplay-restraint:candidate",
+      producer = EvidenceProducer.StrategicMechanismProducer,
+      layer = EvidenceLayer.StrategicMechanism,
+      position = root,
+      line = Some(candidateLine),
+      scope = EvidenceScope.Counterfactual,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val contrastRecord = strategicContrastRecord(
+      root = root,
+      referenceLine = referenceLine,
+      candidateLine = candidateLine,
+      comparisons = List(
+        strategicAxisComparison(
+          StrategicAxisDetail(StrategicAxisKind.Counterplay, StrategicAxisPolarity.Restrain, "opponent-low-mobility"),
+          StrategicAxisComparisonOutcome.CandidateOnly,
+          candidateSources = List(restraintSource)
+        )
+      ),
+      planComparison = None,
+      comparisonKind = CandidateComparisonKind.PlayedVsAlternative
+    )
+    val profile = candidateBetterProfile(referenceLine, candidateLine, List(contrastRecord))
+
+    val drafts = RelativeCauseDraftPlanner.drafts(profile)
+    assertEquals(drafts.map(_.kind), List(RelativeCauseKind.OpponentRestriction))
+    assertEquals(drafts.map(_.sourceSide), List(Some(RelativeCauseSourceSide.Candidate)))
+
+  test("maps candidate positive counterplay support axis without requiring plan improvement"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+    val candidateLine = LineNodeRef("candidate-line", "h2h3", 2, LineNodeRole.Alternative)
+    val counterplaySource = EvidenceRef(
+      id = "strategic-mechanism:counterplay-race:candidate",
+      producer = EvidenceProducer.StrategicMechanismProducer,
+      layer = EvidenceLayer.StrategicMechanism,
+      position = root,
+      line = Some(candidateLine),
+      scope = EvidenceScope.Counterfactual,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val contrastRecord = strategicContrastRecord(
+      root = root,
+      referenceLine = referenceLine,
+      candidateLine = candidateLine,
+      comparisons = List(
+        strategicAxisComparison(
+          StrategicAxisDetail(StrategicAxisKind.Counterplay, StrategicAxisPolarity.Support, "counterplay-race"),
+          StrategicAxisComparisonOutcome.CandidateOnly,
+          candidateSources = List(counterplaySource)
+        )
+      ),
+      planComparison = None,
+      comparisonKind = CandidateComparisonKind.PlayedVsAlternative
+    )
+    val profile = candidateBetterProfile(referenceLine, candidateLine, List(contrastRecord))
+
+    val drafts = RelativeCauseDraftPlanner.drafts(profile)
+    assertEquals(drafts.map(_.kind), List(RelativeCauseKind.StructuralImprovement))
+    assertEquals(drafts.map(_.sourceSide), List(Some(RelativeCauseSourceSide.Candidate)))
+
+  test("keeps plan improvement as a companion only when counterplay support has a plan delta"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+    val candidateLine = LineNodeRef("candidate-line", "h2h3", 2, LineNodeRole.Alternative)
+    val counterplaySource = EvidenceRef(
+      id = "strategic-mechanism:counterplay-race:candidate-plan",
+      producer = EvidenceProducer.StrategicMechanismProducer,
+      layer = EvidenceLayer.StrategicMechanism,
+      position = root,
+      line = Some(candidateLine),
+      scope = EvidenceScope.Counterfactual,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val contrastRecord = strategicContrastRecord(
+      root = root,
+      referenceLine = referenceLine,
+      candidateLine = candidateLine,
+      comparisons = List(
+        strategicAxisComparison(
+          StrategicAxisDetail(StrategicAxisKind.Counterplay, StrategicAxisPolarity.Support, "counterplay-race"),
+          StrategicAxisComparisonOutcome.CandidateOnly,
+          candidateSources = List(counterplaySource)
+        ),
+        strategicAxisComparison(
+          StrategicAxisDetail(StrategicAxisKind.PlanCoherence, StrategicAxisPolarity.Support, "FlankCounterplay"),
+          StrategicAxisComparisonOutcome.CandidateOnly,
+          candidateSources = List(counterplaySource)
+        )
+      ),
+      planComparison = Some(
+        StrategicPlanComparison(
+          referencePlanIds = Nil,
+          candidatePlanIds = List("FlankCounterplay"),
+          outcome = StrategicAxisComparisonOutcome.CandidateOnly
+        )
+      ),
+      comparisonKind = CandidateComparisonKind.PlayedVsAlternative
+    )
+    val profile = candidateBetterProfile(referenceLine, candidateLine, List(contrastRecord))
+
+    val drafts = RelativeCauseDraftPlanner.drafts(profile)
+    assertEquals(drafts.map(_.kind).toSet, Set(RelativeCauseKind.StructuralImprovement, RelativeCauseKind.PlanImprovement))
+    assertEquals(drafts.flatMap(_.sourceSide).toSet, Set(RelativeCauseSourceSide.Candidate))
+
   test("uses plan comparison as the single source for plan contradiction"):
     val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
     val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
@@ -756,6 +899,32 @@ class RelativeCauseSignalProfileTest extends munit.FunSuite:
       ),
       referenceRecords = records,
       candidateRecords = Nil,
+      sharedRecords = Nil
+    )
+
+  private def candidateBetterProfile(
+      referenceLine: LineNodeRef,
+      candidateLine: LineNodeRef,
+      records: List[EvidenceRecord]
+  ): RelativeCauseSignalProfile =
+    RelativeCauseSignalProfile.from(
+      fact = CandidateComparisonFact(
+        kind = CandidateComparisonKind.PlayedVsAlternative,
+        referenceLine = referenceLine,
+        candidateLine = candidateLine,
+        comparison = EvalComparison(
+          mover = Color.White,
+          referenceLine = referenceLine,
+          candidateLine = candidateLine,
+          rawCandidateDeltaCpForDiagnostics = 35,
+          candidateWinPercentDeltaForMover = 3.5,
+          rawCpLossForDiagnostics = -35,
+          winPercentLossForMover = -3.5,
+          verdict = MoveChoiceVerdict.ImprovesOnReference
+        )
+      ),
+      referenceRecords = Nil,
+      candidateRecords = records,
       sharedRecords = Nil
     )
 

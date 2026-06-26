@@ -757,6 +757,9 @@ final case class ComparisonMoveJudgmentViewDiagnostics(
     primaryPunishmentWitnessCauseKinds: List[RelativeCauseKind],
     primaryContextualTacticalWitnessCauseKinds: List[RelativeCauseKind],
     primaryRootCauseEvidenceIds: List[String],
+    rootArbitrationTiers: List[MoveJudgmentCauseRootArbitrationTier] = Nil,
+    primaryRootArbitrationTiers: List[MoveJudgmentCauseRootArbitrationTier] = Nil,
+    primaryRootCauseEvidenceIdTierSignatures: List[String] = Nil,
     primaryTacticalWitnessCauseEvidenceIds: List[String],
     primaryPunishmentWitnessCauseEvidenceIds: List[String],
     primaryContextualTacticalWitnessCauseEvidenceIds: List[String],
@@ -766,7 +769,19 @@ final case class ComparisonMoveJudgmentViewDiagnostics(
     playableLossPrimaryCauseEvidenceIds: List[String],
     objectlessPrimaryCauseEvidenceIds: List[String],
     objectlessSecondaryCauseEvidenceIds: List[String],
-    objectlessContextCauseEvidenceIds: List[String]
+    objectlessContextCauseEvidenceIds: List[String],
+    positionPlanTechniqueFrameIds: List[String] = Nil,
+    positionPlanTechniqueUnits: List[PositionPlanTechniqueUnit] = Nil,
+    positionPlanTechniqueAxisKeys: List[String] = Nil,
+    positionPlanTechniqueSemanticDetailUnits: List[PositionPlanTechniqueUnit] = Nil,
+    positionPlanTechniqueSemanticDetailAxisKeys: List[String] = Nil,
+    positionPlanTechniqueSemanticDetailMechanismKinds: List[StrategicMechanismKind] = Nil,
+    positionPlanTechniqueSemanticDetailAnchorKeys: List[String] = Nil,
+    positionPlanTechniqueSemanticDetailTokens: List[String] = Nil,
+    positionPlanTechniqueSemanticDetailTokenGroups: List[List[String]] = Nil,
+    positionPlanTechniqueObjectBindingSignatures: List[String] = Nil,
+    positionPlanTechniqueEvidenceIds: List[String] = Nil,
+    positionPlanTechniqueRelativeCauseEvidenceIds: List[String] = Nil
 ):
   val hasPrimaryCause: Boolean = primaryCauseKinds.nonEmpty
 
@@ -1379,7 +1394,7 @@ object CandidateComparisonDiagnostic:
             missingExpectedCauseHints = advisoryCauseHints,
             validationIssueIds = validationIssueIds
           )
-        val moveJudgmentViewDiagnostics = moveJudgmentViewDiagnosticsFor(packet, fact)
+        val moveJudgmentViewDiagnostics = moveJudgmentViewDiagnosticsFor(packet, fact, ref.position)
         val tacticalLossTrace =
           tacticalLossTraceFor(packet, fact, neighborhood, matchingCauseRecords)
         val secondaryContextGap =
@@ -1459,7 +1474,8 @@ object CandidateComparisonDiagnostic:
 
   private def moveJudgmentViewDiagnosticsFor(
       packet: EvidenceBackedJudgmentPacket,
-      fact: CandidateComparisonFact
+      fact: CandidateComparisonFact,
+      comparisonPosition: PositionNodeRef
   ): ComparisonMoveJudgmentViewDiagnostics =
     val primaryFrames = comparisonCauseFrames(packet, fact, _.primaryCauses)
     val secondaryFrames = comparisonCauseFrames(packet, fact, _.secondaryCauses)
@@ -1471,6 +1487,9 @@ object CandidateComparisonDiagnostic:
       primaryTacticalWitnessFrames.filter(_.witnessBindingLevel == MoveJudgmentCauseWitnessBindingLevel.Punishment)
     val primaryContextualTacticalWitnessFrames =
       primaryTacticalWitnessFrames.filterNot(_.witnessBindingLevel == MoveJudgmentCauseWitnessBindingLevel.Punishment)
+    val planTechniqueFrames = comparisonPositionPlanTechniqueFrames(packet, fact, comparisonPosition)
+    val allFrames = primaryFrames ++ secondaryFrames ++ contextFrames
+    val primaryRootFrames = primaryFrames.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.RootCause)
     ComparisonMoveJudgmentViewDiagnostics(
       primaryCauseKinds = primaryFrames.map(_.causeKind).distinct,
       secondaryCauseKinds = secondaryFrames.map(_.causeKind).distinct,
@@ -1483,12 +1502,23 @@ object CandidateComparisonDiagnostic:
       primaryUnframedCauseKinds = primaryFrames.filterNot(_.framed).map(_.causeKind).distinct,
       primaryRootCauseKinds =
         primaryFrames.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.RootCause).map(_.causeKind).distinct,
-      primaryTacticalWitnessCauseKinds = primaryPunishmentWitnessFrames.map(_.causeKind).distinct,
+      primaryTacticalWitnessCauseKinds = primaryTacticalWitnessFrames.map(_.causeKind).distinct,
       primaryPunishmentWitnessCauseKinds = primaryPunishmentWitnessFrames.map(_.causeKind).distinct,
       primaryContextualTacticalWitnessCauseKinds = primaryContextualTacticalWitnessFrames.map(_.causeKind).distinct,
       primaryRootCauseEvidenceIds =
-        primaryFrames.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.RootCause).flatMap(_.causeEvidenceIds).distinct.sorted,
-      primaryTacticalWitnessCauseEvidenceIds = primaryPunishmentWitnessFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
+        primaryRootFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
+      rootArbitrationTiers = allFrames.map(_.rootArbitrationTier).sortBy(_.toString),
+      primaryRootArbitrationTiers = primaryRootFrames.map(_.rootArbitrationTier).sortBy(_.toString),
+      primaryRootCauseEvidenceIdTierSignatures =
+        primaryRootFrames
+          .flatMap(frame =>
+            frame.causeEvidenceIds.distinct.sorted.map(causeEvidenceId =>
+              primaryRootCauseEvidenceIdTierSignature(causeEvidenceId, frame.rootArbitrationTier)
+            )
+          )
+          .distinct
+          .sorted,
+      primaryTacticalWitnessCauseEvidenceIds = primaryTacticalWitnessFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
       primaryPunishmentWitnessCauseEvidenceIds = primaryPunishmentWitnessFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
       primaryContextualTacticalWitnessCauseEvidenceIds =
         primaryContextualTacticalWitnessFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
@@ -1501,8 +1531,208 @@ object CandidateComparisonDiagnostic:
       objectlessPrimaryCauseEvidenceIds = primaryFrames.filterNot(_.concreteObjectReady).flatMap(_.causeEvidenceIds).distinct.sorted,
       objectlessSecondaryCauseEvidenceIds =
         secondaryFrames.filterNot(_.concreteObjectReady).flatMap(_.causeEvidenceIds).distinct.sorted,
-      objectlessContextCauseEvidenceIds = contextFrames.filterNot(_.concreteObjectReady).flatMap(_.causeEvidenceIds).distinct.sorted
+      objectlessContextCauseEvidenceIds = contextFrames.filterNot(_.concreteObjectReady).flatMap(_.causeEvidenceIds).distinct.sorted,
+      positionPlanTechniqueFrameIds = planTechniqueFrames.map(_.id).distinct.sorted,
+      positionPlanTechniqueUnits = planTechniqueFrames.flatMap(_.units).distinct.sortBy(_.toString),
+      positionPlanTechniqueAxisKeys = planTechniqueFrames.flatMap(_.strategicAxisKeys).distinct.sorted,
+      positionPlanTechniqueSemanticDetailUnits =
+        planTechniqueFrames.flatMap(_.semanticDetails.map(_.unit)).distinct.sortBy(_.toString),
+      positionPlanTechniqueSemanticDetailAxisKeys =
+        planTechniqueFrames.flatMap(_.semanticDetails.flatMap(_.axisKey)).distinct.sorted,
+      positionPlanTechniqueSemanticDetailMechanismKinds =
+        planTechniqueFrames.flatMap(_.semanticDetails.flatMap(_.mechanismKinds)).distinct.sortBy(_.toString),
+      positionPlanTechniqueSemanticDetailAnchorKeys =
+        planTechniqueFrames.flatMap(_.semanticDetails.flatMap(_.semanticAnchorKeys)).distinct.sorted,
+      positionPlanTechniqueSemanticDetailTokens =
+        positionPlanTechniqueSemanticDetailTokens(planTechniqueFrames),
+      positionPlanTechniqueSemanticDetailTokenGroups =
+        positionPlanTechniqueSemanticDetailTokenGroups(planTechniqueFrames),
+      positionPlanTechniqueObjectBindingSignatures =
+        planTechniqueFrames.flatMap(_.objectBindings.map(_.signature)).distinct.sorted,
+      positionPlanTechniqueEvidenceIds = planTechniqueFrames.flatMap(_.evidenceIds).distinct.sorted,
+      positionPlanTechniqueRelativeCauseEvidenceIds = planTechniqueFrames.flatMap(_.relativeCauseEvidenceIds).distinct.sorted
     )
+
+  private def primaryRootCauseEvidenceIdTierSignature(
+      causeEvidenceId: String,
+      tier: MoveJudgmentCauseRootArbitrationTier
+  ): String =
+    s"$causeEvidenceId|tier=$tier"
+
+  private def comparisonPositionPlanTechniqueFrames(
+      packet: EvidenceBackedJudgmentPacket,
+      fact: CandidateComparisonFact,
+      comparisonPosition: PositionNodeRef
+  ): List[PositionPlanTechniqueFrame] =
+    val comparisonLines = Set(fact.referenceLine, fact.candidateLine)
+    val comparisonCauseIds =
+      relativeCauseDiagnosticRecords(packet)
+        .collect { case record if relativeCauseMatchesComparison(record.cause, fact) => record.id }
+        .toSet
+    packet.moveJudgmentView.toList
+      .flatMap(_.positionPlanTechniqueFrames)
+      .filter(frame =>
+        frameMechanismContrastMatchesComparison(packet, frame, fact) ||
+          frame.relativeCauseEvidenceIds.exists(comparisonCauseIds.contains) ||
+          (frameMechanismContrastEvidenceIds(packet, frame).isEmpty && frame.line.exists(comparisonLines.contains)) ||
+          (
+            frame.line.isEmpty &&
+              frame.relativeCauseEvidenceIds.isEmpty &&
+              frameMechanismContrastEvidenceIds(packet, frame).isEmpty &&
+              (frame.scope == EvidenceScope.CurrentPosition || frame.scope == EvidenceScope.BeforePosition) &&
+              frame.position == comparisonPosition
+          )
+      )
+      .distinctBy(_.id)
+      .sortBy(_.id)
+
+  private def frameMechanismContrastMatchesComparison(
+      packet: EvidenceBackedJudgmentPacket,
+      frame: PositionPlanTechniqueFrame,
+      fact: CandidateComparisonFact
+  ): Boolean =
+    frameMechanismContrastEvidenceIds(packet, frame).exists(id =>
+      packet.evidenceGraph.byId.get(id).exists {
+        case EvidenceRecord(_, payload: StrategicMechanismContrastEvidence, _) =>
+          payload.comparisonKind == fact.kind &&
+            payload.referenceLine == fact.referenceLine &&
+            payload.candidateLine == fact.candidateLine
+        case _ =>
+          false
+      }
+    )
+
+  private def frameMechanismContrastEvidenceIds(
+      packet: EvidenceBackedJudgmentPacket,
+      frame: PositionPlanTechniqueFrame
+  ): Set[String] =
+    (frame.mechanismEvidenceIds ++ frame.evidenceIds).toSet.filter(id =>
+      packet.evidenceGraph.byId.get(id).exists {
+        case EvidenceRecord(_, _: StrategicMechanismContrastEvidence, _) => true
+        case _                                                           => false
+      }
+    )
+
+  private def positionPlanTechniqueSemanticDetailTokens(frames: List[PositionPlanTechniqueFrame]): List[String] =
+    frames.flatMap(_.semanticDetails.flatMap(positionPlanTechniqueSemanticDetailTokens)).distinct.sorted
+
+  private def positionPlanTechniqueSemanticDetailTokenGroups(frames: List[PositionPlanTechniqueFrame]): List[List[String]] =
+    frames
+      .flatMap(_.semanticDetails.map(positionPlanTechniqueSemanticDetailTokens))
+      .map(_.distinct.sorted)
+      .filter(_.nonEmpty)
+      .distinct
+      .sortBy(_.mkString("\u0000"))
+
+  private def positionPlanTechniqueSemanticDetailTokens(detail: PositionPlanTechniqueSemanticDetail): List[String] =
+    (
+      List(
+        Some(s"unit:${detail.unit}"),
+        detail.axisKey.map(value => s"axisKey:$value"),
+        detail.axisKind.map(value => s"axisKind:$value"),
+        detail.axisPolarity.map(value => s"axisPolarity:$value"),
+        detail.label.map(value => s"label:$value"),
+        detail.contrastOutcome.map(value => s"contrastOutcome:$value"),
+        detail.referenceStrength.map(value => s"referenceStrength:$value"),
+        detail.candidateStrength.map(value => s"candidateStrength:$value"),
+        detail.narrativeHorizon.map(value => s"narrativeHorizon:$value"),
+        detail.raceLeadingLineRole.map(value => s"raceLeadingLineRole:$value"),
+        detail.raceReferenceRootMove.map(value => s"raceReferenceRootMove:$value"),
+        detail.raceCandidateRootMove.map(value => s"raceCandidateRootMove:$value"),
+        detail.threatKind.map(value => s"threatKind:$value"),
+        detail.threatDriver.map(value => s"threatDriver:$value"),
+        detail.threatSeverity.map(value => s"threatSeverity:$value"),
+        detail.turnsToImpact.map(value => s"turnsToImpact:$value"),
+        detail.defenseMove.map(value => s"defenseMove:$value"),
+        detail.prophylaxisNeeded.map(value => s"prophylaxisNeeded:$value"),
+        detail.maxWinPercentLossIfIgnored.map(value => s"maxWinPercentLossIfIgnored:$value"),
+        detail.pawnBreakReady.map(value => s"pawnBreakReady:$value"),
+        detail.breakFile.map(value => s"breakFile:$value"),
+        detail.breakImpact.map(value => s"breakImpact:$value"),
+        detail.advanceOrCapture.map(value => s"advanceOrCapture:$value"),
+        detail.passedPawnUrgency.map(value => s"passedPawnUrgency:$value"),
+        detail.passerBlockade.map(value => s"passerBlockade:$value"),
+        detail.blockadeSquare.map(value => s"blockadeSquare:$value"),
+        detail.blockadeRole.map(value => s"blockadeRole:$value"),
+        detail.pusherSupport.map(value => s"pusherSupport:$value"),
+        detail.minorityAttack.map(value => s"minorityAttack:$value"),
+        detail.counterBreak.map(value => s"counterBreak:$value"),
+        detail.tensionPolicy.map(value => s"tensionPolicy:$value"),
+        detail.pawnPlayDriver.map(value => s"pawnPlayDriver:$value"),
+        detail.planAlignmentScore.map(value => s"planAlignmentScore:$value"),
+        detail.planAlignmentBand.map(value => s"planAlignmentBand:$value"),
+        detail.openingPriorLineage.map(value => s"openingPriorLineage:$value"),
+        detail.openingPriorFamily.map(value => s"openingPriorFamily:$value"),
+        detail.openingPriorGambitCompensation.map(value => s"openingPriorGambitCompensation:$value"),
+        detail.openingPriorMatchSource.map(value => s"openingPriorMatchSource:$value"),
+        detail.openingPriorRequestedLineage.map(value => s"openingPriorRequestedLineage:$value"),
+        detail.openingPriorCanonicalLineage.map(value => s"openingPriorCanonicalLineage:$value"),
+        detail.openingPriorOpeningSpecific.map(value => s"openingPriorOpeningSpecific:$value"),
+        detail.openingPriorCanCertify.map(value => s"openingPriorCanCertify:$value"),
+        detail.resourceContestActorSide.map(value => s"resourceContestActorSide:$value"),
+        detail.resourceContestTargetSide.map(value => s"resourceContestTargetSide:$value"),
+        detail.resourceContestMagnitude.map(value => s"resourceContestMagnitude:$value"),
+        detail.structuralRouteMove.map(value => s"structuralRouteMove:$value"),
+        detail.structuralRouteRole.map(value => s"structuralRouteRole:$value"),
+        detail.structuralRoutePerspective.map(value => s"structuralRoutePerspective:$value"),
+        detail.structuralRouteFromPly.map(value => s"structuralRouteFromPly:$value"),
+        detail.structuralRouteToPly.map(value => s"structuralRouteToPly:$value"),
+        detail.structuralPurposeStrength.map(value => s"structuralPurposeStrength:$value"),
+        detail.anchorMagnitude.map(value => s"anchorMagnitude:$value"),
+        Some(s"specificityTier:${detail.specificityTier}")
+      ).flatten ++
+        detail.mechanismKinds.map(value => s"mechanismKind:$value") ++
+        detail.semanticAnchorKeys.map(value => s"semanticAnchor:$value") ++
+        detail.referenceEvidenceIds.map(value => s"referenceEvidenceId:$value") ++
+        detail.candidateEvidenceIds.map(value => s"candidateEvidenceId:$value") ++
+        detail.referencePlanIds.map(value => s"referencePlanId:$value") ++
+        detail.candidatePlanIds.map(value => s"candidatePlanId:$value") ++
+        detail.boardAnchorKinds.map(value => s"boardAnchorKind:$value") ++
+        detail.boardAnchorSignals.map(value => s"boardAnchorSignal:$value") ++
+        detail.requiredSquares.map(value => s"requiredSquare:$value") ++
+        detail.tensionSquares.map(value => s"tensionSquare:$value") ++
+        detail.matchedPlanIds.map(value => s"matchedPlanId:$value") ++
+        detail.missingPlanIds.map(value => s"missingPlanId:$value") ++
+        detail.planAlignmentReasonCodes.map(value => s"planAlignmentReasonCode:$value") ++
+        detail.openingPriorThemes.map(value => s"openingPriorTheme:$value") ++
+        detail.openingPriorTypicalPawnStructures.map(value => s"openingPriorTypicalPawnStructure:$value") ++
+        detail.openingPriorCenterBreaks.map(value => s"openingPriorCenterBreak:$value") ++
+        detail.openingPriorDevelopmentPriorities.map(value => s"openingPriorDevelopmentPriority:$value") ++
+        detail.openingPriorStrategicPlanPriors.map(value => s"openingPriorStrategicPlanPrior:$value") ++
+        detail.resourceContestKinds.map(value => s"resourceContestKind:$value") ++
+        detail.resourceContestSignals.map(value => s"resourceContestSignal:$value") ++
+        detail.resourceContestSquares.map(value => s"resourceContestSquare:$value") ++
+        detail.resourceContestFiles.map(value => s"resourceContestFile:$value") ++
+        detail.resourceContestScopes.map(value => s"resourceContestScope:$value") ++
+        detail.structuralPurposeConsequences.map(value => s"structuralPurposeConsequence:$value") ++
+        detail.structuralPurposeSubjects.map(value => s"structuralPurposeSubject:$value") ++
+        detail.structuralPurposeCategories.map(value => s"structuralPurposeCategory:$value") ++
+        detail.structuralPurposePolarities.map(value => s"structuralPurposePolarity:$value") ++
+        detail.causeEvidenceIds.map(value => s"causeEvidenceId:$value") ++
+        detail.proofRoles.map(value => s"proofRole:$value") ++
+        detail.objectBindingSignatures.flatMap(positionPlanTechniqueObjectBindingTokens) ++
+        detail.planAlignmentReasonWeights.toList
+          .sortBy(_._1)
+          .map { case (reason, weight) => s"planAlignmentReasonWeight:$reason=$weight" } ++
+        detail.sourceEvidenceIds.map(value => s"sourceEvidenceId:$value")
+    ).distinct.sorted
+
+  private def positionPlanTechniqueObjectBindingTokens(signature: String): List[String] =
+    signature
+      .split("\\|")
+      .toList
+      .collect {
+        case part if part.startsWith("actor=")       => s"objectActor:${part.stripPrefix("actor=")}"
+        case part if part.startsWith("target=")      => s"objectTarget:${part.stripPrefix("target=")}"
+        case part if part.startsWith("mechanism=")   => s"objectMechanism:${part.stripPrefix("mechanism=")}"
+        case part if part.startsWith("consequence=") => s"objectConsequence:${part.stripPrefix("consequence=")}"
+        case part if part.startsWith("witness=")     => s"objectWitness:${part.stripPrefix("witness=")}"
+      }
+
+  private def relativeCauseMatchesComparison(cause: RelativeCauseFact, fact: CandidateComparisonFact): Boolean =
+    cause.comparisonKind == fact.kind &&
+      cause.referenceLine == fact.referenceLine &&
+      cause.candidateLine == fact.candidateLine
 
   private def projectedContextCauseNoViewIds(
       packet: EvidenceBackedJudgmentPacket,
@@ -3580,6 +3810,7 @@ final case class SemanticCoverageMetrics(
     relativeCauseFacts: Int,
     moveVerdictCertifications: Int,
     playedRelatedComparisonFacts: Int,
+    primaryPlayedComparisonFacts: Int,
     playedRelativeCauseFacts: Int,
     planTransitionWithoutSnapshotPairIds: List[String],
     branchReplyProbeRequests: Int,
@@ -3779,6 +4010,7 @@ object SemanticCoverageMetrics:
       relativeCauseFacts = packet.evidenceGraph.records.count(_.ref.layer == EvidenceLayer.RelativeCause),
       moveVerdictCertifications = packet.evidenceGraph.records.count(_.ref.layer == EvidenceLayer.MoveVerdictCertification),
       playedRelatedComparisonFacts = playedComparisonRecords.size,
+      primaryPlayedComparisonFacts = primaryPlayedComparisonRecords.size,
       playedRelativeCauseFacts = playedCauseRecords.size,
       planTransitionWithoutSnapshotPairIds = planTransitionWithoutSnapshotPairIds,
       branchReplyProbeRequests = branchReplyProbeRequests.size,
@@ -5115,7 +5347,7 @@ object ChessQualityAudit:
           assessment.comparison.candidateSet.exists(_.onlyMove)
       )
     List(
-      Option.when(significantRelative && semantic.playedRelatedComparisonFacts == 0)(
+      Option.when(significantRelative && semantic.primaryPlayedComparisonFacts == 0)(
         ChessQualityIssue(ChessQualityIssueKind.MissingCandidateComparison, "candidate-comparison")
       )
     ).flatten

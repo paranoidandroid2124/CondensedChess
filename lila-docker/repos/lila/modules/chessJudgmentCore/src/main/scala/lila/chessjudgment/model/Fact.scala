@@ -144,7 +144,7 @@ object Fact {
         SquareFocus(subjectSquares = List(king), targetSquares = List(king), relatedSquares = List(king))
       case DoubleCheck(checkingSquares, _) =>
         SquareFocus(attackerSquares = unique(checkingSquares), relatedSquares = unique(checkingSquares), tacticalHintSquares = unique(checkingSquares))
-      case RookEndgamePattern(_, _) | EndgameOutcome(_, _, _) | Zugzwang(_, _) =>
+      case RookEndgamePattern(_, _, _) | EndgameOutcome(_, _, _) | Zugzwang(_, _) =>
         SquareFocus()
 
   enum WeakSquareReason:
@@ -345,7 +345,8 @@ object Fact {
   /** Canonical rook endgame pattern detected by the oracle. */
   case class RookEndgamePattern(
       pattern: RookEndgamePatternKind,
-      scope: FactScope
+      scope: FactScope,
+      primaryPattern: Option[String] = None
   ) extends Fact {
     def participants = Nil
   }

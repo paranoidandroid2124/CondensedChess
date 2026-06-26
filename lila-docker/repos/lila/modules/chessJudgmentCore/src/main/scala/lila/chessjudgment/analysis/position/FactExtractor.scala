@@ -188,7 +188,7 @@ object FactExtractor {
     }
 
     if (endgame.rookEndgamePattern != OracleRookPattern.None) {
-      facts += Fact.RookEndgamePattern(endgame.rookEndgamePattern, scope)
+      facts += Fact.RookEndgamePattern(endgame.rookEndgamePattern, scope, endgame.primaryPattern)
     }
 
     if (endgame.ruleOfSquare != RuleOfSquareStatus.NA) {

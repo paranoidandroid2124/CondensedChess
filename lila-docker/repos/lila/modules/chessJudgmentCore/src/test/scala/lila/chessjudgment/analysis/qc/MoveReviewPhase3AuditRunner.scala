@@ -72,7 +72,9 @@ private object MoveReviewPgnInputSamples:
       sampleId: String,
       pgn: String,
       snapshots: List[PgnMoveEngineSnapshot],
-      openingContext: Option[RawOpeningContext]
+      openingContext: Option[RawOpeningContext],
+      expectedSemanticSlots: List[JsValue],
+      expectedQuestionIds: List[String]
   )
 
   private final case class PgnMoveEngineSnapshot(
@@ -80,7 +82,16 @@ private object MoveReviewPgnInputSamples:
       beforePly: Int,
       variations: List[VariationLine],
       currentEvalCp: Option[Int],
-      openingContext: Option[RawOpeningContext]
+      openingContext: Option[RawOpeningContext],
+      expectedSemanticSlots: List[JsValue],
+      expectedQuestionIds: List[String]
+  )
+
+  private[qc] final case class RawSampleRow(
+      sampleId: String,
+      raw: RawMoveReviewInput,
+      expectedSemanticSlots: List[JsValue],
+      expectedQuestionIds: List[String]
   )
 
   private final case class MainlineMove(
@@ -102,12 +113,20 @@ private object MoveReviewPgnInputSamples:
         beforePly = beforePly,
         variations = variations,
         currentEvalCp = (json \ "currentEvalCp").asOpt[Int],
-        openingContext = RawOpeningContextJson.from(json)
+        openingContext = RawOpeningContextJson.from(json),
+        expectedSemanticSlots = (json \ "expectedSemanticSlots").asOpt[List[JsValue]].getOrElse(Nil),
+        expectedQuestionIds = parseExpectedQuestionIdValues(json)
       )
   }
 
   private[qc] def rawSamples(path: Path): List[(String, RawMoveReviewInput)] =
+    rawSampleRows(path).map(row => row.sampleId -> row.raw)
+
+  private[qc] def rawSampleRows(path: Path): List[RawSampleRow] =
     parseSamples(path).flatMap(expandRawSample)
+
+  private def parseExpectedQuestionIdValues(json: JsValue): List[String] =
+    (json \ "expectedQuestionIds").asOpt[List[String]].getOrElse(Nil).map(_.trim).filter(_.nonEmpty).distinct.sorted
 
   private def parseSamples(path: Path): List[ParsedPgnSample] =
     MoveReviewQualityInputFiles.parseJsonDocuments(path).zipWithIndex.map { case (json, index) =>
@@ -128,11 +147,13 @@ private object MoveReviewPgnInputSamples:
         sampleId = sampleId,
         pgn = pgn,
         snapshots = snapshots,
-        openingContext = RawOpeningContextJson.from(json)
+        openingContext = RawOpeningContextJson.from(json),
+        expectedSemanticSlots = (json \ "expectedSemanticSlots").asOpt[List[JsValue]].getOrElse(Nil),
+        expectedQuestionIds = parseExpectedQuestionIdValues(json)
       )
     }
 
-  private def expandRawSample(sample: ParsedPgnSample): List[(String, RawMoveReviewInput)] =
+  private def expandRawSample(sample: ParsedPgnSample): List[RawSampleRow] =
     val movesByPly = parseMainline(sample)
     sample.snapshots.map { snapshot =>
       val move = movesByPly.getOrElse(
@@ -148,7 +169,12 @@ private object MoveReviewPgnInputSamples:
         openingContext = snapshot.openingContext.orElse(sample.openingContext),
         movePrefixUci = move.movePrefixUci
       )
-      snapshot.sampleId.getOrElse(s"${sample.sampleId}:${snapshot.beforePly}") -> raw
+      RawSampleRow(
+        sampleId = snapshot.sampleId.getOrElse(s"${sample.sampleId}:${snapshot.beforePly}"),
+        raw = raw,
+        expectedSemanticSlots = sample.expectedSemanticSlots ++ snapshot.expectedSemanticSlots,
+        expectedQuestionIds = (sample.expectedQuestionIds ++ snapshot.expectedQuestionIds).distinct.sorted
+      )
     }
 
   private def parseMainline(sample: ParsedPgnSample): Map[Int, MainlineMove] =
@@ -203,8 +229,17 @@ object MoveReviewPgnRawInputRunner:
     val inputPath = Path.of(args(0))
     val outputPath = args.lift(1).map(Path.of(_))
     val lines =
-      MoveReviewPgnInputSamples.rawSamples(inputPath).map { case (sampleId, raw) =>
-        Json.stringify(Json.obj("sampleId" -> sampleId, "input" -> Json.toJson(raw)))
+      MoveReviewPgnInputSamples.rawSampleRows(inputPath).map { sample =>
+        val base = Json.obj("sampleId" -> sample.sampleId, "input" -> Json.toJson(sample.raw))
+        val row =
+          if sample.expectedSemanticSlots.nonEmpty then
+            base ++ Json.obj("expectedSemanticSlots" -> JsArray(sample.expectedSemanticSlots))
+          else base
+        val rowWithQuestions =
+          if sample.expectedQuestionIds.nonEmpty then
+            row ++ Json.obj("expectedQuestionIds" -> sample.expectedQuestionIds)
+          else row
+        Json.stringify(rowWithQuestions)
       }
     val output = lines.mkString(System.lineSeparator())
     outputPath match
@@ -244,15 +279,16 @@ object MoveReviewPhase3PlayedBindingSummary:
 
 object MoveReviewPhase3AuditRunner:
   import RawOpeningContextJson.given
+  import MoveReviewPhase3AuditContract.{
+    expectedSemanticSlotsJson,
+    parseExpectedQuestionIds,
+    parseExpectedSemanticSlots
+  }
 
-  private[qc] final case class AuditInputSample(
-      sampleId: String,
-      raw: RawMoveReviewInput,
-      opening: Option[String],
-      sliceKind: Option[String],
-      targetPly: Option[Int],
-      playedSan: Option[String]
-  )
+  private[qc] type AuditInputSample = MoveReviewPhase3AuditContract.AuditInputSample
+  private[qc] val AuditInputSample = MoveReviewPhase3AuditContract.AuditInputSample
+  private[qc] type ExpectedSemanticSlot = MoveReviewPhase3AuditContract.ExpectedSemanticSlot
+  private[qc] val ExpectedSemanticSlot = MoveReviewPhase3AuditContract.ExpectedSemanticSlot
 
   private given Writes[RawMoveReviewInput] = Json.writes[RawMoveReviewInput]
 
@@ -299,7 +335,7 @@ object MoveReviewPhase3AuditRunner:
         )
     }
     outputPath match
-      case Some(path) => writeJsonLines(path, rows.iterator.map(_.apply()))
+      case Some(path) => writeAuditRowsWithSummary(path, rows.iterator.map(_.apply()))
       case None       => rows.foreach(row => println(Json.stringify(row())))
 
   private[qc] def writeReplayInputArchive(outputPath: Path, samples: List[AuditInputSample]): Path =
@@ -312,7 +348,9 @@ object MoveReviewPhase3AuditRunner:
         "opening" -> sample.opening,
         "sliceKind" -> sample.sliceKind,
         "targetPly" -> sample.targetPly,
-        "playedSan" -> sample.playedSan
+        "playedSan" -> sample.playedSan,
+        "expectedSemanticSlots" -> expectedSemanticSlotsJson(sample.expectedSemanticSlots),
+        "expectedQuestionIds" -> sample.expectedQuestionIds
       )
     )
     writeJsonLines(path, rows)
@@ -329,6 +367,46 @@ object MoveReviewPhase3AuditRunner:
           s"${fileName.take(extensionStart)}.input_replay${fileName.drop(extensionStart)}"
         else s"$fileName.input_replay.jsonl"
     Option(outputPath.getParent).map(_.resolve(replayFileName)).getOrElse(Path.of(replayFileName))
+
+  private def writeAuditRowsWithSummary(path: Path, rows: Iterator[JsObject]): Unit =
+    val coverages = scala.collection.mutable.ListBuffer.empty[JsValue]
+    val writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)
+    try
+      var first = true
+      rows.foreach: row =>
+        if first then first = false else writer.newLine()
+        writer.write(Json.stringify(row))
+        semanticRubricCoverageFromAuditRow(row).foreach(coverages += _)
+    finally writer.close()
+    writeAuditSummary(summaryOutputPath(path), coverages.toList)
+
+  private def semanticRubricCoverageFromAuditRow(row: JsObject): Option[JsValue] =
+    (row \ "semanticCoverage" \ "semanticRubricExpectedSlotCoverage").toOption
+      .orElse((row \ "semanticRubricExpectedSlotCoverage").toOption)
+
+  private def writeAuditSummary(path: Path, coverages: List[JsValue]): Unit =
+    Files.writeString(
+      path,
+      Json.prettyPrint(
+        Json.obj(
+          "schemaVersion" -> "move_review_phase3_audit_summary.v1",
+          "semanticRubricExpectedSlotCorpusCoverage" -> semanticRubricExpectedSlotCorpusCoverageJson(coverages)
+        )
+      ),
+      StandardCharsets.UTF_8
+    )
+
+  private def summaryOutputPath(outputPath: Path): Path =
+    val fileName = outputPath.getFileName.toString
+    val summaryFileName =
+      val baseName =
+        if fileName.contains("phase3_audit_output") then
+          fileName.replaceFirst("phase3_audit_output", "phase3_audit_summary")
+        else fileName
+      if baseName.endsWith(".jsonl") then baseName.stripSuffix(".jsonl") + ".json"
+      else if baseName.endsWith(".json") then baseName.stripSuffix(".json") + ".summary.json"
+      else baseName + ".summary.json"
+    Option(outputPath.getParent).map(_.resolve(summaryFileName)).getOrElse(Path.of(summaryFileName))
 
   private def writeJsonLines(path: Path, rows: Iterator[JsValue]): Unit =
     val writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)
@@ -362,7 +440,9 @@ object MoveReviewPhase3AuditRunner:
             opening = (json \ "opening").asOpt[String].orElse(enrichedRaw.openingContext.flatMap(_.name)),
             sliceKind = (json \ "sliceKind").asOpt[String],
             targetPly = (json \ "targetPly").asOpt[Int].orElse(enrichedRaw.ply),
-            playedSan = (json \ "playedSan").asOpt[String]
+            playedSan = (json \ "playedSan").asOpt[String],
+            expectedSemanticSlots = parseExpectedSemanticSlots(json),
+            expectedQuestionIds = parseExpectedQuestionIds(json)
           )
         )
       case JsError(_) => None
@@ -389,6 +469,8 @@ object MoveReviewPhase3AuditRunner:
         "inputDuplicateCount" -> inputDuplicateCount,
         "inputDuplicate" -> (inputDuplicateCount > 1),
         "rawInputAudit" -> rawInputAudit(sample.raw),
+        "expectedSemanticSlots" -> expectedSemanticSlotsJson(sample.expectedSemanticSlots),
+        "expectedQuestionIds" -> sample.expectedQuestionIds,
         "manualReview" -> Json.obj(
           "status" -> "required",
           "openingRead" -> JsNull,
@@ -405,7 +487,7 @@ object MoveReviewPhase3AuditRunner:
           "buildStatus" -> "built",
           "lineSummary" -> lineSummary(built),
           "relativeAssessment" -> relativeSummary(built),
-          "semanticCoverage" -> semanticSummary(built),
+          "semanticCoverage" -> semanticSummary(built, sample.expectedSemanticSlots, sample.expectedQuestionIds),
           "qcFailureSummary" -> qcFailureSummary(built),
           "layerGaps" -> layerGapSummary(built),
           "issueKinds" -> Json.toJson(built.quality.audit.issues.map(_.kind.toString)),
@@ -421,6 +503,11 @@ object MoveReviewPhase3AuditRunner:
           "claimSupportClusters" -> claimSupportClusters(built),
           "claimEventClusters" -> claimEventClusters(built),
           "moveJudgmentView" -> moveJudgmentView(built),
+          "semanticRubricExpectedSlotCoverage" -> semanticRubricExpectedSlotCoverageJson(
+            sample.expectedSemanticSlots,
+            built.quality.semanticCoverage.comparisonDiagnostics,
+            expectedQuestionIds = sample.expectedQuestionIds
+          ),
           "rankedPrimaryClaimDiagnostics" -> rankedClaimDiagnosticsByTier(built, PlayerFacingClaimTier.Primary),
           "rankedSecondaryClaimDiagnostics" -> rankedClaimDiagnosticsByTier(built, PlayerFacingClaimTier.Secondary),
           "rankedContextClaimDiagnostics" -> rankedClaimDiagnosticsByTier(built, PlayerFacingClaimTier.Context),
@@ -574,7 +661,11 @@ object MoveReviewPhase3AuditRunner:
         )
       case None => JsNull
 
-  private def semanticSummary(result: MoveReviewJudgmentResult): JsObject =
+  private def semanticSummary(
+      result: MoveReviewJudgmentResult,
+      expectedSemanticSlots: List[ExpectedSemanticSlot],
+      expectedQuestionIds: List[String]
+  ): JsObject =
     val semantic = result.quality.semanticCoverage
     val playedBinding =
       MoveReviewPhase3PlayedBindingSummary.from(
@@ -650,6 +741,7 @@ object MoveReviewPhase3AuditRunner:
       "relativeCauseFacts" -> semantic.relativeCauseFacts,
       "moveVerdictCertifications" -> semantic.moveVerdictCertifications,
       "playedRelatedComparisonFacts" -> semantic.playedRelatedComparisonFacts,
+      "primaryPlayedComparisonFacts" -> semantic.primaryPlayedComparisonFacts,
       "playedRelativeCauseFacts" -> semantic.playedRelativeCauseFacts,
       "plan_transition_without_snapshot_pair" -> semantic.planTransitionWithoutSnapshotPairIds.size,
       "planTransitionWithoutSnapshotPairIds" -> semantic.planTransitionWithoutSnapshotPairIds,
@@ -696,6 +788,11 @@ object MoveReviewPhase3AuditRunner:
       "openingApplicabilityDiagnostics" -> openingApplicabilityDiagnosticsSummary(semantic.openingApplicabilityDiagnostics),
       "openingSupportDiagnostics" -> openingSupportDiagnosticsSummary(semantic.openingSupportDiagnostics),
       "comparisonDiagnostics" -> comparisonDiagnosticsSummary(semantic.comparisonDiagnostics),
+      "semanticRubricExpectedSlotCoverage" -> semanticRubricExpectedSlotCoverageJson(
+        expectedSemanticSlots,
+        semantic.comparisonDiagnostics,
+        expectedQuestionIds = expectedQuestionIds
+      ),
       "hasVerdict" -> semantic.hasVerdict,
       "hasCandidateSetComparison" -> semantic.hasCandidateSetComparison,
       "hasOnlyMoveSignal" -> semantic.hasOnlyMoveSignal,
@@ -703,80 +800,18 @@ object MoveReviewPhase3AuditRunner:
     )
 
   private[qc] def bindingWidthAuditJson(view: MoveJudgmentView): JsObject =
-    bindingWidthAuditJson(Some(view))
+    MoveReviewPhase3AuditMetrics.bindingWidthAuditJson(view)
 
   private def bindingWidthAuditJson(view: Option[MoveJudgmentView]): JsObject =
-    val frames =
-      view.toList.flatMap(view => view.primaryCauses ++ view.secondaryCauses ++ view.contextCauses)
-    val sideOnlyTargetFrames =
-      frames.filter(frame => frame.objectBindingSignatures.exists(sideOnlyTargetSignature))
-    val contextSupportOnlyFrames =
-      frames.filter(frame =>
-        frame.objectBindingSignatures.nonEmpty &&
-          frame.objectBindingSignatures.forall(signature => signatureParts(signature).contains("proof=ContextSupport"))
-      )
-    val axisObjectFingerprints =
-      frames.flatMap(frame =>
-        val fingerprints = frame.objectBindingSignatures.map(objectFingerprint).filter(_.nonEmpty).distinct
-        frame.proofStrategicAxisKeys.flatMap(axis => fingerprints.map(axis -> _))
-      )
-    val axisWithMultipleFingerprints =
-      axisObjectFingerprints
-        .groupMap(_._1)(_._2)
-        .view
-        .mapValues(_.distinct.sorted)
-        .toMap
-        .filter(_._2.size > 1)
-    val witnessFrames =
-      frames.filter(_.witnessBindingLevel != MoveJudgmentCauseWitnessBindingLevel.NotWitness)
-    val sameComparisonOnlyFrames =
-      frames.filter(_.witnessBindingLevel == MoveJudgmentCauseWitnessBindingLevel.SameComparisonOnly)
-    Json.obj(
-      "classification" -> "audit_only",
-      "causeFrameCount" -> frames.size,
-      "sideOnlyTargetFrameCount" -> sideOnlyTargetFrames.size,
-      "sideOnlyTargetFrameIds" -> sideOnlyTargetFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
-      "contextSupportOnlyBindingFrameCount" -> contextSupportOnlyFrames.size,
-      "contextSupportOnlyBindingFrameIds" -> contextSupportOnlyFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
-      "axisWithMultipleObjectFingerprintsCount" -> axisWithMultipleFingerprints.size,
-      "axisWithMultipleObjectFingerprints" -> JsObject(
-        axisWithMultipleFingerprints.toList.sortBy(_._1).map { case (axis, fingerprints) =>
-          axis -> Json.obj(
-            "objectFingerprintCount" -> fingerprints.size,
-            "objectFingerprints" -> fingerprints
-          )
-        }
-      ),
-      "witnessBindingFrameCount" -> witnessFrames.size,
-      "sameComparisonOnlyBindingFrameCount" -> sameComparisonOnlyFrames.size,
-      "sameComparisonOnlyBindingRatio" ->
-        (if witnessFrames.isEmpty then 0.0 else sameComparisonOnlyFrames.size.toDouble / witnessFrames.size.toDouble),
-      "sameComparisonOnlyBindingFrameIds" -> sameComparisonOnlyFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
-      "witnessBindingLevelCounts" -> stringCountsJson(witnessFrames.map(_.witnessBindingLevel.toString))
-    )
+    MoveReviewPhase3AuditMetrics.bindingWidthAuditJson(view)
 
-  private def sideOnlyTargetSignature(signature: String): Boolean =
-    val targets = signatureTokens(signature, "target")
-    targets.nonEmpty && targets.forall(_.startsWith("Side:"))
+  private[qc] def objectBindingSignatureSampleJson(signatures: List[String]): JsObject =
+    MoveReviewPhase3AuditViewJson.objectBindingSignatureSampleJson(signatures)
 
-  private def objectFingerprint(signature: String): String =
-    signatureParts(signature)
-      .filter(part =>
-        part.startsWith("actor=") ||
-          part.startsWith("target=") ||
-          part.startsWith("mechanism=") ||
-          part.startsWith("consequence=") ||
-          part.startsWith("witness=")
-      )
-      .sorted
-      .mkString("|")
-
-  private def signatureTokens(signature: String, role: String): List[String] =
-    val prefix = s"$role="
-    signatureParts(signature).collect { case part if part.startsWith(prefix) => part.stripPrefix(prefix) }
-
-  private def signatureParts(signature: String): List[String] =
-    signature.split("\\|").toList.map(_.trim).filter(_.nonEmpty)
+  private[qc] def positionPlanTechniqueObjectBindingsSampleJson(
+      bindings: List[PositionPlanTechniqueObjectBinding]
+  ): JsObject =
+    MoveReviewPhase3AuditViewJson.positionPlanTechniqueObjectBindingsSampleJson(bindings)
 
   private def objectBindingIntegritySummary(packet: EvidenceBackedJudgmentPacket): JsObject =
     val graph = packet.evidenceGraph
@@ -954,42 +989,7 @@ object MoveReviewPhase3AuditRunner:
     )
 
   private[qc] def axislessStructuralAnchorInventoryJson(graph: TypedEvidenceGraph): JsObject =
-    val entries =
-      graph.records.collect { case record @ EvidenceRecord(ref, _: StructuralDeltaEvidence, _) =>
-        val axislessSignals =
-          StrategicMechanismEvidence
-            .sourceMechanisms(record)
-            .collect { case (mechanism, signal) if signal.axis.isEmpty =>
-              (mechanism, signal)
-            }
-            .filter((_, signal) => axislessStructuralInventorySignal(signal))
-        ref -> axislessSignals
-      }.filter(_._2.nonEmpty)
-    val signals = entries.flatMap(_._2)
-    Json.obj(
-      "classification" -> "audit_only",
-      "axislessRecordCount" -> entries.size,
-      "axislessRecordIds" -> entries.map(_._1.id).distinct.sorted,
-      "axislessSignalCount" -> signals.size,
-      "axislessSignalLabelCounts" -> stringCountsJson(signals.map(_._2.label)),
-      "axislessMechanismKindCounts" -> stringCountsJson(signals.map(_._1.toString)),
-      "records" -> JsArray(
-        entries.sortBy(_._1.id).map { case (ref, recordSignals) =>
-          Json.obj(
-            "recordId" -> ref.id,
-            "line" -> ref.line.map(lineRefSummary),
-            "signalCount" -> recordSignals.size,
-            "signalLabels" -> recordSignals.map(_._2.label).distinct.sorted,
-            "mechanismKinds" -> recordSignals.map(_._1.toString).distinct.sorted
-          )
-        }
-      )
-    )
-
-  private def axislessStructuralInventorySignal(signal: StrategicMechanismSignal): Boolean =
-    signal.label != "structural-improvement" &&
-      signal.label != "strategic-concession" &&
-      signal.label != "pawn-structure-delta"
+    MoveReviewPhase3AuditMetrics.axislessStructuralAnchorInventoryJson(graph, lineRefSummary)
 
   private def finalStrategicClaimReachability(packet: EvidenceBackedJudgmentPacket): List[JsObject] =
     val viewClaimIds =
@@ -1051,6 +1051,11 @@ object MoveReviewPhase3AuditRunner:
 
   private def qcFailureSummary(result: MoveReviewJudgmentResult): JsObject =
     val semantic = result.quality.semanticCoverage
+    val relativeCauseSummary =
+      relativeCauseQualitySummary(
+        semantic.comparisonDiagnostics,
+        moveJudgmentPrimaryCauseCount(result)
+      )
     Json.obj(
       "hasTacticalDetectionFailure" -> semantic.hasTacticalDetectionFailure,
       "tacticalDetectionFailureComparisonIds" -> semantic.tacticalDetectionFailureComparisonIds,
@@ -1060,11 +1065,12 @@ object MoveReviewPhase3AuditRunner:
       "contextTacticalOutrankingDiagnostics" -> contextTacticalOutrankingDiagnosticsJson(
         semantic.contextTacticalOutrankingDiagnostics
       ),
-      "relativeCauseQualitySummary" -> (relativeCauseQualitySummary(
-        semantic.comparisonDiagnostics,
-        moveJudgmentPrimaryCauseCount(result)
-      )
+      "relativeCauseQualitySummary" -> (relativeCauseSummary
         ++ Json.obj(
+          "planTechniqueAnchorEligibility" -> planTechniqueAnchorEligibilityJson(
+            semantic.comparisonDiagnostics,
+            result.packet.evidenceGraph
+          ),
           "hasRelativeCauseFamilyMismatch" -> semantic.hasRelativeCauseFamilyMismatch,
           "relativeCauseFamilyMismatchKindCounts" -> claimLifecycleCountsJson(semantic.relativeCauseFamilyMismatchKindCounts),
           "relativeCauseFamilyMismatchDetails" -> relativeCauseFamilyMismatchCompactJson(
@@ -1322,6 +1328,9 @@ object MoveReviewPhase3AuditRunner:
   private def comparisonDiagnosticsSummary(diagnostics: List[CandidateComparisonDiagnostic]): JsArray =
     JsArray(diagnostics.map(comparisonDiagnosticJson))
 
+  private[qc] def relativeCauseQualitySummaryJson(diagnostics: List[CandidateComparisonDiagnostic]): JsObject =
+    relativeCauseQualitySummary(diagnostics, diagnostics.count(hasMoveJudgmentPrimaryCause))
+
   private def relativeCauseQualitySummary(
       diagnostics: List[CandidateComparisonDiagnostic],
       primaryCauseCount: Int
@@ -1350,6 +1359,14 @@ object MoveReviewPhase3AuditRunner:
       diagnostics.filter(primaryPlayedCauseWithoutPrimary)
     val longTermCauseNoPrimaryDiagnostics =
       diagnostics.filter(longTermCauseWithoutPrimary)
+    val primaryPlayedDiagnostics =
+      diagnostics.filter(diagnostic =>
+        diagnostic.comparisonKind == CandidateComparisonKind.PlayedVsBest &&
+          diagnostic.subjectBinding == SubjectBindingClass.PrimaryPlayedCause
+      )
+    val primaryPlayedDiagnosticIds = primaryPlayedDiagnostics.map(_.id).toSet
+    val contextInventoryDiagnostics =
+      diagnostics.filterNot(diagnostic => primaryPlayedDiagnosticIds.contains(diagnostic.id))
     val generatedNoPrimaryFlows =
       generatedCauseNoPrimaryDiagnostics.flatMap(_.relativeCauseDiagnostics.causeFlow)
     val longTermNoPrimaryFlows =
@@ -1465,12 +1482,26 @@ object MoveReviewPhase3AuditRunner:
           )
         ),
         "failureClassCounts" -> stringCountsJson(diagnostics.map(diagnostic => failureClassId(diagnostic.failureClass))),
+        "primaryFailureClassCounts" -> stringCountsJson(
+          primaryPlayedDiagnostics.map(diagnostic => failureClassId(diagnostic.failureClass))
+        ),
+        "contextInventoryFailureClassCounts" -> stringCountsJson(
+          contextInventoryDiagnostics.map(diagnostic => failureClassId(diagnostic.failureClass))
+        ),
         "failureReasonCounts" -> stringCountsJson(diagnostics.flatMap(_.failureReasons.map(failureReasonId)))
       ),
       "relativeCauseStageCounts" -> relativeCauseStageCountsJson(diagnostics),
+      "rootArbitrationQuality" -> rootArbitrationQualitySummaryJson(diagnostics),
       "structuralWitnessFunnel" -> structuralWitnessFunnelJson(diagnostics),
-      "structuralOpportunityGenerationFunnel" -> structuralOpportunityGenerationFunnelJson(diagnostics)
+      "planTechniqueEligibilityFunnel" -> planTechniqueEligibilityFunnelJson(diagnostics),
+      "structuralOpportunityGenerationFunnel" -> structuralOpportunityGenerationFunnelJson(diagnostics),
+      "semanticRubricFunnel" -> semanticRubricFunnelJson(diagnostics)
     )
+
+  private[qc] def rootArbitrationQualitySummaryJson(
+      diagnostics: List[CandidateComparisonDiagnostic]
+  ): JsObject =
+    MoveReviewPhase3AuditMetrics.rootArbitrationQualitySummaryJson(diagnostics)
 
   private def referenceLeadSemanticAxis(diagnostic: CandidateComparisonDiagnostic): Boolean =
     diagnostic.decisionTrace.semanticAxisDiagnostics.referenceLeadAxes.nonEmpty
@@ -1556,613 +1587,57 @@ object MoveReviewPhase3AuditRunner:
       "coOccurringCauseKindCounts" -> stringCountsJson(diagnostics.flatMap(_.causeKinds.map(_.toString)))
     )
 
+  private def auditFunnelMetrics: MoveReviewPhase3AuditFunnelMetrics =
+    new MoveReviewPhase3AuditFunnelMetrics(lineRefSummary)
+
   private def relativeCauseStageCountsJson(diagnostics: List[CandidateComparisonDiagnostic]): JsObject =
-    val entries = diagnosticFlows(diagnostics)
-    Json.obj(
-      "all" -> stageCountsJson(entries),
-      "event" -> stageCountsJson(entries.filterNot((_, flow) => noEventCauseFlow(flow))),
-      "structuralNoEvent" -> stageCountsJson(entries.filter((_, flow) => noEventCauseFlow(flow))),
-      "primaryPlayed" -> stageCountsJson(entries.filter((_, flow) =>
-        flow.causeComparisonKind == CandidateComparisonKind.PlayedVsBest &&
-          flow.causeRole == RelativeCauseRole.PrimaryPlayedCause
-      )),
-      "contextAlternative" -> stageCountsJson(entries.filter((_, flow) =>
-        flow.causeRole == RelativeCauseRole.PlayedAlternativeContext ||
-          flow.causeRole == RelativeCauseRole.AlternativeDiagnostic ||
-          flow.causeComparisonKind != CandidateComparisonKind.PlayedVsBest
-      ))
-    )
+    auditFunnelMetrics.relativeCauseStageCountsJson(diagnostics)
+
+  private def noEventCauseFlow(flow: RelativeCauseFlowDiagnostic): Boolean =
+    auditFunnelMetrics.noEventCauseFlow(flow)
+
+  private[qc] def planTechniqueEligibilityFunnelJson(
+      diagnostics: List[CandidateComparisonDiagnostic]
+  ): JsObject =
+    auditFunnelMetrics.planTechniqueEligibilityFunnelJson(diagnostics)
+
+  private[qc] def planTechniqueAnchorEligibilityJson(
+      diagnostics: List[CandidateComparisonDiagnostic],
+      graph: TypedEvidenceGraph
+  ): JsObject =
+    auditFunnelMetrics.planTechniqueAnchorEligibilityJson(diagnostics, graph)
 
   private def structuralWitnessFunnelJson(diagnostics: List[CandidateComparisonDiagnostic]): JsObject =
-    val opportunity = diagnostics.filter(structuralOpportunity)
-    val opportunityFlows = diagnosticFlows(opportunity).filter((_, flow) => noEventCauseFlow(flow))
-    Json.obj(
-      "opportunityComparisonIds" -> opportunity.map(_.id),
-      "opportunityComparisonCount" -> opportunity.size,
-      "structuralCauseProducedComparisonCount" -> opportunity.count(diagnostic =>
-        diagnostic.relativeCauseDiagnostics.causeFlow.exists(noEventCauseFlow)
-      ),
-      "ownedAdmissibleLongTermProofComparisonCount" -> opportunity.count(diagnostic =>
-        diagnostic.relativeCauseDiagnostics.causeFlow.exists(flow => noEventCauseFlow(flow) && flow.hasOwnedAdmissibleLongTermProof)
-      ),
-      "structuralIdeaCreatedComparisonCount" -> opportunity.count(diagnostic =>
-        diagnostic.relativeCauseDiagnostics.causeFlow.exists(flow => noEventCauseFlow(flow) && !flow.causeWithoutIdea)
-      ),
-      "structuralClaimCandidateCreatedComparisonCount" -> opportunity.count(diagnostic =>
-        diagnostic.relativeCauseDiagnostics.causeFlow.exists(flow => noEventCauseFlow(flow) && flow.claimCandidateIds.nonEmpty)
-      ),
-      "structuralFinalClaimIncludedComparisonCount" -> opportunity.count(diagnostic =>
-        diagnostic.relativeCauseDiagnostics.causeFlow.exists(flow => noEventCauseFlow(flow) && flow.claimIds.nonEmpty)
-      ),
-      "structuralRootSurfacedComparisonCount" -> opportunity.count(diagnostic =>
-        diagnostic.moveJudgmentView.primaryRootCauseEvidenceIds.nonEmpty &&
-          diagnostic.moveJudgmentView.primaryRootCauseKinds.exists(kind => ClaimEventCluster.kindForCause(kind).isEmpty)
-      ),
-      "tacticalWitnessSurfacedComparisonCount" -> opportunity.count(
-        _.moveJudgmentView.primaryTacticalWitnessCauseEvidenceIds.nonEmpty
-      ),
-      "stageCounts" -> stageCountsJson(opportunityFlows)
-    )
-
-  private final case class StructuralOpportunityAxis(
-      key: String,
-      sourceSide: RelativeCauseSourceSide,
-      expectedCauseKind: RelativeCauseKind
-  )
-
-  private final case class StructuralOpportunityAxisRow(
-      comparisonId: String,
-      axisKey: String,
-      axisKind: String,
-      axisPolarity: String,
-      axisLabel: String,
-      axisSourceSide: RelativeCauseSourceSide,
-      axisSourceIds: List[String],
-      axisSourceLayers: List[EvidenceLayer],
-      expectedCauseKind: RelativeCauseKind,
-      terminalStage: String,
-      exactTerminalStage: String,
-      causeClass: String,
-      exactCauseIds: List[String],
-      exactRootCauseEvidenceIds: List[String],
-      exactIdeaIds: List[String],
-      exactClaimCandidateIds: List[String],
-      exactFinalClaimIds: List[String],
-      kindOnlyCauseIds: List[String],
-      kindOnlyRootCauseEvidenceIds: List[String],
-      producedCauseKinds: List[RelativeCauseKind],
-      surfacedRootCauseKinds: List[RelativeCauseKind]
-  )
+    auditFunnelMetrics.structuralWitnessFunnelJson(diagnostics)
 
   private[qc] def structuralOpportunityGenerationFunnelJson(
       diagnostics: List[CandidateComparisonDiagnostic]
   ): JsObject =
-    val rows = diagnostics.filter(primaryActionableStructuralOpportunity).flatMap(structuralOpportunityAxisRows)
-    Json.obj(
-      "classification" -> "audit_only",
-      "axisOpportunityCount" -> rows.size,
-      "comparisonCount" -> rows.map(_.comparisonId).distinct.size,
-      "comparisonIds" -> rows.map(_.comparisonId).distinct.sorted,
-      "terminalStageCounts" -> stringCountsJson(rows.map(_.terminalStage)),
-      "causeClassCounts" -> stringCountsJson(rows.map(_.causeClass)),
-      "expectedCauseKindCounts" -> stringCountsJson(rows.map(_.expectedCauseKind.toString)),
-      "axisExactLineage" -> structuralOpportunityAxisExactLineageJson(rows),
-      "fallbackMaskedConcreteAxisComparisonIds" ->
-        rows
-          .filter(_.terminalStage == "fallback_masked_concrete_axis")
-          .map(_.comparisonId)
-          .distinct
-          .sorted,
-      "byAxis" -> structuralOpportunityByAxisJson(rows),
-      "byTerminalStage" -> structuralOpportunityByTerminalStageJson(rows),
-      "outpostDetail" -> outpostDetailFunnelJson(diagnostics, rows),
-      "opponentRestrictionDetail" -> opponentRestrictionDetailFunnelJson(rows)
-    )
+    auditFunnelMetrics.structuralOpportunityGenerationFunnelJson(diagnostics)
 
-  private def primaryActionableStructuralOpportunity(diagnostic: CandidateComparisonDiagnostic): Boolean =
-    diagnostic.comparisonKind == CandidateComparisonKind.PlayedVsBest &&
-      badVerdict(diagnostic.verdict) &&
-      diagnostic.subjectBinding != SubjectBindingClass.Other &&
-      structuralOpportunityAxisOpportunities(diagnostic).nonEmpty
-
-  private def structuralOpportunityAxisRows(
-      diagnostic: CandidateComparisonDiagnostic
-  ): List[StructuralOpportunityAxisRow] =
-    val producedCauseKinds = diagnostic.relativeCauseDiagnostics.producedCauseKinds.filter(noEventCauseKind)
-    val surfacedRootCauseKinds = diagnostic.moveJudgmentView.primaryRootCauseKinds.filter(noEventCauseKind)
-    val primaryRootCauseEvidenceIds = diagnostic.moveJudgmentView.primaryRootCauseEvidenceIds.toSet
-    val structuralFlows = diagnostic.relativeCauseDiagnostics.causeFlow.filter(noEventCauseFlow)
-    structuralOpportunityAxisOpportunities(diagnostic).map(axis =>
-      val exactFlows = structuralFlows.filter(flow => flow.proofStrategicAxisKeys.contains(axis.key))
-      val exactExpectedFlows = exactFlows.filter(_.causeKind == axis.expectedCauseKind)
-      val exactRootCauseIds = exactExpectedFlows.map(_.causeId).filter(primaryRootCauseEvidenceIds.contains)
-      val kindOnlyCauseIds =
-        structuralFlows
-          .filter(flow => flow.causeKind == axis.expectedCauseKind && !flow.proofStrategicAxisKeys.contains(axis.key))
-          .map(_.causeId)
-          .distinct
-          .sorted
-      val kindOnlyRootCauseIds = kindOnlyCauseIds.filter(primaryRootCauseEvidenceIds.contains)
-      val terminalStage = structuralOpportunityTerminalStage(diagnostic, axis, producedCauseKinds, surfacedRootCauseKinds)
-      val exactTerminalStage =
-        structuralOpportunityExactTerminalStage(axis, exactExpectedFlows, exactRootCauseIds, kindOnlyCauseIds, kindOnlyRootCauseIds)
-      StructuralOpportunityAxisRow(
-        comparisonId = diagnostic.id,
-        axisKey = axis.key,
-        axisKind = axisPart(axis.key, 0),
-        axisPolarity = axisPart(axis.key, 1),
-        axisLabel = axisPart(axis.key, 2),
-        axisSourceSide = axis.sourceSide,
-        axisSourceIds = structuralOpportunityAxisSourceIds(diagnostic, axis),
-        axisSourceLayers = structuralOpportunityAxisSourceLayers(diagnostic, axis),
-        expectedCauseKind = axis.expectedCauseKind,
-        terminalStage = terminalStage,
-        exactTerminalStage = exactTerminalStage,
-        causeClass = structuralOpportunityCauseClass(axis.expectedCauseKind, producedCauseKinds, surfacedRootCauseKinds),
-        exactCauseIds = exactExpectedFlows.map(_.causeId).distinct.sorted,
-        exactRootCauseEvidenceIds = exactRootCauseIds.distinct.sorted,
-        exactIdeaIds = exactExpectedFlows.flatMap(_.ideaIds).distinct.sorted,
-        exactClaimCandidateIds = exactExpectedFlows.flatMap(_.claimCandidateIds).distinct.sorted,
-        exactFinalClaimIds = exactExpectedFlows.flatMap(_.claimIds).distinct.sorted,
-        kindOnlyCauseIds = kindOnlyCauseIds,
-        kindOnlyRootCauseEvidenceIds = kindOnlyRootCauseIds.distinct.sorted,
-        producedCauseKinds = producedCauseKinds,
-        surfacedRootCauseKinds = surfacedRootCauseKinds
-      )
-    )
-
-  private def structuralOpportunityAxisSourceIds(
-      diagnostic: CandidateComparisonDiagnostic,
-      axis: StructuralOpportunityAxis
-  ): List[String] =
-    val axes = diagnostic.decisionTrace.semanticAxisDiagnostics
-    val sourceIds =
-      axis.sourceSide match
-        case RelativeCauseSourceSide.Reference => axes.referenceAxisSourceIds.getOrElse(axis.key, Nil)
-        case RelativeCauseSourceSide.Candidate => axes.candidateAxisSourceIds.getOrElse(axis.key, Nil)
-        case _ =>
-          axes.referenceAxisSourceIds.getOrElse(axis.key, Nil) ++ axes.candidateAxisSourceIds.getOrElse(axis.key, Nil)
-    sourceIds.distinct.sorted
-
-  private def structuralOpportunityAxisSourceLayers(
-      diagnostic: CandidateComparisonDiagnostic,
-      axis: StructuralOpportunityAxis
-  ): List[EvidenceLayer] =
-    val axes = diagnostic.decisionTrace.semanticAxisDiagnostics
-    val sourceLayers =
-      axis.sourceSide match
-        case RelativeCauseSourceSide.Reference => axes.referenceAxisSourceLayers.getOrElse(axis.key, Nil)
-        case RelativeCauseSourceSide.Candidate => axes.candidateAxisSourceLayers.getOrElse(axis.key, Nil)
-        case _ =>
-          axes.referenceAxisSourceLayers.getOrElse(axis.key, Nil) ++ axes.candidateAxisSourceLayers.getOrElse(axis.key, Nil)
-    sourceLayers.distinct.sortBy(_.toString)
-
-  private def structuralOpportunityExactTerminalStage(
-      axis: StructuralOpportunityAxis,
-      exactExpectedFlows: List[RelativeCauseFlowDiagnostic],
-      exactRootCauseIds: List[String],
-      kindOnlyCauseIds: List[String],
-      kindOnlyRootCauseIds: List[String]
-  ): String =
-    if exactRootCauseIds.nonEmpty then "final_structural_root"
-    else if kindOnlyRootCauseIds.nonEmpty then "kind_only_root_without_axis"
-    else if kindOnlyCauseIds.nonEmpty && exactExpectedFlows.isEmpty then "kind_only_cause_without_axis"
-    else if exactExpectedFlows.isEmpty then "no_exact_cause_produced"
-    else if !exactExpectedFlows.exists(_.hasOwnedAdmissibleLongTermProof) then "no_owned_admissible_long_term_proof"
-    else if exactExpectedFlows.forall(_.causeWithoutIdea) then "no_idea"
-    else if exactExpectedFlows.forall(_.claimCandidateIds.isEmpty) then "no_claim_candidate"
-    else if exactExpectedFlows.forall(_.claimIds.isEmpty) then "no_final_claim"
-    else if concreteAxisCause(axis.expectedCauseKind) then "produced_not_root"
-    else "produced_not_root"
-
-  private def structuralOpportunityAxisOpportunities(diagnostic: CandidateComparisonDiagnostic): List[StructuralOpportunityAxis] =
-    val axes = diagnostic.decisionTrace.semanticAxisDiagnostics
-    val referenceAxes =
-      (axes.referenceLeadAxes ++ axes.referenceOnlyAxes)
-        .distinct
-        .filter(referenceAxisCanExplainStructuralLoss)
-        .filterNot(planCoherenceAxis)
-        .map(axis =>
-          StructuralOpportunityAxis(
-            key = axis,
-            sourceSide = RelativeCauseSourceSide.Reference,
-            expectedCauseKind = referenceLeadCauseForAxis(axis)
-          )
-        )
-    val candidateAxes =
-      (axes.candidateLeadAxes ++ axes.candidateOnlyAxes)
-        .distinct
-        .filter(candidateAxisCanExplainStructuralLoss)
-        .filterNot(planCoherenceAxis)
-        .map(axis =>
-          StructuralOpportunityAxis(
-            key = axis,
-            sourceSide = RelativeCauseSourceSide.Candidate,
-            expectedCauseKind = candidateNegativeCauseForAxis(axis)
-          )
-        )
-    (referenceAxes ++ candidateAxes).distinctBy(axis => (axis.key, axis.sourceSide, axis.expectedCauseKind))
-
-  private def structuralOpportunityTerminalStage(
-      diagnostic: CandidateComparisonDiagnostic,
-      axis: StructuralOpportunityAxis,
-      producedCauseKinds: List[RelativeCauseKind],
-      surfacedRootCauseKinds: List[RelativeCauseKind]
-  ): String =
-    val structuralFlows = diagnostic.relativeCauseDiagnostics.causeFlow.filter(noEventCauseFlow)
-    val expectedCauseProduced = producedCauseKinds.contains(axis.expectedCauseKind)
-    val expectedRootSurfaced = surfacedRootCauseKinds.contains(axis.expectedCauseKind)
-    val planFallbackProducedOrSurfaced =
-      producedCauseKinds.exists(planFallbackCause) || surfacedRootCauseKinds.exists(planFallbackCause)
-    if concreteAxisCause(axis.expectedCauseKind) && planFallbackProducedOrSurfaced && !expectedCauseProduced && !expectedRootSurfaced then
-      "fallback_masked_concrete_axis"
-    else if structuralFlows.isEmpty && diagnostic.relativeCauseDiagnostics.expectedCauseHints.isEmpty then
-      "no_cause_draft"
-    else if structuralFlows.isEmpty then
-      "no_cause_produced"
-    else if !structuralFlows.exists(_.hasOwnedAdmissibleLongTermProof) then
-      "no_owned_admissible_long_term_proof"
-    else if structuralFlows.forall(_.causeWithoutIdea) then
-      "no_idea"
-    else if structuralFlows.forall(_.claimCandidateIds.isEmpty) then
-      "no_claim_candidate"
-    else if structuralFlows.forall(_.claimIds.isEmpty) then
-      "no_final_claim"
-    else if expectedRootSurfaced then
-      "final_structural_root"
-    else if expectedCauseProduced then
-      "produced_not_root"
-    else if surfacedRootCauseKinds.nonEmpty then
-      "different_structural_root"
-    else
-      "produced_not_root"
-
-  private def structuralOpportunityCauseClass(
-      expectedCauseKind: RelativeCauseKind,
-      producedCauseKinds: List[RelativeCauseKind],
-      surfacedRootCauseKinds: List[RelativeCauseKind]
-  ): String =
-    val kinds = (surfacedRootCauseKinds ++ producedCauseKinds).distinct
-    if kinds.contains(expectedCauseKind) && concreteAxisCause(expectedCauseKind) then "concrete_axis_cause"
-    else if kinds.exists(planFallbackCause) then "plan_fallback"
-    else if kinds.exists(broadStructuralFallbackCause) then "broad_structural_fallback"
-    else "no_structural_cause"
-
-  private def structuralOpportunityByAxisJson(rows: List[StructuralOpportunityAxisRow]): JsObject =
-    JsObject(
-      rows
-        .groupBy(_.axisKey)
-        .toList
-        .sortBy(_._1)
-        .map { case (axisKey, axisRows) =>
-          axisKey -> Json.obj(
-            "axisKind" -> axisRows.headOption.map(_.axisKind).getOrElse(""),
-            "axisPolarity" -> axisRows.headOption.map(_.axisPolarity).getOrElse(""),
-            "axisLabel" -> axisRows.headOption.map(_.axisLabel).getOrElse(""),
-            "axisSourceSideCounts" -> stringCountsJson(axisRows.map(_.axisSourceSide.toString)),
-            "expectedCauseKindCounts" -> stringCountsJson(axisRows.map(_.expectedCauseKind.toString)),
-            "axisOpportunityCount" -> axisRows.size,
-            "comparisonCount" -> axisRows.map(_.comparisonId).distinct.size,
-            "comparisonIds" -> axisRows.map(_.comparisonId).distinct.sorted,
-            "terminalStageCounts" -> stringCountsJson(axisRows.map(_.terminalStage)),
-            "causeClassCounts" -> stringCountsJson(axisRows.map(_.causeClass)),
-            "producedCauseKindCounts" -> stringCountsJson(axisRows.flatMap(_.producedCauseKinds.map(_.toString))),
-            "surfacedRootCauseKindCounts" -> stringCountsJson(axisRows.flatMap(_.surfacedRootCauseKinds.map(_.toString)))
-          )
-        }
-    )
-
-  private def structuralOpportunityAxisExactLineageJson(rows: List[StructuralOpportunityAxisRow]): JsObject =
-    Json.obj(
-      "classification" -> "audit_only",
-      "axisOpportunityCount" -> rows.size,
-      "comparisonCount" -> rows.map(_.comparisonId).distinct.size,
-      "exactCauseProducedCount" -> rows.count(_.exactCauseIds.nonEmpty),
-      "exactRootCount" -> rows.count(_.exactRootCauseEvidenceIds.nonEmpty),
-      "kindOnlyCauseWithoutAxisCount" -> rows.count(_.exactTerminalStage == "kind_only_cause_without_axis"),
-      "kindOnlyRootWithoutAxisCount" -> rows.count(_.exactTerminalStage == "kind_only_root_without_axis"),
-      "terminalStageCounts" -> stringCountsJson(rows.map(_.exactTerminalStage)),
-      "byAxis" -> structuralOpportunityAxisExactByAxisJson(rows),
-      "byTerminalStage" -> structuralOpportunityAxisExactByTerminalStageJson(rows)
-    )
-
-  private def structuralOpportunityAxisExactByAxisJson(rows: List[StructuralOpportunityAxisRow]): JsObject =
-    JsObject(
-      rows
-        .groupBy(_.axisKey)
-        .toList
-        .sortBy(_._1)
-        .map { case (axisKey, axisRows) =>
-          axisKey -> Json.obj(
-            "axisKind" -> axisRows.headOption.map(_.axisKind).getOrElse(""),
-            "axisPolarity" -> axisRows.headOption.map(_.axisPolarity).getOrElse(""),
-            "axisLabel" -> axisRows.headOption.map(_.axisLabel).getOrElse(""),
-            "axisSourceSideCounts" -> stringCountsJson(axisRows.map(_.axisSourceSide.toString)),
-            "axisSourceIds" -> axisRows.flatMap(_.axisSourceIds).distinct.sorted,
-            "axisSourceLayers" -> axisRows.flatMap(_.axisSourceLayers.map(_.toString)).distinct.sorted,
-            "expectedCauseKindCounts" -> stringCountsJson(axisRows.map(_.expectedCauseKind.toString)),
-            "axisOpportunityCount" -> axisRows.size,
-            "comparisonCount" -> axisRows.map(_.comparisonId).distinct.size,
-            "comparisonIds" -> axisRows.map(_.comparisonId).distinct.sorted,
-            "terminalStageCounts" -> stringCountsJson(axisRows.map(_.exactTerminalStage)),
-            "exactCauseIds" -> axisRows.flatMap(_.exactCauseIds).distinct.sorted,
-            "exactRootCauseEvidenceIds" -> axisRows.flatMap(_.exactRootCauseEvidenceIds).distinct.sorted,
-            "exactIdeaIds" -> axisRows.flatMap(_.exactIdeaIds).distinct.sorted,
-            "exactClaimCandidateIds" -> axisRows.flatMap(_.exactClaimCandidateIds).distinct.sorted,
-            "exactFinalClaimIds" -> axisRows.flatMap(_.exactFinalClaimIds).distinct.sorted,
-            "kindOnlyCauseIds" -> axisRows.flatMap(_.kindOnlyCauseIds).distinct.sorted,
-            "kindOnlyRootCauseEvidenceIds" -> axisRows.flatMap(_.kindOnlyRootCauseEvidenceIds).distinct.sorted
-          )
-        }
-    )
-
-  private def structuralOpportunityAxisExactByTerminalStageJson(rows: List[StructuralOpportunityAxisRow]): JsObject =
-    JsObject(
-      rows
-        .groupBy(_.exactTerminalStage)
-        .toList
-        .sortBy(_._1)
-        .map { case (stage, stageRows) =>
-          stage -> Json.obj(
-            "axisOpportunityCount" -> stageRows.size,
-            "comparisonCount" -> stageRows.map(_.comparisonId).distinct.size,
-            "comparisonIds" -> stageRows.map(_.comparisonId).distinct.sorted,
-            "axisCounts" -> stringCountsJson(stageRows.map(_.axisKey)),
-            "expectedCauseKindCounts" -> stringCountsJson(stageRows.map(_.expectedCauseKind.toString)),
-            "exactCauseIds" -> stageRows.flatMap(_.exactCauseIds).distinct.sorted,
-            "exactRootCauseEvidenceIds" -> stageRows.flatMap(_.exactRootCauseEvidenceIds).distinct.sorted,
-            "kindOnlyCauseIds" -> stageRows.flatMap(_.kindOnlyCauseIds).distinct.sorted,
-            "kindOnlyRootCauseEvidenceIds" -> stageRows.flatMap(_.kindOnlyRootCauseEvidenceIds).distinct.sorted
-          )
-        }
-    )
-
-  private def structuralOpportunityByTerminalStageJson(rows: List[StructuralOpportunityAxisRow]): JsObject =
-    JsObject(
-      rows
-        .groupBy(_.terminalStage)
-        .toList
-        .sortBy(_._1)
-        .map { case (stage, stageRows) =>
-          stage -> Json.obj(
-            "axisOpportunityCount" -> stageRows.size,
-            "comparisonCount" -> stageRows.map(_.comparisonId).distinct.size,
-            "comparisonIds" -> stageRows.map(_.comparisonId).distinct.sorted,
-            "axisCounts" -> stringCountsJson(stageRows.map(_.axisKey)),
-            "expectedCauseKindCounts" -> stringCountsJson(stageRows.map(_.expectedCauseKind.toString)),
-            "causeClassCounts" -> stringCountsJson(stageRows.map(_.causeClass))
-          )
-        }
-    )
-
-  private def outpostDetailFunnelJson(
-      diagnostics: List[CandidateComparisonDiagnostic],
-      rows: List[StructuralOpportunityAxisRow]
-  ): JsObject =
-    val outpostEvidenceDiagnostics = diagnostics.filter(outpostEvidenceComparison)
-    val outpostAxisComparisonIds =
-      outpostEvidenceDiagnostics
-        .filter(diagnostic => allSemanticAxes(diagnostic).exists(outpostAxisKey))
-        .map(_.id)
-        .distinct
-        .sorted
-    val outpostRows = rows.filter(row => outpostAxisKey(row.axisKey))
-    Json.obj(
-      "classification" -> "audit_only",
-      "evidenceComparisonCount" -> outpostEvidenceDiagnostics.map(_.id).distinct.size,
-      "evidenceComparisonIds" -> outpostEvidenceDiagnostics.map(_.id).distinct.sorted,
-      "axisPreservedComparisonCount" -> outpostAxisComparisonIds.size,
-      "axisPreservedComparisonIds" -> outpostAxisComparisonIds,
-      "evidenceWithoutAxisComparisonIds" ->
-        outpostEvidenceDiagnostics
-          .map(_.id)
-          .distinct
-          .filterNot(outpostAxisComparisonIds.toSet)
-          .sorted,
-      "axisOpportunityCount" -> outpostRows.size,
-      "axisOpportunityComparisonCount" -> outpostRows.map(_.comparisonId).distinct.size,
-      "axisOpportunityComparisonIds" -> outpostRows.map(_.comparisonId).distinct.sorted,
-      "terminalStageCounts" -> stringCountsJson(outpostRows.map(_.terminalStage)),
-      "causeClassCounts" -> stringCountsJson(outpostRows.map(_.causeClass)),
-      "expectedCauseKindCounts" -> stringCountsJson(outpostRows.map(_.expectedCauseKind.toString)),
-      "producedCauseKindCounts" -> stringCountsJson(outpostRows.flatMap(_.producedCauseKinds.map(_.toString))),
-      "surfacedRootCauseKindCounts" -> stringCountsJson(outpostRows.flatMap(_.surfacedRootCauseKinds.map(_.toString)))
-    )
-
-  private def outpostEvidenceComparison(diagnostic: CandidateComparisonDiagnostic): Boolean =
-    diagnostic.comparisonKind == CandidateComparisonKind.PlayedVsBest &&
-      badVerdict(diagnostic.verdict) &&
-      (
-        diagnostic.decisionTrace.referenceStructuralConsequences.exists(outpostConsequence) ||
-          diagnostic.decisionTrace.candidateStructuralConsequences.exists(outpostConsequence)
-      )
-
-  private def outpostConsequence(kind: TransitionConsequenceKind): Boolean =
-    kind == TransitionConsequenceKind.OutpostGain || kind == TransitionConsequenceKind.OutpostConcession
-
-  private def allSemanticAxes(diagnostic: CandidateComparisonDiagnostic): List[String] =
-    val axes = diagnostic.decisionTrace.semanticAxisDiagnostics
-    (
-      axes.referenceAxes ++
-        axes.candidateAxes ++
-        axes.sharedAxes ++
-        axes.referenceOnlyAxes ++
-        axes.candidateOnlyAxes ++
-        axes.referenceLeadAxes ++
-        axes.candidateLeadAxes
-    ).distinct
-
-  private def outpostAxisKey(axisKey: String): Boolean =
-    axisPart(axisKey, 0) == StrategicAxisKind.Activity.toString &&
-      axisPart(axisKey, 2).contains("outpost")
-
-  private def opponentRestrictionDetailFunnelJson(rows: List[StructuralOpportunityAxisRow]): JsObject =
-    val restrictionRows = rows.filter(row => opponentRestrictionAxisKey(row.axisKey))
-    Json.obj(
-      "classification" -> "audit_only",
-      "axisOpportunityCount" -> restrictionRows.size,
-      "axisOpportunityComparisonCount" -> restrictionRows.map(_.comparisonId).distinct.size,
-      "axisOpportunityComparisonIds" -> restrictionRows.map(_.comparisonId).distinct.sorted,
-      "terminalStageCounts" -> stringCountsJson(restrictionRows.map(_.terminalStage)),
-      "causeClassCounts" -> stringCountsJson(restrictionRows.map(_.causeClass)),
-      "expectedCauseKindCounts" -> stringCountsJson(restrictionRows.map(_.expectedCauseKind.toString)),
-      "fallbackMaskedConcreteAxisComparisonIds" ->
-        restrictionRows
-          .filter(_.terminalStage == "fallback_masked_concrete_axis")
-          .map(_.comparisonId)
-          .distinct
-          .sorted,
-      "producedCauseKindCounts" -> stringCountsJson(restrictionRows.flatMap(_.producedCauseKinds.map(_.toString))),
-      "surfacedRootCauseKindCounts" -> stringCountsJson(restrictionRows.flatMap(_.surfacedRootCauseKinds.map(_.toString)))
-    )
-
-  private def opponentRestrictionAxisKey(axisKey: String): Boolean =
-    axisPart(axisKey, 0) == StrategicAxisKind.Counterplay.toString &&
-      axisPart(axisKey, 1) == StrategicAxisPolarity.Restrain.toString
-
-  private def axisPart(axisKey: String, index: Int): String =
-    axisKey.split(":", 3).lift(index).getOrElse("")
-
-  private def planCoherenceAxis(axisKey: String): Boolean =
-    axisPart(axisKey, 0) == StrategicAxisKind.PlanCoherence.toString
-
-  private def referenceAxisCanExplainStructuralLoss(axisKey: String): Boolean =
-    axisPart(axisKey, 1) match
-      case "Loss" | "Release" | "Concede" => false
-      case _                              => true
-
-  private def candidateAxisCanExplainStructuralLoss(axisKey: String): Boolean =
-    axisPart(axisKey, 1) match
-      case "Loss" | "Release" | "Concede" => true
-      case _                              => false
-
-  private def referenceLeadCauseForAxis(axisKey: String): RelativeCauseKind =
-    axisPart(axisKey, 0) match
-      case "Target" if axisPart(axisKey, 2).contains("weak-pawn") =>
-        RelativeCauseKind.PawnWeaknessTarget
-      case "Target" =>
-        RelativeCauseKind.TargetPressureGain
-      case "SpaceCenter" =>
-        RelativeCauseKind.CenterControlGain
-      case "PawnBreak" =>
-        RelativeCauseKind.PawnBreakOpportunity
-      case "Activity" =>
-        RelativeCauseKind.ActivityGain
-      case "Counterplay" if axisPart(axisKey, 1) == "Restrain" =>
-        RelativeCauseKind.OpponentRestriction
-      case "Counterplay" if axisPart(axisKey, 2).contains("king-safety") =>
-        RelativeCauseKind.KingSafetyConcession
-      case "PlanCoherence" =>
-        RelativeCauseKind.PlanContradiction
-      case _ =>
-        RelativeCauseKind.MissedStrategicImprovement
-
-  private def candidateNegativeCauseForAxis(axisKey: String): RelativeCauseKind =
-    axisPart(axisKey, 0) match
-      case "Target" if axisPart(axisKey, 1) == "Release" =>
-        RelativeCauseKind.TargetPressureRelease
-      case "Target" if axisPart(axisKey, 2).contains("weak-pawn") =>
-        RelativeCauseKind.PawnWeaknessTarget
-      case "Target" =>
-        RelativeCauseKind.TargetPressureGain
-      case "SpaceCenter" =>
-        RelativeCauseKind.CenterControlGain
-      case "PawnBreak" =>
-        RelativeCauseKind.PawnBreakOpportunity
-      case "Activity" =>
-        RelativeCauseKind.ActivityLoss
-      case "Counterplay" if axisPart(axisKey, 1) == "Restrain" =>
-        RelativeCauseKind.OpponentRestriction
-      case "Counterplay" if axisPart(axisKey, 2).contains("king-safety") =>
-        RelativeCauseKind.KingSafetyConcession
-      case "PlanCoherence" =>
-        RelativeCauseKind.PlanContradiction
-      case _ =>
-        RelativeCauseKind.StrategicConcession
-
-  private def noEventCauseKind(kind: RelativeCauseKind): Boolean =
-    ClaimEventCluster.kindForCause(kind).isEmpty
-
-  private def concreteAxisCause(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.TargetPressureRelease |
-          RelativeCauseKind.CenterControlGain |
-          RelativeCauseKind.KingSafetyConcession | RelativeCauseKind.PawnWeaknessTarget |
-          RelativeCauseKind.PawnBreakOpportunity | RelativeCauseKind.ActivityGain | RelativeCauseKind.ActivityLoss |
-          RelativeCauseKind.OpponentRestriction =>
-        true
-      case _ =>
-        false
-
-  private def planFallbackCause(kind: RelativeCauseKind): Boolean =
-    kind == RelativeCauseKind.PlanContradiction || kind == RelativeCauseKind.PlanImprovement
-
-  private def broadStructuralFallbackCause(kind: RelativeCauseKind): Boolean =
-    kind match
-      case RelativeCauseKind.StructuralImprovement | RelativeCauseKind.MissedStrategicImprovement |
-          RelativeCauseKind.StrategicConcession =>
-        true
-      case _ =>
-        false
-
-  private def diagnosticFlows(
+  private[qc] def semanticRubricFunnelJson(
       diagnostics: List[CandidateComparisonDiagnostic]
-  ): List[(CandidateComparisonDiagnostic, RelativeCauseFlowDiagnostic)] =
-    diagnostics.flatMap(diagnostic => diagnostic.relativeCauseDiagnostics.causeFlow.map(diagnostic -> _))
+  ): JsObject =
+    auditFunnelMetrics.semanticRubricFunnelJson(diagnostics)
 
-  private def stageCountsJson(entries: List[(CandidateComparisonDiagnostic, RelativeCauseFlowDiagnostic)]): JsObject =
-    Json.obj(
-      "causeProduced" -> entries.size,
-      "ownedDepthOrAdmissibleProof" -> entries.count((_, flow) =>
-        flow.hasOwnedTypedDepth || flow.hasOwnedAdmissibleLongTermProof
-      ),
-      "ideaCreated" -> entries.count((_, flow) => !flow.causeWithoutIdea),
-      "claimCandidateCreated" -> entries.count((_, flow) => flow.claimCandidateIds.nonEmpty),
-      "truthCertified" -> entries.count((_, flow) =>
-        flow.claimCandidateTruthStatuses.contains(ClaimLifecycleTruthStatus.Certified)
-      ),
-      "finalClaimIncluded" -> entries.count((_, flow) => flow.claimIds.nonEmpty),
-      "eventClusterCreated" -> entries.count((_, flow) => flow.eventClusterIds.nonEmpty),
-      "moveJudgmentViewSurfaced" -> entries.count((diagnostic, flow) => flowSurfacedInMoveJudgmentView(diagnostic, flow))
-    )
+  private[qc] def semanticRubricExpectedSlotCoverageJson(
+      expectedSlots: List[ExpectedSemanticSlot],
+      diagnostics: List[CandidateComparisonDiagnostic],
+      expectedQuestionIds: List[String] = Nil
+  ): JsObject =
+    auditFunnelMetrics.semanticRubricExpectedSlotCoverageJson(expectedSlots, diagnostics, expectedQuestionIds)
 
-  private def structuralOpportunity(diagnostic: CandidateComparisonDiagnostic): Boolean =
-    diagnostic.relativeCauseDiagnostics.causeFlow.exists(noEventCauseFlow) ||
-      diagnostic.decisionTrace.semanticAxisDiagnostics.referenceLeadAxes.nonEmpty ||
-      diagnostic.decisionTrace.semanticAxisDiagnostics.referenceOnlyAxes.nonEmpty ||
-      diagnostic.decisionTrace.semanticAxisDiagnostics.candidateLeadAxes.nonEmpty ||
-      diagnostic.decisionTrace.semanticAxisDiagnostics.candidateOnlyAxes.nonEmpty
-
-  private def noEventCauseFlow(flow: RelativeCauseFlowDiagnostic): Boolean =
-    ClaimEventCluster.kindForCause(flow.causeKind).isEmpty
-
-  private def flowSurfacedInMoveJudgmentView(
-      diagnostic: CandidateComparisonDiagnostic,
-      flow: RelativeCauseFlowDiagnostic
-  ): Boolean =
-    val surfacedIds =
-      diagnostic.moveJudgmentView.primaryCauseEvidenceIds ++
-        diagnostic.moveJudgmentView.secondaryCauseEvidenceIds ++
-        diagnostic.moveJudgmentView.contextCauseEvidenceIds
-    surfacedIds.contains(flow.causeId)
+  private[qc] def semanticRubricExpectedSlotCorpusCoverageJson(coverages: List[JsValue]): JsObject =
+    auditFunnelMetrics.semanticRubricExpectedSlotCorpusCoverageJson(coverages)
 
   private def relativeCauseClaimDroppedComparisonIds(
       diagnostics: List[CandidateComparisonDiagnostic],
       stage: ClaimLifecycleStage
   ): List[String] =
-    diagnostics
-      .filter(_.relativeCauseDiagnostics.causeFlow.exists(_.claimCandidateDroppedStages.contains(stage)))
-      .map(_.id)
+    auditFunnelMetrics.relativeCauseClaimDroppedComparisonIds(diagnostics, stage)
 
   private def stringCountsJson(values: List[String]): JsObject =
-    JsObject(
-      values
-        .groupMapReduce(identity)(_ => 1)(_ + _)
-        .toList
-        .sortBy(_._1)
-        .map { case (key, count) => key -> JsNumber(count) }
-    )
-
+    MoveReviewPhase3AuditMetrics.stringCountsJson(values)
   private def openingApplicabilityDiagnosticsSummary(
       diagnostics: List[OpeningApplicabilityDiagnostic]
   ): JsArray =
@@ -2332,6 +1807,11 @@ object MoveReviewPhase3AuditRunner:
       "primaryFramedCauseKinds" -> diagnostic.primaryFramedCauseKinds.map(_.toString),
       "primaryUnframedCauseKinds" -> diagnostic.primaryUnframedCauseKinds.map(_.toString),
       "primaryRootCauseKinds" -> diagnostic.primaryRootCauseKinds.map(_.toString),
+      "rootArbitrationTiers" -> diagnostic.rootArbitrationTiers.map(_.toString),
+      "rootArbitrationTierCounts" -> stringCountsJson(diagnostic.rootArbitrationTiers.map(_.toString)),
+      "primaryRootArbitrationTiers" -> diagnostic.primaryRootArbitrationTiers.map(_.toString),
+      "primaryRootArbitrationTierCounts" -> stringCountsJson(diagnostic.primaryRootArbitrationTiers.map(_.toString)),
+      "primaryRootCauseEvidenceIdTierSignatures" -> diagnostic.primaryRootCauseEvidenceIdTierSignatures,
       "primaryTacticalWitnessCauseKinds" -> diagnostic.primaryTacticalWitnessCauseKinds.map(_.toString),
       "primaryPunishmentWitnessCauseKinds" -> diagnostic.primaryPunishmentWitnessCauseKinds.map(_.toString),
       "primaryContextualTacticalWitnessCauseKinds" -> diagnostic.primaryContextualTacticalWitnessCauseKinds.map(_.toString),
@@ -2345,7 +1825,22 @@ object MoveReviewPhase3AuditRunner:
       "playableLossPrimaryCauseEvidenceIds" -> diagnostic.playableLossPrimaryCauseEvidenceIds,
       "objectlessPrimaryCauseEvidenceIds" -> diagnostic.objectlessPrimaryCauseEvidenceIds,
       "objectlessSecondaryCauseEvidenceIds" -> diagnostic.objectlessSecondaryCauseEvidenceIds,
-      "objectlessContextCauseEvidenceIds" -> diagnostic.objectlessContextCauseEvidenceIds
+      "objectlessContextCauseEvidenceIds" -> diagnostic.objectlessContextCauseEvidenceIds,
+      "positionPlanTechniqueFrameIds" -> diagnostic.positionPlanTechniqueFrameIds,
+      "positionPlanTechniqueUnits" -> diagnostic.positionPlanTechniqueUnits.map(_.toString),
+      "positionPlanTechniqueAxisKeys" -> diagnostic.positionPlanTechniqueAxisKeys,
+      "positionPlanTechniqueSemanticDetailUnits" -> diagnostic.positionPlanTechniqueSemanticDetailUnits.map(_.toString),
+      "positionPlanTechniqueSemanticDetailAxisKeys" -> diagnostic.positionPlanTechniqueSemanticDetailAxisKeys,
+      "positionPlanTechniqueSemanticDetailMechanismKinds" ->
+        diagnostic.positionPlanTechniqueSemanticDetailMechanismKinds.map(_.toString),
+      "positionPlanTechniqueSemanticDetailAnchorKeys" -> diagnostic.positionPlanTechniqueSemanticDetailAnchorKeys,
+      "positionPlanTechniqueSemanticDetailTokens" -> diagnostic.positionPlanTechniqueSemanticDetailTokens,
+      "positionPlanTechniqueSemanticDetailTokenGroups" -> JsArray(
+        diagnostic.positionPlanTechniqueSemanticDetailTokenGroups.map(tokens => JsArray(tokens.map(JsString.apply)))
+      ),
+      "positionPlanTechniqueObjectBindingSignatures" -> diagnostic.positionPlanTechniqueObjectBindingSignatures,
+      "positionPlanTechniqueEvidenceIds" -> diagnostic.positionPlanTechniqueEvidenceIds,
+      "positionPlanTechniqueRelativeCauseEvidenceIds" -> diagnostic.positionPlanTechniqueRelativeCauseEvidenceIds
     )
 
   private def relativeCauseDiagnosticsJson(diagnostic: ComparisonRelativeCauseDiagnostics): JsObject =
@@ -2430,11 +1925,10 @@ object MoveReviewPhase3AuditRunner:
       "unattributedCause" -> flow.unattributedCause,
       "rootMismatchedAttribution" -> flow.rootMismatchedAttribution,
       "supportPromotedToDirectProof" -> flow.supportPromotedToDirectProof,
-      "objectBindingSignatures" -> flow.objectBindingSignatures,
       "relativeCauseWithoutObjectSignature" -> flow.relativeCauseWithoutObjectSignature,
       "objectLostBetweenEvidenceAndCause" -> flow.objectLostBetweenEvidenceAndCause,
       "objectLostBetweenCauseAndClaim" -> flow.objectLostBetweenCauseAndClaim
-    )
+    ) ++ objectBindingSignatureSampleJson(flow.objectBindingSignatures)
 
   private def tacticalLossTraceJson(trace: TacticalLossTrace): JsObject =
     Json.obj(
@@ -4027,6 +3521,7 @@ object MoveReviewPhase3AuditRunner:
         "primaryCauses" -> view.primaryCauses.map(moveJudgmentCauseFrameJson(result.packet, _)),
         "secondaryCauses" -> view.secondaryCauses.map(moveJudgmentCauseFrameJson(result.packet, _)),
         "contextCauses" -> view.contextCauses.map(moveJudgmentCauseFrameJson(result.packet, _)),
+        "positionPlanTechniqueFrames" -> view.positionPlanTechniqueFrames.map(moveJudgmentPositionPlanTechniqueFrameJson),
         "supportContextClusterIds" -> view.supportContextClusterIds,
         "overriddenLocalIdeas" -> view.overriddenLocalIdeas.map(moveJudgmentLocalIdeaFrameJson),
         "preservedLocalIdeas" -> view.preservedLocalIdeas.map(moveJudgmentLocalIdeaFrameJson)
@@ -4058,9 +3553,8 @@ object MoveReviewPhase3AuditRunner:
       "strategicAxisMechanismEvidenceIds" -> frame.strategicAxisMechanismEvidenceIds,
       "strategicAxisSourceEvidenceIds" -> frame.strategicAxisSourceEvidenceIds,
       "strategicAxisRelativeCauseIds" -> frame.strategicAxisRelativeCauseIds,
-      "objectBindingSignatures" -> frame.objectBindingSignatures,
       "concreteObjectReady" -> frame.concreteObjectReady
-    )
+    ) ++ objectBindingSignatureSampleJson(frame.objectBindingSignatures)
 
   private def moveJudgmentCauseFrameJson(packet: EvidenceBackedJudgmentPacket, frame: MoveJudgmentCauseFrame): JsObject =
     val ideasById = packet.ideas.map(idea => idea.ref.id -> idea).toMap
@@ -4109,6 +3603,7 @@ object MoveReviewPhase3AuditRunner:
       "proofStrategicMechanismSignalSourceIds" -> frame.proofStrategicMechanismSignalSourceIds,
       "supportEvidenceSourceIds" -> frame.supportEvidenceSourceIds,
       "hasOwnedAdmissibleLongTermProof" -> frame.hasOwnedAdmissibleLongTermProof,
+      "rootArbitrationTier" -> frame.rootArbitrationTier.toString,
       "tacticalWitnessCauseEvidenceIds" -> frame.tacticalWitnessCauseEvidenceIds,
       "tacticalWitnessCauseKinds" -> frame.tacticalWitnessCauseKinds.map(_.toString),
       "punishmentWitnessCauseEvidenceIds" -> frame.punishmentWitnessCauseEvidenceIds,
@@ -4118,10 +3613,11 @@ object MoveReviewPhase3AuditRunner:
       "witnessBindingLevel" -> frame.witnessBindingLevel.toString,
       "witnessBindingSignals" -> frame.witnessBindingSignals.map(_.toString),
       "witnessBindingRootCauseEvidenceIds" -> frame.witnessBindingRootCauseEvidenceIds,
-      "objectBindingSignatures" -> frame.objectBindingSignatures,
       "concreteObjectReady" -> frame.concreteObjectReady
-    )
+    ) ++ objectBindingSignatureSampleJson(frame.objectBindingSignatures)
 
+  private def moveJudgmentPositionPlanTechniqueFrameJson(frame: PositionPlanTechniqueFrame): JsObject =
+    MoveReviewPhase3AuditViewJson.positionPlanTechniqueFrameJson(frame, lineRefSummary)
   private def moveJudgmentLocalIdeaFrameJson(frame: MoveJudgmentLocalIdeaFrame): JsObject =
     Json.obj(
       "ideaId" -> frame.ideaId,

@@ -413,6 +413,10 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
         RelativeCauseKind.CenterControlGain
       case StrategicAxisKind.PawnBreak =>
         RelativeCauseKind.PawnBreakOpportunity
+      case StrategicAxisKind.Activity =>
+        RelativeCauseKind.ActivityGain
+      case StrategicAxisKind.Counterplay if axis.polarity == StrategicAxisPolarity.Restrain =>
+        RelativeCauseKind.OpponentRestriction
       case StrategicAxisKind.PlanCoherence =>
         RelativeCauseKind.PlanImprovement
       case _ =>
@@ -444,7 +448,8 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
     val hasShortTermCause = drafts.exists(draft => shortTermCause(draft.kind))
     val hasNonConcessionCause = drafts.exists(draft => draft.kind != RelativeCauseKind.StrategicConcession)
     val hasSpecificMaterialCause = drafts.exists(draft => specificMaterialCause(draft.kind))
-    val hasSpecificStructuralCause = drafts.exists(draft => specificStructuralCause(draft.kind))
+    val hasNonPlanSpecificStructuralCause =
+      drafts.exists(draft => specificStructuralCause(draft.kind) && !planFallbackCause(draft.kind))
     drafts.filterNot {
       case RelativeCauseDraft(RelativeCauseKind.StrategicConcession, _, _, _) =>
         hasShortTermCause || hasNonConcessionCause
@@ -453,7 +458,7 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
       case RelativeCauseDraft(RelativeCauseKind.MaterialSwing, _, _, _) =>
         hasSpecificMaterialCause
       case RelativeCauseDraft(RelativeCauseKind.StructuralImprovement, _, _, _) =>
-        hasSpecificStructuralCause
+        hasNonPlanSpecificStructuralCause
       case draft @ RelativeCauseDraft(RelativeCauseKind.RecaptureRecoveryWindow, _, _, _) =>
         drafts.exists(other =>
           other.kind == RelativeCauseKind.WrongRecapturer &&
@@ -533,6 +538,9 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
         true
       case _ =>
         false
+
+  private def planFallbackCause(kind: RelativeCauseKind): Boolean =
+    kind == RelativeCauseKind.PlanImprovement || kind == RelativeCauseKind.PlanContradiction
 
   private def shortTermCause(kind: RelativeCauseKind): Boolean =
     kind != RelativeCauseKind.DrawResource && ClaimEventCluster.kindForCause(kind).nonEmpty

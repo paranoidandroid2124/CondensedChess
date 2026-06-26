@@ -191,6 +191,7 @@ object JudgmentPacketValidator:
           moveJudgmentCauseFrames(view).flatMap(frame =>
             frame.causeClaimIds ++ frame.evaluationClaimIds ++ frame.witnessClaimIds ++ frame.finalClaimIds
           ) ++
+          view.positionPlanTechniqueFrames.flatMap(_.claimIds) ++
           view.overriddenLocalIdeas.flatMap(_.claimIds) ++
           view.preservedLocalIdeas.flatMap(_.claimIds)
       frameClaims.distinct.filterNot(claimIds.contains).map { claimId =>
@@ -209,6 +210,7 @@ object JudgmentPacketValidator:
       val frameIdeas =
         view.verdictCarriers.flatMap(_.ideaIds) ++
           moveJudgmentCauseFrames(view).flatMap(frame => frame.ideaIds ++ frame.supportIdeaIds) ++
+          view.positionPlanTechniqueFrames.flatMap(_.ideaIds) ++
           view.overriddenLocalIdeas.map(_.ideaId) ++
           view.preservedLocalIdeas.map(_.ideaId)
       frameIdeas.distinct.filterNot(ideaIds.contains).map { ideaId =>
@@ -240,6 +242,7 @@ object JudgmentPacketValidator:
               frame.proofStrategicMechanismSignalSourceIds ++
               frame.supportEvidenceSourceIds
           ) ++
+          view.positionPlanTechniqueFrames.flatMap(positionPlanTechniqueFrameEvidenceIds) ++
           view.overriddenLocalIdeas.flatMap(_.evidenceIds) ++
           view.preservedLocalIdeas.flatMap(_.evidenceIds)
       (verdictEvidence ++ frameEvidence).distinct.filterNot(graphIds.contains).map { evidenceId =>
@@ -249,6 +252,21 @@ object JudgmentPacketValidator:
         )
       }
     }
+
+  private def positionPlanTechniqueFrameEvidenceIds(frame: PositionPlanTechniqueFrame): List[String] =
+    (
+      frame.evidenceIds ++
+        frame.mechanismEvidenceIds ++
+        frame.sourceEvidenceIds ++
+        frame.relativeCauseEvidenceIds ++
+        frame.semanticDetails.flatMap(detail =>
+          detail.referenceEvidenceIds ++
+            detail.candidateEvidenceIds ++
+            detail.sourceEvidenceIds ++
+            detail.causeEvidenceIds
+        ) ++
+        frame.objectBindings.map(_.sourceEvidenceId)
+    ).distinct.sorted
 
   private def missingMoveJudgmentViewClusters(
       packet: EvidenceBackedJudgmentPacket,

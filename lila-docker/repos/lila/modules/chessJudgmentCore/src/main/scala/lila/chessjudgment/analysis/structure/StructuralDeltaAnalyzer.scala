@@ -229,12 +229,14 @@ private[chessjudgment] object StructuralDeltaContracts:
           )
         ),
         Option.when(delta.mobilityDelta > 0)(
-          TransitionConsequence(MobilityGain, Gain, delta.mobilityDelta)
+          TransitionConsequence(MobilityGain, Gain, delta.mobilityDelta, developmentMoveSubjectsWithMobilityGain(delta.developmentMoves))
         ),
         Option.when(delta.lineUnlockDelta > 0)(
           TransitionConsequence(LineUnlockGain, Gain, delta.lineUnlockDelta)
         ),
-        Option.when(delta.mobilityDelta < 0)(TransitionConsequence(MobilityLoss, Loss, -delta.mobilityDelta)),
+        Option.when(delta.mobilityDelta < 0)(
+          TransitionConsequence(MobilityLoss, Loss, -delta.mobilityDelta, developmentMoveSubjectsWithMobilityLoss(delta.developmentMoves))
+        ),
         Option.when(delta.fileOccupation.nonEmpty)(
           TransitionConsequence(
             FileOccupationGain,

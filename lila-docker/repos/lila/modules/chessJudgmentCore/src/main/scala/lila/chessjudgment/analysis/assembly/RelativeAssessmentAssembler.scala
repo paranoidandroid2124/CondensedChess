@@ -1048,7 +1048,8 @@ object RelativeAssessmentAssembler:
       case RelativeCauseKind.CenterControlGain =>
         axis.kind == StrategicAxisKind.SpaceCenter
       case RelativeCauseKind.ActivityGain =>
-        axis.kind == StrategicAxisKind.Activity && sourceSide == RelativeCauseSourceSide.Reference
+        axis.kind == StrategicAxisKind.Activity &&
+          (sourceSide == RelativeCauseSourceSide.Reference || sourceSide == RelativeCauseSourceSide.Candidate)
       case RelativeCauseKind.ActivityLoss =>
         axis.kind == StrategicAxisKind.Activity && sourceSide == RelativeCauseSourceSide.Candidate
       case RelativeCauseKind.OpponentRestriction =>
