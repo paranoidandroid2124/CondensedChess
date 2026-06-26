@@ -332,7 +332,9 @@ case class PawnPlayAnalysis(
   tensionPolicy: TensionPolicy,         // Concept 10: Maintain/Release/Ignore recommendation
   
   tensionSquares: List[String],         // Squares with pawn tension (e.g., "d4", "e5")
-  primaryDriver: PawnPlayDriver
+  primaryDriver: PawnPlayDriver,
+  tensionEdges: List[String] = Nil,      // Pawn tension as origin-target edges (e.g., "d4-e5")
+  counterBreakFiles: List[String] = Nil  // Files where opponent pawn breaks are available
 ):
   def hasBreakOpportunity: Boolean = pawnBreakReady
   def needsPassedPawnAction: Boolean = passedPawnUrgency == PassedPawnUrgency.Critical

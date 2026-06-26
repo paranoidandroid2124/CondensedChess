@@ -188,7 +188,16 @@ object FactExtractor {
     }
 
     if (endgame.rookEndgamePattern != OracleRookPattern.None) {
-      facts += Fact.RookEndgamePattern(endgame.rookEndgamePattern, scope, endgame.primaryPattern)
+      val anchorSquares =
+        if endgame.rookEndgameAnchorSquares.nonEmpty then endgame.rookEndgameAnchorSquares
+        else rookEndgameAnchorSquares(board)
+      facts += Fact.RookEndgamePattern(
+        endgame.rookEndgamePattern,
+        scope,
+        endgame.primaryPattern,
+        anchorSquares,
+        endgame.rookEndgameGeometry
+      )
     }
 
     if (endgame.ruleOfSquare != RuleOfSquareStatus.NA) {
@@ -216,6 +225,22 @@ object FactExtractor {
     }
 
     facts.toList.distinct
+  }
+
+  private def rookEndgameAnchorSquares(board: Board): List[Square] = {
+    val kings =
+      List(Color.White, Color.Black).flatMap(color => board.kingPosOf(color))
+    val rooks =
+      List(Color.White, Color.Black).flatMap(color => board.byPiece(color, chess.Rook).squares.toList)
+    val passedPawnsWithColor =
+      List(Color.White, Color.Black).flatMap(color =>
+        board.byPiece(color, chess.Pawn).squares.filter(pawn => isPassedPawn(board, pawn, color)).toList.map(_ -> color)
+      )
+    val promotionSquares =
+      passedPawnsWithColor.flatMap { case (pawn, color) =>
+        Square.at(pawn.file.value, if (color.white) 7 else 0)
+      }
+    (kings ++ rooks ++ passedPawnsWithColor.map(_._1) ++ promotionSquares).distinct
   }
 
   private def isPassedPawn(board: Board, pawnSq: Square, color: Color): Boolean = {

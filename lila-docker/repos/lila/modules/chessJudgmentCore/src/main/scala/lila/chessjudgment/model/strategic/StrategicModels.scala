@@ -1,6 +1,6 @@
 package lila.chessjudgment.model.strategic
 
-import chess.{ Color, Role, Square }
+import chess.{ Color, Rank, Role, Square }
 
 case class PreventedPlan(
     planId: String, // e.g. "StopCheck", "PreventFork", "DenyBreak"
@@ -48,6 +48,33 @@ enum RookEndgamePattern:
 enum TheoreticalOutcomeHint:
   case Win, Draw, Unclear
 
+case class RookEndgameGeometry(
+    techniqueSide: Color,
+    strongSide: Color,
+    defendingSide: Color,
+    passedPawn: Square,
+    promotionSquare: Square,
+    attackingKing: Option[Square] = None,
+    defendingKing: Option[Square] = None,
+    attackingRook: Option[Square] = None,
+    defendingRook: Option[Square] = None,
+    barrierRank: Option[Rank] = None
+):
+  def techniqueKing: Option[Square] =
+    if techniqueSide == strongSide then attackingKing
+    else if techniqueSide == defendingSide then defendingKing
+    else None
+
+  def anchorSquares: List[Square] =
+    (
+      techniqueKing.toList ++
+        attackingKing.toList ++
+        defendingKing.toList ++
+        attackingRook.toList ++
+        defendingRook.toList ++
+        List(passedPawn, promotionSquare)
+    ).distinct
+
 case class EndgameFeature(
     hasOpposition: Boolean,
     isZugzwang: Boolean,
@@ -60,7 +87,9 @@ case class EndgameFeature(
     rookEndgamePattern: RookEndgamePattern = RookEndgamePattern.None,
     theoreticalOutcomeHint: TheoreticalOutcomeHint = TheoreticalOutcomeHint.Unclear,
     confidence: Double = 0.0,
-    primaryPattern: Option[String] = None
+    primaryPattern: Option[String] = None,
+    rookEndgameAnchorSquares: List[Square] = Nil,
+    rookEndgameGeometry: Option[RookEndgameGeometry] = None
 )
 
 // (VariationLine moved to Variation.scala)

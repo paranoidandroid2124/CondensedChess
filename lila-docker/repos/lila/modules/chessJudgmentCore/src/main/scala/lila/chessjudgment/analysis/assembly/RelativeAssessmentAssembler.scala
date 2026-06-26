@@ -957,7 +957,8 @@ object RelativeAssessmentAssembler:
             event.kind == LineEventKind.Check || event.kind == LineEventKind.Mate
           )
       case RelativeCauseKind.DrawResource =>
-        rootOwnedConsequences.exists(_.kind == LineConsequenceKind.DrawResource)
+        rootOwnedConsequences.exists(_.kind == LineConsequenceKind.DrawResource) ||
+          payload.rootOwnedEndgameTechniqueHorizons(rootMove, kind).nonEmpty
       case RelativeCauseKind.MaterialSwing | RelativeCauseKind.SacrificeCompensation =>
         rootOwnedConsequences.exists(consequence =>
           consequence.kind == LineConsequenceKind.MaterialGain ||
@@ -969,7 +970,8 @@ object RelativeAssessmentAssembler:
           consequence.kind == LineConsequenceKind.RecaptureSequence ||
             consequence.kind == LineConsequenceKind.RecoveryWindow ||
             consequence.kind == LineConsequenceKind.PromotionRace
-        )
+        ) ||
+          payload.rootOwnedEndgameTechniqueHorizons(rootMove, kind).nonEmpty
       case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.TacticalRefutationOfPlayed |
           RelativeCauseKind.CandidateTacticalLiability =>
         rootOwnedConsequences.exists(consequence => LineConsequenceKind.tacticalDriver(consequence.kind)) ||

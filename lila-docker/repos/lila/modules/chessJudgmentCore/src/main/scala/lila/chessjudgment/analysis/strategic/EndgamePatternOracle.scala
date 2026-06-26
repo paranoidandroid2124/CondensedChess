@@ -12,7 +12,9 @@ object EndgamePatternOracle:
       kingActivityDelta: Option[Int] = None,
       rookEndgamePattern: Option[RookEndgamePattern] = None,
       zugzwangLikelihood: Option[Double] = None,
-      theoreticalOutcomeHint: Option[TheoreticalOutcomeHint] = None
+      theoreticalOutcomeHint: Option[TheoreticalOutcomeHint] = None,
+      rookEndgameAnchorSquares: List[Square] = Nil,
+      rookEndgameGeometry: Option[RookEndgameGeometry] = None
   )
 
   final case class PatternMatch(
@@ -79,7 +81,12 @@ object EndgamePatternOracle:
         isZugzwang = updatedZugLikelihood >= ZugzwangThreshold || core.isZugzwang,
         theoreticalOutcomeHint = updatedOutcome,
         confidence = adjustedConfidence,
-        primaryPattern = Some(pattern.id)
+        primaryPattern = Some(pattern.id),
+        rookEndgameAnchorSquares =
+          overrides.rookEndgameGeometry.map(_.anchorSquares).filter(_.nonEmpty)
+            .orElse(Option.when(overrides.rookEndgameAnchorSquares.nonEmpty)(overrides.rookEndgameAnchorSquares.distinct))
+            .getOrElse(core.rookEndgameAnchorSquares),
+        rookEndgameGeometry = overrides.rookEndgameGeometry.orElse(core.rookEndgameGeometry)
       )
 
   private def isEndgameCandidate(board: Board): Boolean =
@@ -214,16 +221,20 @@ object EndgamePatternOracle:
         for
           pawn <- rookPawn
           dRook <- board.byPiece(defender, Rook).squares.headOption
+          aRook <- board.byPiece(attacker, Rook).squares.headOption
           if dRook.rank == pawn.rank
           if fileDistance(dRook.file, pawn.file) >= 1
           if !isRookBehindPawn(board, attacker, pawn)
         yield
+          val geometry = rookTechniqueGeometry(board, defender, attacker, defender, pawn, Some(aRook), Some(dRook))
           PatternMatch(
             id = "VancuraDefense",
             outcomeOverride = Some(TheoreticalOutcomeHint.Draw),
             confidenceFloor = 0.76,
             signalOverrides = PatternSignalOverrides(
-              rookEndgamePattern = Some(RookEndgamePattern.KingCutOff)
+              rookEndgamePattern = Some(RookEndgamePattern.KingCutOff),
+              rookEndgameAnchorSquares = geometry.anchorSquares,
+              rookEndgameGeometry = Some(geometry)
             ),
             ambiguityPenalty = if core.kingActivityDelta > 3 then 0.06 else 0.01
           )
@@ -240,23 +251,34 @@ object EndgamePatternOracle:
       if matA.rooks != 1 || matD.rooks != 1 then None
       else if matA.queens > 0 || matD.queens > 0 || matA.knights + matA.bishops + matD.knights + matD.bishops > 0 then None
       else
-        val candidatePawn = board.byPiece(attacker, Pawn).squares.sortBy(p => -relativeRank(p, attacker)).headOption
+        val candidatePawn =
+          passedPawns(board, attacker)
+            .filterNot(isRookPawn)
+            .sortBy(p => -relativeRank(p, attacker))
+            .headOption
         val barrierRank = if attacker.white then Rank.Sixth else Rank.Third
         for
           pawn <- candidatePawn
           dKing <- board.kingPosOf(defender)
           aKing <- board.kingPosOf(attacker)
-          if relativeRank(pawn, attacker) <= 5
-          if board.byPiece(defender, Rook).squares.exists(_.rank == barrierRank)
+          dRook <- board.byPiece(defender, Rook).squares.find(_.rank == barrierRank)
+          aRook <- board.byPiece(attacker, Rook).squares.headOption
+          if relativeRank(pawn, attacker) == 5
+          if dKing.file == pawn.file
           if (if attacker.white then dKing.rank.value > pawn.rank.value else dKing.rank.value < pawn.rank.value)
           if relativeRank(aKing, attacker) <= 5
+          if fileDistance(dRook.file, pawn.file) >= 1
         yield
+          val geometry =
+            rookTechniqueGeometry(board, defender, attacker, defender, pawn, Some(aRook), Some(dRook), Some(barrierRank))
           PatternMatch(
             id = "PhilidorDefense",
             outcomeOverride = Some(TheoreticalOutcomeHint.Draw),
             confidenceFloor = 0.78,
             signalOverrides = PatternSignalOverrides(
-              rookEndgamePattern = Some(RookEndgamePattern.KingCutOff)
+              rookEndgamePattern = Some(RookEndgamePattern.KingCutOff),
+              rookEndgameAnchorSquares = geometry.anchorSquares,
+              rookEndgameGeometry = Some(geometry)
             ),
             ambiguityPenalty = if core.kingActivityDelta > 2 then 0.06 else 0.01
           )
@@ -269,7 +291,7 @@ object EndgamePatternOracle:
     else if matUs.queens > 0 || matThem.queens > 0 || matUs.knights + matUs.bishops + matThem.knights + matThem.bishops > 0 then None
     else
       val passerOpt = passedPawns(board, color)
-        .filter(p => !isRookPawn(p) && relativeRank(p, color) >= 6)
+        .filter(p => !isRookPawn(p) && relativeRank(p, color) == 7)
         .sortBy(p => -relativeRank(p, color))
         .headOption
       for
@@ -278,17 +300,22 @@ object EndgamePatternOracle:
         ourKing <- board.kingPosOf(color)
         theirKing <- board.kingPosOf(!color)
         ourRook <- board.byPiece(color, Rook).squares.headOption
+        theirRook <- board.byPiece(!color, Rook).squares.headOption
         if chebyshev(ourKing, promo) <= 1
         if chebyshev(theirKing, promo) >= 2
+        if fileDistance(theirKing.file, pawn.file) >= 2
         if ourRook.file != pawn.file
         if fileDistance(ourRook.file, pawn.file) >= 2
       yield
+        val geometry = rookTechniqueGeometry(board, color, color, !color, pawn, Some(ourRook), Some(theirRook))
         PatternMatch(
           id = "Lucena",
           outcomeOverride = Some(TheoreticalOutcomeHint.Win),
           confidenceFloor = 0.82,
           signalOverrides = PatternSignalOverrides(
-            rookEndgamePattern = Some(RookEndgamePattern.RookBehindPassedPawn)
+            rookEndgamePattern = Some(RookEndgamePattern.RookBehindPassedPawn),
+            rookEndgameAnchorSquares = geometry.anchorSquares,
+            rookEndgameGeometry = Some(geometry)
           ),
           ambiguityPenalty = if core.ruleOfSquare == RuleOfSquareStatus.Fails then 0.08 else 0.0
         )
@@ -560,16 +587,20 @@ object EndgamePatternOracle:
           pawn <- pawnOpt
           dKing <- board.kingPosOf(defender)
           dRook <- board.byPiece(defender, Rook).squares.headOption
+          aRook <- board.byPiece(attacker, Rook).squares.headOption
           if isShortSideCorner(dKing, pawn, attacker)
           if dRook.rank == pawn.rank
           if fileDistance(dRook.file, pawn.file) >= 2
         yield
+          val geometry = rookTechniqueGeometry(board, defender, attacker, defender, pawn, Some(aRook), Some(dRook))
           PatternMatch(
             id = "ShortSideDefense",
             outcomeOverride = Some(TheoreticalOutcomeHint.Draw),
             confidenceFloor = 0.76,
             signalOverrides = PatternSignalOverrides(
-              rookEndgamePattern = Some(RookEndgamePattern.KingCutOff)
+              rookEndgamePattern = Some(RookEndgamePattern.KingCutOff),
+              rookEndgameAnchorSquares = geometry.anchorSquares,
+              rookEndgameGeometry = Some(geometry)
             ),
             ambiguityPenalty = if core.kingActivityDelta > 2 then 0.05 else 0.01
           )
@@ -731,17 +762,21 @@ object EndgamePatternOracle:
           pawn <- pawnOpt
           dRook <- board.byPiece(defender, Rook).squares.headOption
           dKing <- board.kingPosOf(defender)
+          aRook <- board.byPiece(attacker, Rook).squares.headOption
           if dRook.file == pawn.file
           // Defender rook must truly be behind the passed pawn, not in front.
           if (if attacker.white then dRook.rank.value < pawn.rank.value else dRook.rank.value > pawn.rank.value)
           if chebyshev(dKing, pawn) >= 3
         yield
           val rankGap = math.abs(dRook.rank.value - pawn.rank.value)
+          val geometry = rookTechniqueGeometry(board, defender, attacker, defender, pawn, Some(aRook), Some(dRook))
           PatternMatch(
             id = "TarraschDefenseActive",
             confidenceFloor = 0.78,
             signalOverrides = PatternSignalOverrides(
-              rookEndgamePattern = Some(RookEndgamePattern.TarraschDefenseActive)
+              rookEndgamePattern = Some(RookEndgamePattern.TarraschDefenseActive),
+              rookEndgameAnchorSquares = geometry.anchorSquares,
+              rookEndgameGeometry = Some(geometry)
             ),
             ambiguityPenalty = if rankGap < 2 then 0.06 else if core.kingActivityDelta < 0 then 0.03 else 0.0
           )
@@ -764,12 +799,24 @@ object EndgamePatternOracle:
             // Rook sits in front of its own passed pawn and is tied to passive duty.
             (if defender.white then rook.rank.value > pawn.rank.value else rook.rank.value < pawn.rank.value) &&
             math.abs(rook.rank.value - pawn.rank.value) <= 2
-          }.map { _ =>
+          }.map { pawn =>
+            val geometry =
+              rookTechniqueGeometry(
+                board,
+                defender,
+                defender,
+                !defender,
+                pawn,
+                Some(rook),
+                board.byPiece(!defender, Rook).squares.headOption
+              )
             PatternMatch(
               id = "PassiveRookDefense",
               confidenceFloor = 0.75,
               signalOverrides = PatternSignalOverrides(
-                rookEndgamePattern = Some(RookEndgamePattern.PassiveRookDefense)
+                rookEndgamePattern = Some(RookEndgamePattern.PassiveRookDefense),
+                rookEndgameAnchorSquares = geometry.anchorSquares,
+                rookEndgameGeometry = Some(geometry)
               ),
               ambiguityPenalty = if defender == color && core.kingActivityDelta < 0 then 0.05 else 0.0
             )
@@ -918,6 +965,29 @@ object EndgamePatternOracle:
   private def promotionSquare(pawnSq: Square, color: Color): Option[Square] =
     val promoRank = if color.white then 7 else 0
     Square.at(pawnSq.file.value, promoRank)
+
+  private def rookTechniqueGeometry(
+      board: Board,
+      techniqueSide: Color,
+      attacker: Color,
+      defender: Color,
+      pawn: Square,
+      attackerRook: Option[Square],
+      defenderRook: Option[Square],
+      barrierRank: Option[Rank] = None
+  ): RookEndgameGeometry =
+    RookEndgameGeometry(
+      techniqueSide = techniqueSide,
+      strongSide = attacker,
+      defendingSide = defender,
+      passedPawn = pawn,
+      promotionSquare = promotionSquare(pawn, attacker).getOrElse(pawn),
+      attackingKing = board.kingPosOf(attacker),
+      defendingKing = board.kingPosOf(defender),
+      attackingRook = attackerRook,
+      defendingRook = defenderRook,
+      barrierRank = barrierRank
+    )
 
   private def advanceSquare(square: Square, color: Color): Option[Square] =
     Square.at(square.file.value, square.rank.value + (if color.white then 1 else -1))

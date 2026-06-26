@@ -4,6 +4,7 @@ import chess.{ Color, File, Role, Square }
 import lila.chessjudgment.analysis.material.MaterialValue
 import lila.chessjudgment.model.Fact
 import lila.chessjudgment.model.judgment.*
+import lila.chessjudgment.model.strategic.RookEndgameGeometry
 
 object PositionFactNormalizer:
 
@@ -278,11 +279,17 @@ object PositionFactNormalizer:
             signal = BoardAnchorSignal.WeakSquareHole,
             magnitude = 1,
             confidence = 0.68,
-            detail = Some(BoardAnchorDetail(subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare)))
+            detail = Some(
+              BoardAnchorDetail(
+                subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare),
+                targetSquare = focus.subjectSquares.headOption.map(evidenceSquare)
+              )
+            )
           )
         )
       case fact @ Fact.Outpost(_, pieceRole, _) =>
         val focus = fact.squareFocus
+        val outpostSquare = focus.subjectSquares.headOption.map(evidenceSquare)
         Some(
           BoardAnchor(
             kind = BoardAnchorKind.Outpost,
@@ -292,7 +299,8 @@ object PositionFactNormalizer:
             confidence = 0.72,
             detail = Some(
               BoardAnchorDetail(
-                subjectSquare = focus.subjectSquares.headOption.map(evidenceSquare),
+                subjectSquare = outpostSquare,
+                targetSquare = outpostSquare,
                 subjectRole = Some(evidenceRole(pieceRole))
               )
             )
@@ -368,19 +376,18 @@ object PositionFactNormalizer:
             )
           )
         )
-      case Fact.RookEndgamePattern(pattern, _, primaryPattern) =>
+      case Fact.RookEndgamePattern(pattern, _, primaryPattern, anchorSquares, geometry) =>
+        val anchors =
+          if anchorSquares.nonEmpty then anchorSquares
+          else geometry.toList.flatMap(_.anchorSquares)
         Some(
           BoardAnchor(
             kind = BoardAnchorKind.EndgameTechnique,
-            side = side,
+            side = geometry.map(_.techniqueSide).getOrElse(side),
             signal = BoardAnchorSignal.EndgameRookPattern,
             magnitude = 2,
             confidence = 0.74,
-            detail = Some(
-              BoardAnchorDetail(
-                tags = (List(s"rook-pattern:$pattern") ++ primaryPattern.map(pattern => s"pattern:$pattern")).distinct
-              )
-            )
+            detail = Some(rookEndgameAnchorDetail(pattern.toString, primaryPattern, anchors, geometry))
           )
         )
       case Fact.EndgameOutcome(_, confidence, _) =>
@@ -444,6 +451,42 @@ object PositionFactNormalizer:
       case _ =>
         None
     }
+
+  private def rookEndgameAnchorDetail(
+      pattern: String,
+      primaryPattern: Option[String],
+      anchorSquares: List[Square],
+      geometry: Option[RookEndgameGeometry]
+  ): BoardAnchorDetail =
+    val geometryTags =
+      geometry.toList.flatMap { g =>
+        List(
+          Some(s"technique-side:${colorKey(g.techniqueSide)}"),
+          Some(s"strong-side:${colorKey(g.strongSide)}"),
+          Some(s"defending-side:${colorKey(g.defendingSide)}"),
+          Some(s"passed-pawn:${g.passedPawn.key}"),
+          Some(s"promotion-square:${g.promotionSquare.key}"),
+          Some(s"pawn-file:${fileKey(g.passedPawn.file)}"),
+          g.attackingKing.map(square => s"attacking-king:${square.key}"),
+          g.defendingKing.map(square => s"defending-king:${square.key}"),
+          g.attackingRook.map(square => s"attacking-rook:${square.key}"),
+          g.defendingRook.map(square => s"defending-rook:${square.key}"),
+          g.barrierRank.map(rank => s"barrier-rank:${rank.value + 1}")
+        ).flatten
+      }
+    BoardAnchorDetail(
+      subjectColor = geometry.map(_.techniqueSide),
+      subjectSquare = geometry.flatMap(_.techniqueKing).map(evidenceSquare),
+      targetSquare = geometry.map(_.promotionSquare).map(evidenceSquare),
+      attackerColor = geometry.map(_.strongSide),
+      attackerSquare = geometry.flatMap(_.attackingRook).map(evidenceSquare),
+      attackerRole = geometry.flatMap(g => Option.when(g.attackingRook.nonEmpty)(evidenceRole(chess.Rook))),
+      defenderSquares = evidenceSquares(geometry.toList.flatMap(g => g.defendingKing.toList ++ g.defendingRook.toList)),
+      relatedSquares = evidenceSquares(anchorSquares),
+      file = geometry.map(g => evidenceFile(g.passedPawn.file)),
+      axis = geometry.map(_ => BoardAnchorAxis.File),
+      tags = (List(s"rook-pattern:$pattern") ++ primaryPattern.map(pattern => s"pattern:$pattern") ++ geometryTags).distinct
+    )
 
   private def featureAnchors(features: PositionFeatures): List[BoardAnchor] =
     val side = features.sideToMove
@@ -580,6 +623,9 @@ object PositionFactNormalizer:
     else if rankDiff == 0 then Some(BoardAnchorAxis.Rank)
     else if fileDiff.abs == rankDiff.abs then Some(BoardAnchorAxis.Diagonal)
     else None
+
+  private def colorKey(color: Color): String =
+    if color.white then "white" else "black"
 
   private def fileKey(file: File): String =
     file match

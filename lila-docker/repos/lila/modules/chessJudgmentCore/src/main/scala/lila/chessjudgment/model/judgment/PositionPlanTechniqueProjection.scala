@@ -58,6 +58,8 @@ case class PositionPlanTechniqueSemanticDetail(
     counterBreak: Option[Boolean] = None,
     tensionPolicy: Option[String] = None,
     tensionSquares: List[String] = Nil,
+    tensionEdges: List[String] = Nil,
+    counterBreakFiles: List[String] = Nil,
     pawnPlayDriver: Option[String] = None,
     planAlignmentScore: Option[Int] = None,
     planAlignmentBand: Option[String] = None,
@@ -99,6 +101,17 @@ case class PositionPlanTechniqueSemanticDetail(
     boardAnchorKinds: List[String] = Nil,
     boardAnchorSignals: List[String] = Nil,
     requiredSquares: List[String] = Nil,
+    endgameTechniquePattern: Option[String] = None,
+    endgameTechniqueRookPattern: Option[String] = None,
+    endgameTechniqueSide: Option[String] = None,
+    endgameTechniqueHorizonStatus: Option[String] = None,
+    endgameTechniqueTriggerMove: Option[String] = None,
+    endgameTechniqueEntryPlyOffset: Option[Int] = None,
+    endgameTechniqueTerminalPlyOffset: Option[Int] = None,
+    maintainedSquares: List[String] = Nil,
+    brokenSquares: List[String] = Nil,
+    terminalConsequenceKinds: List[String] = Nil,
+    endgameTechniqueFailureReason: Option[String] = None,
     anchorMagnitude: Option[Int] = None,
     sourceEvidenceIds: List[String] = Nil,
     causeEvidenceIds: List[String] = Nil,
@@ -163,6 +176,8 @@ object PositionPlanTechniqueProjection:
           threatEpisodePlanTechniqueFrame(ref, payload, graph, ideas, claims, ideaVerdict)
         case EvidenceRecord(ref, payload: BoardFactEvidence, _) if payload.endgameTechniqueAnchors.nonEmpty =>
           boardEndgameTechniqueFrame(ref, payload, graph, ideas, claims, ideaVerdict)
+        case EvidenceRecord(ref, payload: LineFactEvidence, _) if payload.endgameTechniqueHorizons.nonEmpty =>
+          lineEndgameTechniqueFrame(ref, payload, graph, ideas, claims, ideaVerdict)
         case _ =>
           None
       }
@@ -381,6 +396,54 @@ object PositionPlanTechniqueProjection:
         relationToVerdict = positionPlanTechniqueRelation(ideaVerdict, ideaIds.toSet),
         confidence = ref.confidence,
         salience = anchors.map(_.magnitude).sum + ideaIds.size + claimIds.size + relativeCauseEvidenceIds.size
+      )
+    }
+
+  private def lineEndgameTechniqueFrame(
+      ref: EvidenceRef,
+      payload: LineFactEvidence,
+      graph: TypedEvidenceGraph,
+      ideas: List[ChessIdea],
+      claims: List[ClaimSeed],
+      ideaVerdict: Option[IdeaVerdictSplit]
+  ): Option[PositionPlanTechniqueFrame] =
+    val horizons = payload.endgameTechniqueHorizons
+    Option.when(horizons.nonEmpty) {
+      val evidenceIds = List(ref.id)
+      val objectBindings = EvidenceObjectBinding.fromEvidenceRefs(graph, List(ref))
+      val relativeCauseEvidenceIds = relativeCauseEvidenceIdsFor(graph, evidenceIds.toSet, frameLine = ref.line)
+      val linkedEvidenceIds = (evidenceIds ++ relativeCauseEvidenceIds).toSet
+      val ideaIds = positionPlanTechniqueIdeaIds(ideas, linkedEvidenceIds)
+      val claimIds = positionPlanTechniqueClaimIds(claims, linkedEvidenceIds, ideaIds.toSet)
+      val semanticAnchors =
+        horizons.map(lineEndgameTechniqueSemanticAnchor).distinctBy(_.stableKey).sortBy(_.stableKey)
+      PositionPlanTechniqueFrame(
+        id = s"position-plan-technique:${ref.id}:endgame-horizon",
+        units = List(PositionPlanTechniqueUnit.EndgameTechniqueRecipe),
+        position = ref.position,
+        line = ref.line,
+        moveUci = ref.line.map(_.rootMove).filter(_.nonEmpty),
+        scope = ref.scope,
+        mechanismKinds = List(StrategicMechanismKind.Endgame),
+        strategicAxisKeys = Nil,
+        semanticAnchors = semanticAnchors,
+        objectBindingSignatures = EvidenceObjectBinding.objectSignatures(objectBindings),
+        objectBindings = positionPlanTechniqueObjectBindings(objectBindings),
+        semanticDetails = positionPlanTechniqueEnrichedDetails(
+          lineEndgameTechniquePlanDetails(horizons, evidenceIds),
+          graph,
+          evidenceIds
+        ),
+        evidenceIds = evidenceIds,
+        mechanismEvidenceIds = Nil,
+        sourceEvidenceIds = Nil,
+        relativeCauseEvidenceIds = relativeCauseEvidenceIds,
+        ideaIds = ideaIds,
+        claimIds = claimIds,
+        planComparison = None,
+        relationToVerdict = positionPlanTechniqueRelation(ideaVerdict, ideaIds.toSet),
+        confidence = ref.confidence,
+        salience = horizons.size * 2 + ideaIds.size + claimIds.size + relativeCauseEvidenceIds.size
       )
     }
 
@@ -817,6 +880,8 @@ object PositionPlanTechniqueProjection:
           counterBreak = Some(play.counterBreak),
           tensionPolicy = Some(play.tensionPolicy.toString),
           tensionSquares = play.tensionSquares.distinct.sorted,
+          tensionEdges = play.tensionEdges.distinct.sorted,
+          counterBreakFiles = play.counterBreakFiles.distinct.sorted,
           pawnPlayDriver = Some(play.primaryDriver.toString)
         )
       )
@@ -1216,9 +1281,20 @@ object PositionPlanTechniqueProjection:
   private def positionPlanTechniqueResourceAnchor(anchor: BoardAnchor): Boolean =
     anchor.kind match
       case BoardAnchorKind.CounterplayRestraint =>
-        true
+        positionPlanTechniqueConcreteResourceAnchor(anchor)
+      case BoardAnchorKind.FileControl | BoardAnchorKind.WeakSquare | BoardAnchorKind.Outpost | BoardAnchorKind.BatteryPressure =>
+        positionPlanTechniqueConcreteResourceAnchor(anchor)
       case _ =>
         false
+
+  private def positionPlanTechniqueConcreteResourceAnchor(anchor: BoardAnchor): Boolean =
+    anchor.detail.exists(detail =>
+      detail.targetSquare.nonEmpty ||
+        detail.file.nonEmpty ||
+        detail.relatedSquares.nonEmpty ||
+        detail.attackerSquare.nonEmpty ||
+        detail.attackerSquares.nonEmpty
+    )
 
   private def positionPlanTechniqueResourceContestApplies(detail: PositionPlanTechniqueSemanticDetail): Boolean =
     detail.unit == PositionPlanTechniqueUnit.SpacePreventionResourceDenial &&
@@ -1377,16 +1453,73 @@ object PositionPlanTechniqueProjection:
       anchors: List[BoardAnchor],
       evidenceIds: List[String]
   ): List[PositionPlanTechniqueSemanticDetail] =
-    List(
-      PositionPlanTechniqueSemanticDetail(
-        unit = PositionPlanTechniqueUnit.EndgameTechniqueRecipe,
-        semanticAnchorKeys = anchors.map(_.semanticGroupingAnchor.stableKey).distinct.sorted,
-        boardAnchorKinds = anchors.map(_.kind.toString).distinct.sorted,
-        boardAnchorSignals = anchors.map(_.signal.toString).distinct.sorted,
-        requiredSquares = anchors.flatMap(_.focusSquares.map(_.key)).distinct.sorted,
-        anchorMagnitude = anchors.map(_.magnitude).sorted.lastOption,
-        sourceEvidenceIds = evidenceIds
+    anchors
+      .groupBy(_.semanticGroupingAnchor.stableKey)
+      .values
+      .toList
+      .map { groupedAnchors =>
+        PositionPlanTechniqueSemanticDetail(
+          unit = PositionPlanTechniqueUnit.EndgameTechniqueRecipe,
+          semanticAnchorKeys = groupedAnchors.map(_.semanticGroupingAnchor.stableKey).distinct.sorted,
+          boardAnchorKinds = groupedAnchors.map(_.kind.toString).distinct.sorted,
+          boardAnchorSignals = groupedAnchors.map(_.signal.toString).distinct.sorted,
+          requiredSquares = groupedAnchors.flatMap(_.focusSquares.map(_.key)).distinct.sorted,
+          anchorMagnitude = groupedAnchors.map(_.magnitude).sorted.lastOption,
+          sourceEvidenceIds = evidenceIds
+        )
+      }
+      .sortBy(detail => detail.semanticAnchorKeys.mkString("\u0000"))
+
+  private def lineEndgameTechniquePlanDetails(
+      horizons: List[LineEndgameTechniqueHorizon],
+      evidenceIds: List[String]
+  ): List[PositionPlanTechniqueSemanticDetail] =
+    horizons
+      .map { horizon =>
+        PositionPlanTechniqueSemanticDetail(
+          unit = PositionPlanTechniqueUnit.EndgameTechniqueRecipe,
+          semanticAnchorKeys = List(lineEndgameTechniqueSemanticAnchor(horizon).stableKey),
+          endgameTechniquePattern = Some(horizon.pattern),
+          endgameTechniqueRookPattern = Some(horizon.rookPattern),
+          endgameTechniqueSide = Some(horizon.techniqueSideKey),
+          endgameTechniqueHorizonStatus = Some(horizon.status.toString),
+          endgameTechniqueTriggerMove = horizon.triggerMove,
+          endgameTechniqueEntryPlyOffset = Some(horizon.entryPlyOffset),
+          endgameTechniqueTerminalPlyOffset = Some(horizon.terminalPlyOffset),
+          requiredSquares = horizon.requiredSquares.distinct.sorted,
+          maintainedSquares = horizon.maintainedSquares.distinct.sorted,
+          brokenSquares = horizon.brokenSquares.distinct.sorted,
+          terminalConsequenceKinds = horizon.terminalConsequenceKinds.map(_.toString).distinct.sorted,
+          endgameTechniqueFailureReason = horizon.failureReason,
+          sourceEvidenceIds = evidenceIds
+        )
+      }
+      .distinctBy(detail =>
+        (
+          detail.endgameTechniquePattern,
+          detail.endgameTechniqueSide,
+          detail.endgameTechniqueEntryPlyOffset,
+          detail.endgameTechniqueTerminalPlyOffset
+        )
       )
+      .sortBy(detail =>
+        (
+          detail.endgameTechniquePattern.getOrElse(""),
+          detail.endgameTechniqueSide.getOrElse(""),
+          detail.endgameTechniqueEntryPlyOffset.getOrElse(-1)
+        )
+      )
+
+  private def lineEndgameTechniqueSemanticAnchor(
+      horizon: LineEndgameTechniqueHorizon
+  ): EvidenceSemanticAnchor =
+    EvidenceSemanticAnchor.of(
+      EvidenceSemanticAnchorKind.LineConsequence,
+      "EndgameTechniqueHorizon",
+      s"pattern:${horizon.pattern}",
+      s"rook-pattern:${horizon.rookPattern}",
+      s"horizonStatus:${horizon.status}",
+      s"technique-side:${horizon.techniqueSideKey}"
     )
 
   private def positionPlanTechniqueUnits(

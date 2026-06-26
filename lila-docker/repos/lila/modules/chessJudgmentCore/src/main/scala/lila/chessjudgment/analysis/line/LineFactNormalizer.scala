@@ -4,6 +4,7 @@ import chess.{ Color, King, Position }
 import chess.format.Fen
 import chess.variant.Standard
 
+import lila.chessjudgment.analysis.strategic.EndgamePatternOracle
 import lila.chessjudgment.model.judgment.*
 
 object LineFactNormalizer:
@@ -18,6 +19,9 @@ object LineFactNormalizer:
       materialSummary: Option[LineMaterialSummary] = None,
       parents: List[EvidenceRef] = Nil
   ): EvidenceRecord =
+    val replay = replaySteps(position.fen, facts)
+    val events = lineEvents(lineRef, facts, forcedTheme, materialSummary)
+    val consequences = lineConsequences(facts, forcedTheme, materialSummary)
     val ref =
       EvidenceRef(
         id = id,
@@ -38,9 +42,10 @@ object LineFactNormalizer:
         forcedTheme = forcedTheme,
         material = materialSummary
       )(
-        replay = replaySteps(position.fen, facts),
-        events = lineEvents(lineRef, facts, forcedTheme, materialSummary),
-        consequences = lineConsequences(facts, forcedTheme, materialSummary)
+        replay = replay,
+        events = events,
+        consequences = consequences,
+        endgameHorizons = endgameTechniqueHorizons(position.fen, replay, consequences)
       ),
       parents = parents
     )
@@ -165,6 +170,7 @@ object LineFactNormalizer:
       )
     val materialEvents =
       materialSummary.toList.flatMap { summary =>
+        val promotions = promotionMoves(facts)
         val captureEvents =
           summary.captures.flatMap { capture =>
             val captureEvent =
@@ -195,8 +201,8 @@ object LineFactNormalizer:
           Option.when(summary.hasPromotion)(
             LineMoveEvent(
               kind = LineEventKind.Promotion,
-              moveUci = summary.captures.lastOption.map(_.moveUci).getOrElse(""),
-              plyOffset = summary.captures.lastOption.map(_.plyOffset).getOrElse(0)
+              moveUci = promotions.lastOption.map(_._2).getOrElse(summary.captures.lastOption.map(_.moveUci).getOrElse("")),
+              plyOffset = promotions.lastOption.map(_._1).getOrElse(summary.captures.lastOption.map(_.plyOffset).getOrElse(0))
             )
           ).toList
         captureEvents ++ promotionEvents
@@ -241,19 +247,24 @@ object LineFactNormalizer:
       )
     val material =
       materialSummary.toList.flatMap { summary =>
+        val promotionMoveUcis = promotionMoves(facts).map(_._2)
+        val proofMoves = (summary.captures.map(_.moveUci) ++ promotionMoveUcis).distinct
+        val promotionEventMove = promotionMoveUcis.lastOption
         List(
           Option.when(summary.hasProofSignalMaterialGain || summary.hasUnrecoveredPawnGainForMover)(
             LineConsequence(
               LineConsequenceKind.MaterialGain,
-              summary.captures.map(_.moveUci),
-              proofSignal = summary.hasProofSignalMaterialGain
+              proofMoves,
+              proofSignal = summary.hasProofSignalMaterialGain,
+              eventMove = promotionEventMove.filter(_ => summary.hasPromotionGainForMover)
             )
           ),
           Option.when(summary.hasProofSignalMaterialLoss || summary.hasUnrecoveredPawnLossForMover)(
             LineConsequence(
               LineConsequenceKind.MaterialLoss,
-              summary.captures.map(_.moveUci),
-              proofSignal = summary.hasProofSignalMaterialLoss
+              proofMoves,
+              proofSignal = summary.hasProofSignalMaterialLoss,
+              eventMove = promotionEventMove.filter(_ => summary.hasPromotionLossForMover)
             )
           ),
           Option.when(summary.hasResolvedMaterialSequence)(
@@ -266,11 +277,135 @@ object LineFactNormalizer:
             LineConsequence(LineConsequenceKind.Sacrifice, summary.captures.map(_.moveUci), proofSignal = true)
           ),
           Option.when(summary.hasPromotion)(
-            LineConsequence(LineConsequenceKind.PromotionRace, summary.captures.map(_.moveUci), proofSignal = true)
+            LineConsequence(LineConsequenceKind.PromotionRace, proofMoves, proofSignal = true, eventMove = promotionEventMove)
           )
         ).flatten
       }
     (outcome ++ forced ++ material).distinct
+
+  private def promotionMoves(facts: PrincipalVariationEvidence.LineFacts): List[(Int, String)] =
+    facts.line.moves.zipWithIndex.collect {
+      case (move, index) if PrincipalVariationEvidence.normalizeUci(move.uci).length == 5 =>
+        index -> PrincipalVariationEvidence.normalizeUci(move.uci)
+    }
+
+  private final case class EndgameTechniqueSnapshot(
+      plyOffset: Int,
+      moveUci: Option[String],
+      pattern: String,
+      rookPattern: String,
+      techniqueSide: Color,
+      requiredSquares: List[String]
+  ):
+    def key: (String, Color) = pattern -> techniqueSide
+
+  private def endgameTechniqueHorizons(
+      startFen: String,
+      replay: List[LineReplayStep],
+      consequences: List[LineConsequence]
+  ): List[LineEndgameTechniqueHorizon] =
+    val snapshots =
+      (techniqueSnapshots(startFen, -1, None) ++
+        replay.zipWithIndex.flatMap { case (step, index) =>
+          techniqueSnapshots(step.fenAfter, index, Some(PrincipalVariationEvidence.normalizeUci(step.moveUci)))
+        }).sortBy(_.plyOffset)
+    val finalPlyOffset = if replay.nonEmpty then replay.size - 1 else -1
+    val terminalKinds = consequences.filter(_.proofSignal).map(_.kind).distinct.sortBy(_.toString)
+    val terminalOverrideKinds = terminalKinds.filter(terminalTechniqueOverride)
+    snapshots
+      .groupBy(_.key)
+      .values
+      .toList
+      .map(group => lineEndgameTechniqueHorizon(group.sortBy(_.plyOffset), snapshots, finalPlyOffset, terminalKinds, terminalOverrideKinds))
+      .sortBy(horizon => (horizon.pattern, horizon.techniqueSideKey, horizon.entryPlyOffset))
+
+  private def techniqueSnapshots(
+      fen: String,
+      plyOffset: Int,
+      moveUci: Option[String]
+  ): List[EndgameTechniqueSnapshot] =
+    positionAfter(fen).toList.flatMap { position =>
+      List(Color.White, Color.Black).flatMap { side =>
+        EndgamePatternOracle
+          .analyze(position.board, side)
+          .toList
+          .flatMap(feature =>
+            for
+              pattern <- feature.primaryPattern
+              geometry <- feature.rookEndgameGeometry
+              if feature.rookEndgamePattern != lila.chessjudgment.model.strategic.RookEndgamePattern.None
+            yield
+              EndgameTechniqueSnapshot(
+                plyOffset = plyOffset,
+                moveUci = moveUci,
+                pattern = pattern,
+                rookPattern = feature.rookEndgamePattern.toString,
+                techniqueSide = geometry.techniqueSide,
+                requiredSquares = geometry.anchorSquares.map(_.key).distinct.sorted
+              )
+          )
+      }
+    }.distinctBy(snapshot => (snapshot.plyOffset, snapshot.pattern, snapshot.techniqueSide, snapshot.requiredSquares.mkString(",")))
+
+  private def lineEndgameTechniqueHorizon(
+      group: List[EndgameTechniqueSnapshot],
+      allSnapshots: List[EndgameTechniqueSnapshot],
+      finalPlyOffset: Int,
+      terminalKinds: List[LineConsequenceKind],
+      terminalOverrideKinds: List[LineConsequenceKind]
+  ): LineEndgameTechniqueHorizon =
+    val first = group.head
+    val last = group.last
+    val requiredSquares = first.requiredSquares
+    val presentAtFinal = group.exists(_.plyOffset == finalPlyOffset)
+    val maintainedSquares =
+      if presentAtFinal then requiredSquares.intersect(last.requiredSquares).distinct.sorted
+      else Nil
+    val baseStatus =
+      if terminalOverrideKinds.nonEmpty && defensiveTechnique(first.pattern) then
+        LineEndgameTechniqueHorizonStatus.ContradictedByTerminalProof
+      else if terminalOverrideKinds.nonEmpty then
+        LineEndgameTechniqueHorizonStatus.SupersededByTactic
+      else if first.plyOffset > -1 && presentAtFinal then
+        LineEndgameTechniqueHorizonStatus.Transitioned
+      else if presentAtFinal then
+        LineEndgameTechniqueHorizonStatus.Active
+      else
+        LineEndgameTechniqueHorizonStatus.Failed
+    val missingAfterLastMove =
+      allSnapshots
+        .filter(snapshot => snapshot.plyOffset > last.plyOffset)
+        .sortBy(_.plyOffset)
+        .find(snapshot => snapshot.key != first.key)
+        .flatMap(_.moveUci)
+    val triggerMove =
+      if first.plyOffset > -1 then first.moveUci
+      else if baseStatus == LineEndgameTechniqueHorizonStatus.Failed then missingAfterLastMove
+      else None
+    val brokenSquares = requiredSquares.diff(maintainedSquares).distinct.sorted
+    LineEndgameTechniqueHorizon(
+      pattern = first.pattern,
+      rookPattern = first.rookPattern,
+      techniqueSide = first.techniqueSide,
+      entryPlyOffset = first.plyOffset,
+      terminalPlyOffset = if presentAtFinal then finalPlyOffset else last.plyOffset,
+      status = baseStatus,
+      triggerMove = triggerMove,
+      requiredSquares = requiredSquares,
+      maintainedSquares = maintainedSquares,
+      brokenSquares = brokenSquares,
+      terminalConsequenceKinds = terminalKinds,
+      failureReason =
+        Option.when(baseStatus == LineEndgameTechniqueHorizonStatus.Failed)("technique-geometry-not-maintained")
+          .orElse(Option.when(baseStatus == LineEndgameTechniqueHorizonStatus.ContradictedByTerminalProof)("terminal-proof-overrides-technique"))
+          .orElse(Option.when(baseStatus == LineEndgameTechniqueHorizonStatus.SupersededByTactic)("terminal-proof-supersedes-technique"))
+    )
+
+  private def terminalTechniqueOverride(kind: LineConsequenceKind): Boolean =
+    LineEndgameTechniqueHorizon.terminalProofOverrides(kind)
+
+  private def defensiveTechnique(pattern: String): Boolean =
+    LineEndgameTechniqueHorizon.defensivePattern(pattern)
 
   private def castlingEvent(moveUci: String, plyOffset: Int): Option[LineMoveEvent] =
     castlingSide(moveUci).map(side =>

@@ -1678,6 +1678,14 @@ object CandidateComparisonDiagnostic:
         detail.structuralRouteFromPly.map(value => s"structuralRouteFromPly:$value"),
         detail.structuralRouteToPly.map(value => s"structuralRouteToPly:$value"),
         detail.structuralPurposeStrength.map(value => s"structuralPurposeStrength:$value"),
+        detail.endgameTechniquePattern.map(value => s"pattern:$value"),
+        detail.endgameTechniqueRookPattern.map(value => s"rook-pattern:$value"),
+        detail.endgameTechniqueSide.map(value => s"techniqueSide:$value"),
+        detail.endgameTechniqueHorizonStatus.map(value => s"horizonStatus:$value"),
+        detail.endgameTechniqueTriggerMove.map(value => s"triggerMove:$value"),
+        detail.endgameTechniqueEntryPlyOffset.map(value => s"entryPlyOffset:$value"),
+        detail.endgameTechniqueTerminalPlyOffset.map(value => s"terminalPlyOffset:$value"),
+        detail.endgameTechniqueFailureReason.map(value => s"failureReason:$value"),
         detail.anchorMagnitude.map(value => s"anchorMagnitude:$value"),
         Some(s"specificityTier:${detail.specificityTier}")
       ).flatten ++
@@ -1690,7 +1698,12 @@ object CandidateComparisonDiagnostic:
         detail.boardAnchorKinds.map(value => s"boardAnchorKind:$value") ++
         detail.boardAnchorSignals.map(value => s"boardAnchorSignal:$value") ++
         detail.requiredSquares.map(value => s"requiredSquare:$value") ++
+        detail.maintainedSquares.map(value => s"maintainedSquare:$value") ++
+        detail.brokenSquares.map(value => s"brokenSquare:$value") ++
+        detail.terminalConsequenceKinds.map(value => s"terminalConsequenceKind:$value") ++
         detail.tensionSquares.map(value => s"tensionSquare:$value") ++
+        detail.tensionEdges.map(value => s"tensionEdge:$value") ++
+        detail.counterBreakFiles.map(value => s"counterBreakFile:$value") ++
         detail.matchedPlanIds.map(value => s"matchedPlanId:$value") ++
         detail.missingPlanIds.map(value => s"missingPlanId:$value") ++
         detail.planAlignmentReasonCodes.map(value => s"planAlignmentReasonCode:$value") ++
@@ -3504,6 +3517,9 @@ object CandidateComparisonDiagnostic:
         assessment.simplifyBias.shouldSimplify
       case EvidenceRecord(_, payload: RelationFactEvidence, _) if payload.kind == RelationFactKind.BadPieceLiquidation =>
         true
+      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+        payload.maintainedWinningEndgameTechniqueHorizons.nonEmpty ||
+          payload.failedWinningEndgameTechniqueHorizons.nonEmpty
       case _ => false
     }
 
@@ -3657,7 +3673,13 @@ object CandidateComparisonDiagnostic:
   private def hasEndgameResource(records: List[EvidenceRecord]): Boolean =
     strategicMechanismExists(records)(payload =>
       payload.kind == StrategicMechanismKind.Endgame && payload.canSupportStrategicCause
-    )
+    ) ||
+      records.exists {
+        case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+          payload.endgameTechniqueHorizons.nonEmpty
+        case _ =>
+          false
+      }
 
   private def strategicMechanismExists(
       records: List[EvidenceRecord]

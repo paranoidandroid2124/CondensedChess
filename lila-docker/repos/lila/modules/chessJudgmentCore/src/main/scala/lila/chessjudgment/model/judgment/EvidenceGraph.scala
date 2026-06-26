@@ -12,6 +12,7 @@ import lila.chessjudgment.analysis.singlePosition.{
   ThreatDriver,
   ThreatEvidenceSource,
   ThreatKind,
+  TensionPolicy,
   ThreatSeverity
 }
 import lila.chessjudgment.model.{ ActivePlans, Fact, Motif, MotifCategory, PlanScoringResult, PlanSequenceSummary, TransitionType }
@@ -409,7 +410,26 @@ object EvidenceObjectBinding:
           line = Some(payload.line)
         )
       }
-    (eventBindings ++ consequenceBindings).distinctBy(_.signature)
+    val horizonBindings =
+      payload.endgameTechniqueHorizons.map { horizon =>
+        val triggerMove = horizon.triggerMove.map(normalize)
+        EvidenceObjectBinding(
+          source = ref,
+          actor =
+            objectOf(EvidenceObjectKind.Side, horizon.techniqueSideKey) ++
+              triggerMove.toList.flatMap(moveObjects),
+          target = horizon.requiredSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square)),
+          mechanism = objectOf(EvidenceObjectKind.Mechanism, "EndgameTechniqueHorizon") ++
+            objectOf(EvidenceObjectKind.Mechanism, horizon.pattern),
+          consequence = objectOf(EvidenceObjectKind.Consequence, horizon.status.toString),
+          witness = horizon.maintainedSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square)) ++
+            horizon.brokenSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square)) ++
+            lineObject(payload.line),
+          line = Some(payload.line),
+          horizon = Some(s"endgame:${horizon.status}:entry=${horizon.entryPlyOffset}:terminal=${horizon.terminalPlyOffset}")
+        )
+      }
+    (eventBindings ++ consequenceBindings ++ horizonBindings).distinctBy(_.signature)
 
   private def fromMoveMotif(ref: EvidenceRef, payload: MoveMotifEvidence): EvidenceObjectBinding =
     val proof = payload.proof
@@ -1845,11 +1865,36 @@ object StrategicMechanismEvidence:
   private def pawnPlayAxis(pawnPlay: PawnPlayAnalysis): Option[StrategicAxisDetail] =
     pawnPlay.primaryDriver match
       case PawnPlayDriver.BreakReady | PawnPlayDriver.TensionActive | PawnPlayDriver.TensionCritical =>
-        Some(StrategicAxisDetail(StrategicAxisKind.PawnBreak, StrategicAxisPolarity.Support, pawnPlay.primaryDriver.toString))
+        Some(StrategicAxisDetail(StrategicAxisKind.PawnBreak, StrategicAxisPolarity.Support, pawnPlayAxisLabel(pawnPlay)))
       case PawnPlayDriver.Defensive =>
-        Some(StrategicAxisDetail(StrategicAxisKind.Counterplay, StrategicAxisPolarity.Restrain, pawnPlay.primaryDriver.toString))
+        Some(StrategicAxisDetail(StrategicAxisKind.Counterplay, StrategicAxisPolarity.Restrain, pawnPlayAxisLabel(pawnPlay)))
       case PawnPlayDriver.PassedPawn | PawnPlayDriver.Quiet =>
         None
+
+  private def pawnPlayAxisLabel(pawnPlay: PawnPlayAnalysis): String =
+    val base =
+      pawnPlay.primaryDriver match
+        case PawnPlayDriver.BreakReady =>
+          pawnPlay.breakFile.map(file => s"break-file-${axisLabelToken(file)}").getOrElse("break-ready")
+        case PawnPlayDriver.TensionCritical =>
+          "tension-critical"
+        case PawnPlayDriver.TensionActive =>
+          "tension-active"
+        case PawnPlayDriver.Defensive =>
+          val files = pawnPlay.counterBreakFiles.map(axisLabelToken).filter(_.nonEmpty).distinct.sorted
+          if files.nonEmpty then s"defensive-counter-break-${files.mkString("-")}" else "defensive"
+        case other =>
+          axisLabelToken(other.toString)
+    val policy =
+      Option.when(pawnPlay.tensionPolicy != TensionPolicy.Ignore)(axisLabelToken(pawnPlay.tensionPolicy.toString))
+    val tension =
+      val edges = pawnPlay.tensionEdges.map(axisLabelToken).filter(_.nonEmpty).distinct.sorted
+      val squares = pawnPlay.tensionSquares.map(axisLabelToken).filter(_.nonEmpty).distinct.sorted
+      Option.when(edges.nonEmpty || squares.nonEmpty)((if edges.nonEmpty then edges else squares).mkString("-"))
+    List(Some(base), policy, tension).flatten.filter(_.nonEmpty).mkString("-")
+
+  private def axisLabelToken(raw: String): String =
+    raw.trim.toLowerCase.replaceAll("[^a-z0-9]+", "-").stripPrefix("-").stripSuffix("-")
 
   private def structuralDeltaAxis(
       kind: StrategicAxisKind,
@@ -2175,6 +2220,49 @@ final case class LineReplayStep(
     fenAfter: String
 )
 
+enum LineEndgameTechniqueHorizonStatus:
+  case Active
+  case Transitioned
+  case Failed
+  case SupersededByTactic
+  case ContradictedByTerminalProof
+
+final case class LineEndgameTechniqueHorizon(
+    pattern: String,
+    rookPattern: String,
+    techniqueSide: Color,
+    entryPlyOffset: Int,
+    terminalPlyOffset: Int,
+    status: LineEndgameTechniqueHorizonStatus,
+    triggerMove: Option[String] = None,
+    requiredSquares: List[String] = Nil,
+    maintainedSquares: List[String] = Nil,
+    brokenSquares: List[String] = Nil,
+    terminalConsequenceKinds: List[LineConsequenceKind] = Nil,
+    failureReason: Option[String] = None
+):
+  def techniqueSideKey: String =
+    if techniqueSide.white then "white" else "black"
+
+object LineEndgameTechniqueHorizon:
+  def maintained(status: LineEndgameTechniqueHorizonStatus): Boolean =
+    status == LineEndgameTechniqueHorizonStatus.Active ||
+      status == LineEndgameTechniqueHorizonStatus.Transitioned
+
+  def winningPattern(pattern: String): Boolean =
+    pattern == "Lucena"
+
+  def defensivePattern(pattern: String): Boolean =
+    !winningPattern(pattern)
+
+  def terminalProofOverrides(kind: LineConsequenceKind): Boolean =
+    kind match
+      case LineConsequenceKind.Mate | LineConsequenceKind.MaterialGain | LineConsequenceKind.MaterialLoss |
+          LineConsequenceKind.PromotionRace =>
+        true
+      case _ =>
+        false
+
 enum LineEventKind:
   case Capture
   case Recapture
@@ -2389,7 +2477,8 @@ final case class LineFactEvidence(
     private val material: Option[LineMaterialSummary] = None
 )(private val replay: List[LineReplayStep] = Nil,
     private val events: List[LineMoveEvent] = Nil,
-    private val consequences: List[LineConsequence] = Nil
+    private val consequences: List[LineConsequence] = Nil,
+    private val endgameHorizons: List[LineEndgameTechniqueHorizon] = Nil
 ) extends EvidencePayload:
   val layer: EvidenceLayer = EvidenceLayer.Line
   def rootMove: Option[String] =
@@ -2410,6 +2499,46 @@ final case class LineFactEvidence(
     events
   def lineConsequences: List[LineConsequence] =
     consequences
+  def endgameTechniqueHorizons: List[LineEndgameTechniqueHorizon] =
+    endgameHorizons
+  def terminalEndgameTechniqueOverrideKinds: List[LineConsequenceKind] =
+    proofSignalConsequenceKinds.filter(LineEndgameTechniqueHorizon.terminalProofOverrides)
+  def hasTerminalEndgameTechniqueOverride: Boolean =
+    terminalEndgameTechniqueOverrideKinds.nonEmpty
+  def maintainedWinningEndgameTechniqueHorizons: List[LineEndgameTechniqueHorizon] =
+    endgameHorizons.filter(horizon =>
+      LineEndgameTechniqueHorizon.winningPattern(horizon.pattern) &&
+        LineEndgameTechniqueHorizon.maintained(horizon.status) &&
+        !hasTerminalEndgameTechniqueOverride
+    )
+  def failedWinningEndgameTechniqueHorizons: List[LineEndgameTechniqueHorizon] =
+    endgameHorizons.filter(horizon =>
+      LineEndgameTechniqueHorizon.winningPattern(horizon.pattern) &&
+        horizon.status == LineEndgameTechniqueHorizonStatus.Failed &&
+        !hasTerminalEndgameTechniqueOverride
+    )
+  def maintainedDefensiveEndgameTechniqueHorizons: List[LineEndgameTechniqueHorizon] =
+    endgameHorizons.filter(horizon =>
+      LineEndgameTechniqueHorizon.defensivePattern(horizon.pattern) &&
+        LineEndgameTechniqueHorizon.maintained(horizon.status) &&
+        !hasTerminalEndgameTechniqueOverride
+    )
+  def rootOwnedEndgameTechniqueHorizons(rootMoveUci: String, kind: RelativeCauseKind): List[LineEndgameTechniqueHorizon] =
+    val normalizedRoot = normalizeUci(rootMoveUci)
+    val candidates =
+      kind match
+        case RelativeCauseKind.ConversionSecured =>
+          maintainedWinningEndgameTechniqueHorizons
+        case RelativeCauseKind.ConversionMiss =>
+          failedWinningEndgameTechniqueHorizons ++ maintainedWinningEndgameTechniqueHorizons
+        case RelativeCauseKind.DrawResource =>
+          maintainedDefensiveEndgameTechniqueHorizons
+        case _ =>
+          Nil
+    candidates.filter(horizon =>
+      horizon.triggerMove.forall(move => normalizeUci(move) == normalizedRoot) ||
+        horizon.entryPlyOffset <= 0
+    )
   def lineReplayCount: Int =
     replay.size
   def hasLineReplay: Boolean =
@@ -2525,6 +2654,16 @@ final case class LineFactEvidence(
       .toList ++
       proofSignalConsequenceKinds.map(kind =>
         EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.LineConsequence, kind.toString)
+      ) ++
+      endgameTechniqueHorizons.map(horizon =>
+        EvidenceSemanticAnchor.of(
+          EvidenceSemanticAnchorKind.LineConsequence,
+          "EndgameTechniqueHorizon",
+          s"pattern:${horizon.pattern}",
+          s"rook-pattern:${horizon.rookPattern}",
+          s"horizonStatus:${horizon.status}",
+          s"technique-side:${horizon.techniqueSideKey}"
+        )
       )
 
   private def normalizeUci(raw: String): String =

@@ -54,9 +54,11 @@ object PawnPlayAssessor:
       val advanceOrCapture = checkTensionResolution(features, positionAssessment)
       val (urgency, blockade, blockadeSq, blockadeRole, support) = analyzePassedPawns(features, board, isWhite)
       val minorityAttack = checkMinorityAttack(board, isWhite)
-      val counterBreak = checkCounterBreak(motifs, isWhite)
+      val counterBreakFiles = extractCounterBreakFiles(motifs, isWhite)
+      val counterBreak = counterBreakFiles.nonEmpty
       val tensionPolicy = computeTensionPolicy(features, positionAssessment, breakReady, advanceOrCapture)
       val tensionSquares = extractTensionSquares(board)
+      val tensionEdges = extractTensionEdges(board)
       val driver = computePrimaryDriver(breakReady, urgency, advanceOrCapture, features.centralSpace.pawnTensionCount)
 
       PawnPlayAnalysis(
@@ -73,7 +75,9 @@ object PawnPlayAssessor:
         counterBreak = counterBreak,
         tensionPolicy = tensionPolicy,
         tensionSquares = tensionSquares,
-        primaryDriver = driver
+        primaryDriver = driver,
+        tensionEdges = tensionEdges,
+        counterBreakFiles = counterBreakFiles
       )
     }
   // CONCEPT 1-3: BREAK ANALYSIS
@@ -119,7 +123,8 @@ object PawnPlayAssessor:
     val myPawns = board.byPiece(color, Pawn)
     val enemyPawns = board.byPiece(enemy, Pawn)
 
-    myPawns.squares
+    val captureLevers =
+      myPawns.squares
       .flatMap { pawnSq =>
         (pawnSq.pawnAttacks(color) & enemyPawns).squares.map { targetSq =>
           val file = pawnSq.file.char.toString.toLowerCase
@@ -141,8 +146,63 @@ object PawnPlayAssessor:
           )
         }
       }
+
+    val centralAdvanceLevers =
+      myPawns.squares.flatMap(pawnSq => centralAdvanceBreak(features, board, pawnSq, color))
+
+    (captureLevers ++ centralAdvanceLevers)
       .sortBy(candidate => -candidate.priority)
       .headOption
+
+  private def centralAdvanceBreak(
+    features: PositionFeatures,
+    board: Board,
+    pawnSq: Square,
+    color: Color
+  ): Option[BreakCandidate] =
+    val forwardRank = pawnSq.rank.value + (if color.white then 1 else -1)
+    Square
+      .at(pawnSq.file.value, forwardRank)
+      .filter(_ => pawnHasAdvanced(pawnSq, color))
+      .filter(targetSq => board.pieceAt(targetSq).isEmpty)
+      .filter(isCentralBreakSquare)
+      .filter(targetSq => centralAdvanceCreatesContact(features, board, targetSq, color))
+      .map { targetSq =>
+        val file = pawnSq.file.char.toString.toLowerCase
+        val attackedTargets = (targetSq.pawnAttacks(color) & board.byColor(!color)).count
+        val impact =
+          estimateBreakImpact(features, file, color.white) +
+            fileOpennessBonus(board, pawnSq.file) +
+            20 +
+            attackedTargets * 10
+        val priority =
+          impact +
+            relativeRank(targetSq, color) * 4 +
+            (if board.attackers(targetSq, color).count >= board.attackers(targetSq, !color).count then 8 else 0)
+        BreakCandidate(
+          file = file,
+          impact = impact,
+          priority = priority
+        )
+      }
+
+  private def centralAdvanceCreatesContact(
+    features: PositionFeatures,
+    board: Board,
+    targetSq: Square,
+    color: Color
+  ): Boolean =
+    val directTarget = (targetSq.pawnAttacks(color) & board.byColor(!color)).nonEmpty
+    val contestedCenter = !features.centralSpace.openCenter && board.attackers(targetSq, !color).nonEmpty
+    directTarget || contestedCenter
+
+  private def pawnHasAdvanced(pawnSq: Square, color: Color): Boolean =
+    if color.white then pawnSq.rank != Rank.Second else pawnSq.rank != Rank.Seventh
+
+  private def isCentralBreakSquare(square: Square): Boolean =
+    val centralRank = square.rank == Rank.Fourth || square.rank == Rank.Fifth
+    val centralFile = square.file == File.C || square.file == File.D || square.file == File.E || square.file == File.F
+    centralRank && centralFile
 
   private def estimateBreakImpact(features: PositionFeatures, file: String, isWhite: Boolean): Int =
     // Base impact from opening a file
@@ -300,16 +360,14 @@ object PawnPlayAssessor:
     // e.g. 2 vs 3
     myQSide > 0 && myQSide < oppQSide
 
-  private def checkCounterBreak(
+  private def extractCounterBreakFiles(
     motifs: List[Motif],
     isWhite: Boolean
-  ): Boolean =
-    // Check if opponent has a PawnBreak motif ready
-    val opponentBreaks = motifs.collect {
-      case m: Motif.PawnBreak if !colorMatches(m.color, isWhite) => m
-    }
-    
-    opponentBreaks.nonEmpty
+  ): List[String] =
+    motifs.collect {
+      case m: Motif.PawnBreak if !colorMatches(m.color, isWhite) =>
+        m.file.char.toString.toLowerCase
+    }.distinct.sorted
 
   private def computeTensionPolicy(
     features: PositionFeatures,
@@ -344,6 +402,19 @@ object PawnPlayAssessor:
     }
     
     (whiteAttacks ++ blackAttacks).toList.distinct
+
+  private def extractTensionEdges(board: Board): List[String] =
+    val whitePawns = board.byPiece(Color.White, Pawn)
+    val blackPawns = board.byPiece(Color.Black, Pawn)
+    val whiteEdges =
+      whitePawns.squares.flatMap { pawnSq =>
+        (pawnSq.pawnAttacks(Color.White) & blackPawns).squares.map(targetSq => s"${pawnSq.key}-${targetSq.key}")
+      }
+    val blackEdges =
+      blackPawns.squares.flatMap { pawnSq =>
+        (pawnSq.pawnAttacks(Color.Black) & whitePawns).squares.map(targetSq => s"${pawnSq.key}-${targetSq.key}")
+      }
+    (whiteEdges ++ blackEdges).toList.distinct.sorted
 
   private def computePrimaryDriver(
     breakReady: Boolean,

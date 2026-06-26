@@ -909,8 +909,20 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
       diagnostics: List[CandidateComparisonDiagnostic],
       expectedQuestionIds: List[String] = Nil
   ): JsObject =
-    val rows = diagnostics.filter(primaryActionableStructuralOpportunity).flatMap(semanticRubricSlotRows)
-    val slotRows = expectedSlots.map(slot => expectedSemanticSlotCoverage(slot, rows))
+    val primaryRows = diagnostics.filter(primaryActionableStructuralOpportunity).flatMap(semanticRubricSlotRows)
+    val explicitProbeRows =
+      Option
+        .when(expectedSlots.exists(expectedSemanticSlotRequiresExplicitProbeRows))(
+          diagnostics.flatMap(semanticRubricSlotRows)
+        )
+        .getOrElse(Nil)
+    val slotRows =
+      expectedSlots.map(slot =>
+        val rows =
+          if expectedSemanticSlotRequiresExplicitProbeRows(slot) then (primaryRows ++ explicitProbeRows).distinct
+          else primaryRows
+        expectedSemanticSlotCoverage(slot, rows)
+      )
     val questionIds = slotRows.flatMap(row => (row \ "questionId").asOpt[String]).distinct.sorted
     val matchedQuestionIds =
       slotRows
@@ -975,6 +987,18 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
       "byQuestionId" -> semanticRubricExpectedSlotCoverageByQuestionIdJson(slotRows, expectedQuestions),
       "slots" -> JsArray(slotRows)
     )
+
+  private def expectedSemanticSlotRequiresExplicitProbeRows(slot: ExpectedSemanticSlot): Boolean =
+    slot.axisKey.nonEmpty ||
+      slot.requiredMechanismKinds.nonEmpty ||
+      slot.requiredCauseKinds.nonEmpty ||
+      slot.requiredPrimaryRootCauseKinds.nonEmpty ||
+      slot.requiredPrimaryRootArbitrationTiers.nonEmpty ||
+      slot.requiredSemanticDetailTokens.nonEmpty ||
+      slot.requiredCoLocatedSemanticDetailTokens.nonEmpty ||
+      slot.requiredSemanticAnchorTokens.nonEmpty ||
+      slot.requiredObjectBindingTokens.nonEmpty ||
+      slot.requiredTerminalStage.exists(stage => semanticRubricStageRank(stage) > semanticRubricStageRank("semantic_detected"))
 
   private[qc] def semanticRubricExpectedSlotCorpusCoverageJson(coverages: List[JsValue]): JsObject =
     val slotRows =

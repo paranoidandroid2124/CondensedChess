@@ -53,6 +53,12 @@ private[chessjudgment] final case class RelativeCauseSignalProfile(
     RelativeCauseSignalProfile.conversionWindowRecords(referenceRecords)
   val candidateConversionWindow: List[EvidenceRecord] =
     RelativeCauseSignalProfile.conversionWindowRecords(candidateRecords)
+  val candidateConversionMissWindow: List[EvidenceRecord] =
+    RelativeCauseSignalProfile.conversionMissRecords(candidateRecords)
+  val referenceDrawResource: List[EvidenceRecord] =
+    RelativeCauseSignalProfile.drawResourceRecords(referenceRecords)
+  val candidateDrawResource: List[EvidenceRecord] =
+    RelativeCauseSignalProfile.drawResourceRecords(candidateRecords)
   val referenceRecaptureResource: List[EvidenceRecord] =
     RelativeCauseSignalProfile.recaptureResourceRecords(referenceRecords)
   val candidateRecaptureResource: List[EvidenceRecord] =
@@ -199,7 +205,25 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
         Some(RelativeCauseSourceSide.Candidate)
       ),
       causeDraft(RelativeCauseKind.ConversionMiss, referenceConversionWindow, referenceConversionWindow.nonEmpty && badLoss),
+      causeDraft(
+        RelativeCauseKind.ConversionMiss,
+        candidateConversionMissWindow,
+        candidateConversionMissWindow.nonEmpty && badLoss,
+        Some(RelativeCauseSourceSide.Candidate)
+      ),
       causeDraft(RelativeCauseKind.ConversionSecured, candidateConversionWindow, candidateConversionWindow.nonEmpty && candidateBetter),
+      causeDraft(
+        RelativeCauseKind.DrawResource,
+        referenceDrawResource,
+        referenceDrawResource.nonEmpty && badLoss,
+        Some(RelativeCauseSourceSide.Reference)
+      ),
+      causeDraft(
+        RelativeCauseKind.DrawResource,
+        candidateDrawResource,
+        candidateDrawResource.nonEmpty && candidateBetter,
+        Some(RelativeCauseSourceSide.Candidate)
+      ),
       causeDraft(RelativeCauseKind.ConversionMiss, referencePromotionResource, referencePromotionResource.nonEmpty && badLoss),
       causeDraft(RelativeCauseKind.ConversionSecured, candidatePromotionResource, candidatePromotionResource.nonEmpty && candidateBetter),
       causeDraft(RelativeCauseKind.MissedTacticalResource, referenceLooseMaterialExploit, referenceLooseMaterialExploit.nonEmpty && badLoss),
@@ -683,8 +707,26 @@ private[chessjudgment] object RelativeCauseSignalProfile:
         assessment.simplifyBias.shouldSimplify
       case EvidenceRecord(_, payload: RelationFactEvidence, _) if payload.kind == RelationFactKind.BadPieceLiquidation =>
         true
+      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+        payload.maintainedWinningEndgameTechniqueHorizons.nonEmpty
       case _ => false
-    }
+    }.distinctBy(_.ref.id)
+
+  private[chessjudgment] def conversionMissRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
+    records.filter {
+      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+        payload.failedWinningEndgameTechniqueHorizons.nonEmpty
+      case _ =>
+        false
+    }.distinctBy(_.ref.id)
+
+  private[chessjudgment] def drawResourceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
+    records.filter {
+      case EvidenceRecord(_, payload: LineFactEvidence, _) =>
+        payload.maintainedDefensiveEndgameTechniqueHorizons.nonEmpty
+      case _ =>
+        false
+    }.distinctBy(_.ref.id)
 
   private[chessjudgment] def promotionRaceRecords(records: List[EvidenceRecord]): List[EvidenceRecord] =
     records.filter {

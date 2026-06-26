@@ -98,6 +98,8 @@ object MoveReviewPhase3AuditViewJson:
       "counterBreak" -> detail.counterBreak,
       "tensionPolicy" -> detail.tensionPolicy,
       "tensionSquares" -> detail.tensionSquares,
+      "tensionEdges" -> detail.tensionEdges,
+      "counterBreakFiles" -> detail.counterBreakFiles,
       "pawnPlayDriver" -> detail.pawnPlayDriver,
       "planAlignmentScore" -> detail.planAlignmentScore,
       "planAlignmentBand" -> detail.planAlignmentBand,
@@ -139,6 +141,17 @@ object MoveReviewPhase3AuditViewJson:
       "boardAnchorKinds" -> detail.boardAnchorKinds,
       "boardAnchorSignals" -> detail.boardAnchorSignals,
       "requiredSquares" -> detail.requiredSquares,
+      "endgameTechniquePattern" -> detail.endgameTechniquePattern,
+      "endgameTechniqueRookPattern" -> detail.endgameTechniqueRookPattern,
+      "endgameTechniqueSide" -> detail.endgameTechniqueSide,
+      "endgameTechniqueHorizonStatus" -> detail.endgameTechniqueHorizonStatus,
+      "endgameTechniqueTriggerMove" -> detail.endgameTechniqueTriggerMove,
+      "endgameTechniqueEntryPlyOffset" -> detail.endgameTechniqueEntryPlyOffset,
+      "endgameTechniqueTerminalPlyOffset" -> detail.endgameTechniqueTerminalPlyOffset,
+      "maintainedSquares" -> detail.maintainedSquares,
+      "brokenSquares" -> detail.brokenSquares,
+      "terminalConsequenceKinds" -> detail.terminalConsequenceKinds,
+      "endgameTechniqueFailureReason" -> detail.endgameTechniqueFailureReason,
       "anchorMagnitude" -> detail.anchorMagnitude,
       "sourceEvidenceIds" -> detail.sourceEvidenceIds,
       "causeEvidenceIds" -> detail.causeEvidenceIds,
@@ -160,4 +173,3 @@ object MoveReviewPhase3AuditViewJson:
       "outcome" -> plan.outcome.toString,
       "hasPlanDelta" -> plan.hasPlanDelta
     )
-
