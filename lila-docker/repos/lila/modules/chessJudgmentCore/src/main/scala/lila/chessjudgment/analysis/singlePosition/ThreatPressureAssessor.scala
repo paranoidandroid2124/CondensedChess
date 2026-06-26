@@ -1,6 +1,6 @@
 package lila.chessjudgment.analysis.singlePosition
 
-import chess.Color
+import chess.{ Color, File }
 import lila.chessjudgment.analysis.evaluation.JudgmentThresholds
 import lila.chessjudgment.analysis.tactical.{ BoundedReplayStep, TacticalRelationEvidence }
 import lila.chessjudgment.model.Motif
@@ -51,7 +51,8 @@ object ThreatPressureAssessor:
     val opponentThreats = extractOpponentThreats(motifs, isWhiteToMove)
     val correctedThreats = correctWithMultiPv(opponentThreats, multiPv, fen)
     val withDefenses = populateDefenseEvidence(correctedThreats, multiPv)
-    computeAggregates(withDefenses, multiPv, positionAssessment)
+    val activeCounterThreat = activeCounterThreatAvailable(fen, motifs, multiPv, sideToMove)
+    computeAggregates(withDefenses, multiPv, positionAssessment, activeCounterThreat)
 
   /**
    * Extract opponent threats from tactical motif inputs.
@@ -156,6 +157,8 @@ object ThreatPressureAssessor:
       case m: Motif.MateNet => Some(m.color)
       case m: Motif.SmotheredMate => Some(m.color)
       case m: Motif.TrappedPiece => Some(!m.color)
+      case m: Motif.PawnAdvance => Some(m.color)
+      case m: Motif.PawnBreak => Some(m.color)
       case m: Motif.PawnPromotion => Some(m.color)
       case m: Motif.PassedPawnPush => Some(m.color)
       case m: Motif.RookLift => Some(m.color)
@@ -294,6 +297,72 @@ object ThreatPressureAssessor:
       .boundedReplay(fen, pv.moves, maxPlies = 1)
       .flatMap(_.headOption)
 
+  private def activeCounterThreatAvailable(
+    fen: String,
+    motifs: List[Motif],
+    multiPv: List[PvLine],
+    sideToMove: Color
+  ): Boolean =
+    if multiPv.size < 2 then false
+    else
+      val bestLine = multiPv.head
+      val secondLine = multiPv(1)
+      val avgDepth = multiPv.map(_.depth).sum.toDouble / multiPv.size
+      val bestRoot = bestLine.moves.headOption.map(normalizedMove)
+      avgDepth >= JudgmentThresholds.THREAT_RELIABLE_DEPTH &&
+        bestLine.winPercentLossTo(secondLine) >= JudgmentThresholds.SIGNIFICANT_THREAT_WP &&
+        bestRoot.exists(root =>
+          firstLegalStep(fen, bestLine).exists(activeForcingRoot) ||
+            motifs.exists(activeCounterThreatMotif(_, sideToMove, root))
+        )
+
+  private def activeForcingRoot(step: BoundedReplayStep): Boolean =
+    step.move.after.check.yes ||
+      step.move.promotion.isDefined
+
+  private def activeCounterThreatMotif(motif: Motif, sideToMove: Color, rootMove: String): Boolean =
+    threateningColor(motif).contains(sideToMove) &&
+      motifMove(motif).exists(move => normalizedMove(move) == rootMove) &&
+      (
+        motif match
+          case _: Motif.PawnBreak | _: Motif.PassedPawnPush | _: Motif.PawnPromotion |
+              _: Motif.RookLift | _: Motif.OpenFileControl | _: Motif.SemiOpenFileControl |
+              _: Motif.SpaceAdvantage | _: Motif.Initiative | _: Motif.Battery =>
+            true
+          case m: Motif.PawnAdvance =>
+            centralFile(m.file) || m.relativeTo > m.relativeFrom
+          case m: Motif.Capture =>
+            m.captureType == Motif.CaptureType.Winning ||
+              m.captureType == Motif.CaptureType.ExchangeSacrifice
+          case _: Motif.Check | _: Motif.Zwischenzug =>
+            true
+          case _ =>
+            false
+      )
+
+  private def motifMove(motif: Motif): Option[String] =
+    motif match
+      case m: Motif.PawnAdvance          => m.move
+      case m: Motif.PawnBreak            => m.move
+      case m: Motif.PawnPromotion        => m.move
+      case m: Motif.PassedPawnPush       => m.move
+      case m: Motif.RookLift             => m.move
+      case m: Motif.Check                => m.move
+      case m: Motif.Capture              => m.move
+      case m: Motif.Zwischenzug          => m.move
+      case m: Motif.Battery              => m.move
+      case m: Motif.OpenFileControl      => m.move
+      case m: Motif.SemiOpenFileControl  => m.move
+      case m: Motif.SpaceAdvantage       => m.move
+      case m: Motif.Initiative           => m.move
+      case _                             => None
+
+  private def normalizedMove(move: String): String =
+    move.trim.toLowerCase
+
+  private def centralFile(file: File): Boolean =
+    file == File.C || file == File.D || file == File.E || file == File.F
+
   case class ThresholdConfig(
     ignorableThresholdWinPercent: Double,
     immediateThresholdWinPercent: Double,
@@ -348,7 +417,8 @@ object ThreatPressureAssessor:
   private def computeAggregates(
     threats: List[Threat],
     multiPv: List[PvLine],
-    positionAssessment: SinglePositionAssessment
+    positionAssessment: SinglePositionAssessment,
+    activeCounterThreat: Boolean
   ): ThreatAnalysis =
     val maxLoss = threats.map(_.lossIfIgnoredCp).maxOption.getOrElse(0)
     val maxWinPercentLoss = threats.flatMap(_.lossIfIgnoredWinPercent).maxOption
@@ -377,7 +447,11 @@ object ThreatPressureAssessor:
                           maxWinPercentLoss.forall(_ < thresholds.ignorableThresholdWinPercent) &&
                           positionAssessment.riskProfile.isLowRisk
     
-    val counterThreatBetter = false
+    val counterThreatBetter =
+      activeCounterThreat &&
+        !hasMate &&
+        maxWinPercentLoss.exists(_ >= JudgmentThresholds.SIGNIFICANT_THREAT_WP) &&
+        threats.nonEmpty
     
     val prophylaxisNeeded =
       !hasImmediate && hasStrategic &&

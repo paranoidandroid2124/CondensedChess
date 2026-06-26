@@ -48,7 +48,9 @@ final case class ActivityFeatures(
     blackAttackedPieces: Int,
     // Minor pieces still on the back rank in the opening.
     whiteDevelopmentLag: Int,
-    blackDevelopmentLag: Int
+    blackDevelopmentLag: Int,
+    whiteLowMobilitySquares: List[String] = Nil,
+    blackLowMobilitySquares: List[String] = Nil
 )
 
 final case class KingSafetyFeatures(
@@ -335,7 +337,7 @@ object PositionAnalyzer:
     val bMinors = countMobility(bMoveMap, Set(Knight, Bishop))
 
     // Board feature input: Pseudo-legal mobility aggregates
-    def pieceMobility(color: Color): (Int, Int) = {
+    def pieceMobility(color: Color): (Int, Int, List[String]) = {
       val pieces = (board.knights | board.bishops | board.rooks | board.queens) & board.byColor(color)
       val occupied = board.occupied
       val enemyPawns = board.pawns & board.byColor(!color)
@@ -343,6 +345,7 @@ object PositionAnalyzer:
       
       var totalMobility = 0
       var lowMobilityCount = 0
+      var lowMobilitySquares = List.empty[String]
       
       pieces.squares.foreach { sq =>
         board.pieceAt(sq).foreach { piece =>
@@ -357,14 +360,17 @@ object PositionAnalyzer:
           val safeMoves = attacks & ~board.byColor(color) & ~enemyPawnAttacks
           val moves = safeMoves.count
           totalMobility += moves
-          if (moves <= 2) lowMobilityCount += 1
+          if (moves <= 2) {
+            lowMobilityCount += 1
+            lowMobilitySquares ::= sq.key
+          }
         }
       }
-      (totalMobility, lowMobilityCount)
+      (totalMobility, lowMobilityCount, lowMobilitySquares.distinct.sorted)
     }
     
-    val (wPseudoMob, wLowMob) = pieceMobility(White)
-    val (bPseudoMob, bLowMob) = pieceMobility(Black)
+    val (wPseudoMob, wLowMob, wLowMobilitySquares) = pieceMobility(White)
+    val (bPseudoMob, bLowMob, bLowMobilitySquares) = pieceMobility(Black)
     
     // Board feature input: Attacked pieces count
     def attackedPieces(color: Color): Int = {
@@ -398,7 +404,9 @@ object PositionAnalyzer:
       whiteAttackedPieces = wAttacked,
       blackAttackedPieces = bAttacked,
       whiteDevelopmentLag = wDevLag,
-      blackDevelopmentLag = bDevLag
+      blackDevelopmentLag = bDevLag,
+      whiteLowMobilitySquares = wLowMobilitySquares,
+      blackLowMobilitySquares = bLowMobilitySquares
     )
 
   private def computeKingSafety(board: Board, position: Position): KingSafetyFeatures =

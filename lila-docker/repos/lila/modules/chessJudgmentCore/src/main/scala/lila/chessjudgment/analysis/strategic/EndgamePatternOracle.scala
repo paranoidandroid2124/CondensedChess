@@ -257,20 +257,34 @@ object EndgamePatternOracle:
             .sortBy(p => -relativeRank(p, attacker))
             .headOption
         val barrierRank = if attacker.white then Rank.Sixth else Rank.Third
+        val defenderRooks = board.byPiece(defender, Rook).squares
         for
           pawn <- candidatePawn
+          promo <- promotionSquare(pawn, attacker)
           dKing <- board.kingPosOf(defender)
           aKing <- board.kingPosOf(attacker)
-          dRook <- board.byPiece(defender, Rook).squares.find(_.rank == barrierRank)
           aRook <- board.byPiece(attacker, Rook).squares.headOption
+          dRook <- defenderRooks.find { rook =>
+            val sixthRankBarrier =
+              rook.rank == barrierRank &&
+                dKing.file == pawn.file &&
+                (if attacker.white then dKing.rank.value > pawn.rank.value else dKing.rank.value < pawn.rank.value) &&
+                relativeRank(aKing, attacker) <= 5 &&
+                fileDistance(rook.file, pawn.file) >= 1
+            val checkingResourceAfterAdvance =
+              !isFlankPawn(pawn) &&
+                rook.rank == pawn.rank &&
+                fileDistance(rook.file, pawn.file) >= 2 &&
+                chebyshev(dKing, promo) <= 2 &&
+                chebyshev(aKing, pawn) <= 1 &&
+                relativeRank(aKing, attacker) <= 5
+            sixthRankBarrier || checkingResourceAfterAdvance
+          }
           if relativeRank(pawn, attacker) == 5
-          if dKing.file == pawn.file
-          if (if attacker.white then dKing.rank.value > pawn.rank.value else dKing.rank.value < pawn.rank.value)
-          if relativeRank(aKing, attacker) <= 5
-          if fileDistance(dRook.file, pawn.file) >= 1
         yield
+          val patternBarrierRank = Option.when(dRook.rank == barrierRank)(barrierRank)
           val geometry =
-            rookTechniqueGeometry(board, defender, attacker, defender, pawn, Some(aRook), Some(dRook), Some(barrierRank))
+            rookTechniqueGeometry(board, defender, attacker, defender, pawn, Some(aRook), Some(dRook), patternBarrierRank)
           PatternMatch(
             id = "PhilidorDefense",
             outcomeOverride = Some(TheoreticalOutcomeHint.Draw),
@@ -303,9 +317,11 @@ object EndgamePatternOracle:
         theirRook <- board.byPiece(!color, Rook).squares.headOption
         if chebyshev(ourKing, promo) <= 1
         if chebyshev(theirKing, promo) >= 2
-        if fileDistance(theirKing.file, pawn.file) >= 2
-        if ourRook.file != pawn.file
-        if fileDistance(ourRook.file, pawn.file) >= 2
+        if fileDistance(theirKing.file, pawn.file) >= 1
+        if
+          val bridgeRank = if color.white then Rank.Fourth else Rank.Fifth
+          val sameFileFourthRankBridge = ourRook.rank == bridgeRank && ourRook.file == pawn.file
+          sameFileFourthRankBridge || (ourRook.file != pawn.file && fileDistance(ourRook.file, pawn.file) >= 2)
       yield
         val geometry = rookTechniqueGeometry(board, color, color, !color, pawn, Some(ourRook), Some(theirRook))
         PatternMatch(

@@ -627,10 +627,14 @@ object EvidenceObjectBinding:
       .stripPrefix("file:")
       .stripPrefix("target:")
       .stripPrefix("subject:")
-    if cleaned.matches("[a-h][1-8]") then objectOf(EvidenceObjectKind.Square, cleaned)
-    else if cleaned.matches("[a-h]") then objectOf(EvidenceObjectKind.File, cleaned)
-    else if cleaned.contains("pawn") then objectOf(EvidenceObjectKind.Pawn, cleaned)
-    else objectOf(EvidenceObjectKind.PlanSubject, cleaned)
+    val pieceRoute = raw"([a-z]+):([a-h][1-8])-([a-h][1-8]).*".r
+    cleaned match
+      case pieceRoute(role, _, to) =>
+        objectOf(EvidenceObjectKind.Piece, role) ++ objectOf(EvidenceObjectKind.Square, to)
+      case _ if cleaned.matches("[a-h][1-8]") => objectOf(EvidenceObjectKind.Square, cleaned)
+      case _ if cleaned.matches("[a-h]")      => objectOf(EvidenceObjectKind.File, cleaned)
+      case _ if cleaned.contains("pawn")      => objectOf(EvidenceObjectKind.Pawn, cleaned)
+      case _                                  => objectOf(EvidenceObjectKind.PlanSubject, cleaned)
 
   private def objectOf(kind: EvidenceObjectKind, raw: String): List[ConcreteChessObject] =
     val key = normalize(raw)
@@ -1734,19 +1738,20 @@ object StrategicMechanismEvidence:
           relatedPlans.map(plan => EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.Plan, plan.toString)) ++
           payload.semanticGroupingAnchors
       case PawnStructureFactEvidence(profile, alignment, pawnPlay) =>
-        List(
+        (
           Option.when(profile.primary != StructureId.Unknown)(
             EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.PawnStructure, profile.primary.toString)
-          ),
-          alignment.map(alignment =>
+          ).toList ++
+            pawnStructureGenericAnchors(profile.primary) ++
+            alignment.toList.map(alignment =>
             EvidenceSemanticAnchor.of(
               EvidenceSemanticAnchorKind.StructurePlan,
               alignment.band.toString,
               alignment.matchedPlanIds.sorted.mkString(",")
             )
-          ),
-          pawnPlay.map(play => EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.PawnPlay, play.primaryDriver.toString))
-        ).flatten
+          ) ++
+            pawnPlay.toList.flatMap(pawnPlaySemanticAnchors)
+        ).distinct
       case FeatureAnchorEvidence(anchor) =>
         List(EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.OpeningAnchor, anchor.theme.toString, anchor.signal.toString))
       case ApplicabilityAssessmentEvidence(assessment) =>
@@ -1767,6 +1772,36 @@ object StrategicMechanismEvidence:
         payload.semanticGroupingAnchors
       case _ =>
         Nil
+
+  private def pawnStructureGenericAnchors(structure: StructureId): List[EvidenceSemanticAnchor] =
+    structure match
+      case StructureId.Carlsbad =>
+        List(EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.PawnStructure, "carlsbad"))
+      case StructureId.IQPWhite | StructureId.IQPBlack =>
+        List(EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.PawnStructure, "iqp"))
+      case _ =>
+        Nil
+
+  private def pawnPlaySemanticAnchors(play: PawnPlayAnalysis): List[EvidenceSemanticAnchor] =
+    val breakAnchors =
+      play.breakFile.toList.flatMap { file =>
+        val normalized = axisLabelToken(file)
+        List(
+          EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.PawnPlay, s"break-file-$normalized")
+        ) ++ Option
+          .when(Set("c", "d", "e", "f").contains(normalized))(
+            EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.PawnPlay, "center-break")
+          )
+          .toList
+      }
+    val tensionAnchors =
+      Option
+        .when(play.tensionSquares.nonEmpty || play.tensionEdges.nonEmpty)(
+          EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.PawnPlay, "tension")
+        )
+        .toList
+    EvidenceSemanticAnchor.of(EvidenceSemanticAnchorKind.PawnPlay, play.primaryDriver.toString) ::
+      (breakAnchors ++ tensionAnchors)
 
   def planPressureHasDirectEvidence(scoring: PlanScoringResult, activePlans: ActivePlans): Boolean =
     scoring.confidence >= 0.35 &&

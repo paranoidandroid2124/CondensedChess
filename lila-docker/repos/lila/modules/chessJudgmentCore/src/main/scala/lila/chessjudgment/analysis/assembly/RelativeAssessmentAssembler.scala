@@ -1076,7 +1076,10 @@ object RelativeAssessmentAssembler:
     record.payload match
       case payload: LineFactEvidence =>
         payload.rootOwnedLineEvents(rootMove).nonEmpty ||
-          payload.rootOwnedProofSignalConsequences(rootMove).nonEmpty
+          payload.rootOwnedProofSignalConsequences(rootMove).nonEmpty ||
+          payload.rootOwnedEndgameTechniqueHorizons(rootMove, RelativeCauseKind.ConversionSecured).nonEmpty ||
+          payload.rootOwnedEndgameTechniqueHorizons(rootMove, RelativeCauseKind.ConversionMiss).nonEmpty ||
+          payload.rootOwnedEndgameTechniqueHorizons(rootMove, RelativeCauseKind.DrawResource).nonEmpty
       case payload: TacticalMechanismEvidence =>
         payload.moveUci.exists(move => normalizeMove(move) == normalizeMove(rootMove))
       case payload: StructuralDeltaEvidence =>

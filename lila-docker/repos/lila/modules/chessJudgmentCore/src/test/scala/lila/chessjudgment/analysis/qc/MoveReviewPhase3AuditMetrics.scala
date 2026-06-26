@@ -877,6 +877,7 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
       primaryRootArbitrationTiers: List[MoveJudgmentCauseRootArbitrationTier],
       primaryRootCauseEvidenceIdTierSignatures: List[String],
       causeIds: List[String],
+      causeIdKindSignatures: List[String],
       claimIds: List[String]
   )
 
@@ -1132,20 +1133,32 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
       slot: ExpectedSemanticSlot,
       rows: List[SemanticRubricSlotRow]
   ): JsObject =
-    val structurallyEligibleRows =
+    val unitEligibleRows =
       rows.filter(row =>
         row.unit == slot.unit &&
           slot.axisKey.forall(expectedAxis => row.axisKey.contains(expectedAxis)) &&
-          slot.requiredMechanismKinds.forall(kind => row.detailMechanismKinds.contains(kind)) &&
-          slot.requiredCauseKinds.forall(kind => row.causeKinds.contains(kind)) &&
-          slot.requiredPrimaryRootCauseKinds.forall(kind => row.primaryRootCauseKinds.contains(kind)) &&
-          slot.requiredPrimaryRootArbitrationTiers.forall(tier => row.primaryRootArbitrationTiers.contains(tier))
+          slot.requiredMechanismKinds.forall(kind => row.detailMechanismKinds.contains(kind))
+      )
+    val structurallyEligibleRows =
+      unitEligibleRows.filter(row =>
+          (slot.requiredCauseKinds.isEmpty ||
+            slot.requiredCauseKinds.exists(kind => row.causeKinds.contains(kind))) &&
+          (slot.requiredPrimaryRootCauseKinds.isEmpty ||
+            slot.requiredPrimaryRootCauseKinds.exists(kind => row.primaryRootCauseKinds.contains(kind))) &&
+          (slot.requiredPrimaryRootArbitrationTiers.isEmpty ||
+            slot.requiredPrimaryRootArbitrationTiers.exists(tier => row.primaryRootArbitrationTiers.contains(tier)))
       )
     val semanticDetailTokenRows =
-      structurallyEligibleRows.filter(row => tokensSatisfied(slot.requiredSemanticDetailTokens, row.semanticDetailTokens))
+      unitEligibleRows.filter(row => semanticDetailTokensSatisfiedForSlot(slot, row))
     val coLocatedSemanticDetailTokenRows =
       semanticDetailTokenRows.filter(row =>
-        coLocatedTokensSatisfied(slot.requiredCoLocatedSemanticDetailTokens, row.semanticDetailTokenGroups)
+        coLocatedTokensSatisfied(slot.requiredCoLocatedSemanticDetailTokens, semanticDetailTokenGroupsForSlot(slot, row))
+      )
+    val structurallySemanticDetailTokenRows =
+      structurallyEligibleRows.filter(row => semanticDetailTokensSatisfiedForSlot(slot, row))
+    val structurallyCoLocatedSemanticDetailTokenRows =
+      structurallySemanticDetailTokenRows.filter(row =>
+        coLocatedTokensSatisfied(slot.requiredCoLocatedSemanticDetailTokens, semanticDetailTokenGroupsForSlot(slot, row))
       )
     val semanticDetailTokensSatisfied = semanticDetailTokenRows.nonEmpty
     val coLocatedSemanticDetailTokensSatisfied =
@@ -1155,17 +1168,27 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
         semanticDetailTokensSatisfied &&
         !coLocatedSemanticDetailTokensSatisfied
     val bestCoLocatedSemanticDetailTokenGroup =
-      bestCoLocatedSemanticDetailTokens(slot.requiredCoLocatedSemanticDetailTokens, semanticDetailTokenRows)
+      bestCoLocatedSemanticDetailTokens(slot, semanticDetailTokenRows)
     val missingCoLocatedSemanticDetailTokensFromBestGroup =
       missingRequiredTokens(slot.requiredCoLocatedSemanticDetailTokens, bestCoLocatedSemanticDetailTokenGroup)
     val objectBindingTokensSatisfiedRows =
-      coLocatedSemanticDetailTokenRows.filter(row => tokensSatisfied(slot.requiredObjectBindingTokens, row.objectBindingSignatures))
+      coLocatedSemanticDetailTokenRows.filter(row => objectBindingTokensSatisfiedForSlot(slot, row))
     val objectBindingTokenCoLocatedRows =
       objectBindingTokensSatisfiedRows.filter(row =>
         objectBindingTokensCoLocated(
           slot.requiredObjectBindingTokens,
           semanticDetailCoLocationTokens(slot),
-          row.semanticDetailTokenGroups
+          semanticDetailTokenGroupsForSlot(slot, row)
+        )
+      )
+    val structurallyObjectBindingTokensSatisfiedRows =
+      structurallyCoLocatedSemanticDetailTokenRows.filter(row => objectBindingTokensSatisfiedForSlot(slot, row))
+    val structurallyObjectBindingTokenCoLocatedRows =
+      structurallyObjectBindingTokensSatisfiedRows.filter(row =>
+        objectBindingTokensCoLocated(
+          slot.requiredObjectBindingTokens,
+          semanticDetailCoLocationTokens(slot),
+          semanticDetailTokenGroupsForSlot(slot, row)
         )
       )
     val objectBindingTokensSatisfied =
@@ -1174,20 +1197,19 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
       slot.requiredObjectBindingTokens.isEmpty || objectBindingTokenCoLocatedRows.nonEmpty
     val bestObjectBindingTokenGroup =
       bestObjectBindingTokenGroupFor(
-        slot.requiredObjectBindingTokens,
-        semanticDetailCoLocationTokens(slot),
+        slot,
         objectBindingTokensSatisfiedRows
       )
     val missingObjectBindingTokensFromBestGroup =
       missingObjectBindingTokens(slot.requiredObjectBindingTokens, bestObjectBindingTokenGroup)
     val legacyMatches =
-      objectBindingTokenCoLocatedRows.filter(row =>
+      structurallyObjectBindingTokenCoLocatedRows.filter(row =>
           tokensSatisfied(slot.requiredSemanticAnchorTokens, row.detailSemanticAnchorKeys)
       )
     val causeLineageTokenCoLocatedRows =
       if causeLineageTokenCoLocationRequired(slot) then
-        objectBindingTokenCoLocatedRows.filter(row => causeLineageTokensCoLocated(slot, row))
-      else objectBindingTokenCoLocatedRows
+        structurallyObjectBindingTokenCoLocatedRows.filter(row => causeLineageTokensCoLocated(slot, row))
+      else structurallyObjectBindingTokenCoLocatedRows
     val rootLineageTokenCoLocatedRows =
       if rootLineageTokenCoLocationRequired(slot) then
         causeLineageTokenCoLocatedRows.filter(row => rootLineageTokensCoLocated(slot, row))
@@ -1220,11 +1242,17 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
       slot.requiredPrimaryRootCauseKinds.nonEmpty && legacyMatched && !rootLineageTokenCoLocationSatisfied
     val rootTierBorrowFalsePositive =
       slot.requiredPrimaryRootArbitrationTiers.nonEmpty && legacyMatched && !rootTierLineageTokenCoLocationSatisfied
-    val best = matches.sortBy(row => -semanticRubricStageRank(row.terminalStage)).headOption
-    val terminalStage = best.map(_.terminalStage).getOrElse("missing_semantic_slot")
+    val best = matches.sortBy(row => -semanticRubricStageRank(expectedSemanticSlotTerminalStage(slot, row))).headOption
+    val terminalStage = best.map(row => expectedSemanticSlotTerminalStage(slot, row)).getOrElse("missing_semantic_slot")
+    val strictLineageTerminalStage =
+      best.map(row => expectedSemanticSlotStrictTerminalStage(slot, row)).getOrElse("missing_semantic_slot")
     val terminalStageSatisfied =
       slot.requiredTerminalStage.forall(required =>
         semanticRubricStageRank(terminalStage) >= semanticRubricStageRank(required)
+      )
+    val strictLineageTerminalStageSatisfied =
+      slot.requiredTerminalStage.forall(required =>
+        semanticRubricStageRank(strictLineageTerminalStage) >= semanticRubricStageRank(required)
       )
     val matched = best.nonEmpty && terminalStageSatisfied
     Json.obj(
@@ -1244,7 +1272,9 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
       "requiredObjectBindingTokens" -> slot.requiredObjectBindingTokens,
       "matched" -> matched,
       "terminalStage" -> terminalStage,
+      "strictLineageTerminalStage" -> strictLineageTerminalStage,
       "terminalStageSatisfied" -> terminalStageSatisfied,
+      "strictLineageTerminalStageSatisfied" -> strictLineageTerminalStageSatisfied,
       "semanticDetailTokensSatisfied" -> semanticDetailTokensSatisfied,
       "coLocatedSemanticDetailTokensSatisfied" -> coLocatedSemanticDetailTokensSatisfied,
       "coLocatedSemanticDetailTokenFailure" -> coLocatedSemanticDetailTokenFailure,
@@ -1292,6 +1322,7 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
       "primaryRootArbitrationTiers" -> matches.flatMap(_.primaryRootArbitrationTiers).distinct.sortBy(_.toString).map(_.toString),
       "primaryRootCauseEvidenceIdTierSignatures" -> matches.flatMap(_.primaryRootCauseEvidenceIdTierSignatures).distinct.sorted,
       "causeIds" -> matches.flatMap(_.causeIds).distinct.sorted,
+      "causeIdKindSignatures" -> matches.flatMap(_.causeIdKindSignatures).distinct.sorted,
       "claimIds" -> matches.flatMap(_.claimIds).distinct.sorted,
       "bestLineageTrace" -> best.map(semanticRubricLineageTraceJson).getOrElse(Json.obj()),
       "lineageTraces" -> JsArray(
@@ -1325,6 +1356,7 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
       "objectBindingSignatures" -> row.objectBindingSignatures,
       "causeKinds" -> row.causeKinds.map(_.toString),
       "causeIds" -> row.causeIds,
+      "causeIdKindSignatures" -> row.causeIdKindSignatures,
       "claimIds" -> row.claimIds,
       "primaryRootCauseKinds" -> row.primaryRootCauseKinds.map(_.toString),
       "primaryRootCauseEvidenceIds" -> row.primaryRootCauseEvidenceIds,
@@ -1334,6 +1366,24 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
 
   private def tokensSatisfied(requiredTokens: List[String], values: List[String]): Boolean =
     requiredTokens.forall(token => values.exists(value => value.contains(token)))
+
+  private def semanticDetailTokensSatisfiedForSlot(
+      slot: ExpectedSemanticSlot,
+      row: SemanticRubricSlotRow
+  ): Boolean =
+    slot.requiredSemanticDetailTokens.isEmpty ||
+      semanticDetailTokenGroupsForSlot(slot, row).exists(group =>
+        tokensSatisfied(slot.requiredSemanticDetailTokens, group)
+      )
+
+  private def semanticDetailTokenGroupsForSlot(
+      slot: ExpectedSemanticSlot,
+      row: SemanticRubricSlotRow
+  ): List[List[String]] =
+    val unitToken = s"unit:${slot.unit}"
+    row.semanticDetailTokenGroups
+      .map(_.distinct.sorted)
+      .filter(_.contains(unitToken))
 
   private def coLocatedTokensSatisfied(requiredTokens: List[String], tokenGroups: List[List[String]]): Boolean =
     requiredTokens.isEmpty ||
@@ -1354,19 +1404,52 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
           requiredObjectBindingTokens.forall(token => objectBindingTokenSatisfied(token, group))
       )
 
+  private def objectBindingTokensSatisfiedForSlot(
+      slot: ExpectedSemanticSlot,
+      row: SemanticRubricSlotRow
+  ): Boolean =
+    slot.requiredObjectBindingTokens.isEmpty ||
+      slot.requiredObjectBindingTokens.forall(token =>
+        objectBindingSignatureTokenSatisfied(token, row.objectBindingSignatures) ||
+          semanticDetailTokenGroupsForSlot(slot, row).exists(group => objectBindingTokenSatisfied(token, group))
+      )
+
+  private def objectBindingSignatureTokenSatisfied(token: String, signatures: List[String]): Boolean =
+    val normalized = token.trim
+    normalized.nonEmpty &&
+      !roleTokenValue(normalized).exists(_.isEmpty) &&
+      signatures.exists(_.contains(normalized))
+
   private def objectBindingTokenSatisfied(token: String, values: List[String]): Boolean =
     objectBindingSemanticDetailTokens(token).exists(required => values.exists(_.contains(required)))
 
   private def objectBindingSemanticDetailTokens(token: String): List[String] =
     val normalized = token.trim
-    List(
-      Option.when(normalized.startsWith("actor="))(s"objectActor:${normalized.stripPrefix("actor=")}"),
-      Option.when(normalized.startsWith("target="))(s"objectTarget:${normalized.stripPrefix("target=")}"),
-      Option.when(normalized.startsWith("mechanism="))(s"objectMechanism:${normalized.stripPrefix("mechanism=")}"),
-      Option.when(normalized.startsWith("consequence="))(s"objectConsequence:${normalized.stripPrefix("consequence=")}"),
-      Option.when(normalized.startsWith("witness="))(s"objectWitness:${normalized.stripPrefix("witness=")}"),
-      Some(normalized)
-    ).flatten.distinct
+    val targetValue = roleTokenValue(normalized).filter(_ => normalized.startsWith("target="))
+    if roleTokenValue(normalized).exists(_.isEmpty) then Nil
+    else
+      (
+        List(
+          roleTokenValue(normalized).filter(_ => normalized.startsWith("actor=")).map(value => s"objectActor:$value"),
+          targetValue.map(value => s"objectTarget:$value"),
+          roleTokenValue(normalized).filter(_ => normalized.startsWith("mechanism=")).map(value => s"objectMechanism:$value"),
+          roleTokenValue(normalized).filter(_ => normalized.startsWith("consequence=")).map(value => s"objectConsequence:$value"),
+          roleTokenValue(normalized).filter(_ => normalized.startsWith("witness=")).map(value => s"objectWitness:$value"),
+          Some(normalized)
+        ).flatten ++ targetValue.toList.flatMap(resourceContestTargetTokens)
+      ).distinct
+
+  private def roleTokenValue(token: String): Option[String] =
+    List("actor=", "target=", "mechanism=", "consequence=", "witness=")
+      .find(token.startsWith)
+      .map(token.stripPrefix)
+
+  private def resourceContestTargetTokens(targetValue: String): List[String] =
+    if targetValue.startsWith("Square:") then
+      List(s"resourceContestSquare:${targetValue.stripPrefix("Square:")}")
+    else if targetValue.startsWith("File:") then
+      List(s"resourceContestFile:${targetValue.stripPrefix("File:")}")
+    else Nil
 
   private def causeLineageTokenCoLocationRequired(slot: ExpectedSemanticSlot): Boolean =
     slot.requiredCauseKinds.nonEmpty && semanticLineageTokenCoLocationRequired(slot)
@@ -1385,9 +1468,18 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
 
   private def causeLineageTokensCoLocated(slot: ExpectedSemanticSlot, row: SemanticRubricSlotRow): Boolean =
     val causeIds = row.causeIds.toSet
+    val causeIdKindSignatures = row.causeIdKindSignatures.toSet
     causeIds.nonEmpty &&
       lineageCandidateTokenGroups(slot, row).exists(group =>
-        causeEvidenceIdsFromTokens(group).exists(causeIds.contains)
+        causeEvidenceIdsFromTokens(group).exists(causeEvidenceId =>
+          causeIds.contains(causeEvidenceId) &&
+            (
+              slot.requiredCauseKinds.isEmpty ||
+                slot.requiredCauseKinds.exists(kind =>
+                  causeIdKindSignatures.contains(causeIdKindSignature(causeEvidenceId, kind))
+                )
+            )
+        )
       )
 
   private def rootLineageTokensCoLocated(slot: ExpectedSemanticSlot, row: SemanticRubricSlotRow): Boolean =
@@ -1413,6 +1505,9 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
       tier: MoveJudgmentCauseRootArbitrationTier
   ): String =
     s"$causeEvidenceId|tier=$tier"
+
+  private def causeIdKindSignature(causeEvidenceId: String, kind: RelativeCauseKind): String =
+    s"$causeEvidenceId|kind=$kind"
 
   private def semanticRubricCauseLineageBound(
       causeIds: List[String],
@@ -1444,8 +1539,7 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
 
   private def lineageCandidateTokenGroups(slot: ExpectedSemanticSlot, row: SemanticRubricSlotRow): List[List[String]] =
     val requiredSemanticTokens = semanticDetailCoLocationTokens(slot)
-    row.semanticDetailTokenGroups
-      .map(_.distinct.sorted)
+    semanticDetailTokenGroupsForSlot(slot, row)
       .filter(group =>
         tokensSatisfied(requiredSemanticTokens, group) &&
           slot.requiredObjectBindingTokens.forall(token => objectBindingTokenSatisfied(token, group))
@@ -1466,15 +1560,15 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
       .distinct
 
   private def bestObjectBindingTokenGroupFor(
-      requiredObjectBindingTokens: List[String],
-      requiredSemanticDetailTokens: List[String],
+      slot: ExpectedSemanticSlot,
       rows: List[SemanticRubricSlotRow]
   ): List[String] =
+    val requiredObjectBindingTokens = slot.requiredObjectBindingTokens
+    val requiredSemanticDetailTokens = semanticDetailCoLocationTokens(slot)
     if requiredObjectBindingTokens.isEmpty then Nil
     else
       rows
-        .flatMap(_.semanticDetailTokenGroups)
-        .map(_.distinct.sorted)
+        .flatMap(row => semanticDetailTokenGroupsForSlot(slot, row))
         .filter(group =>
           requiredSemanticDetailTokens.exists(token => group.exists(_.contains(token))) ||
             requiredObjectBindingTokens.exists(token => objectBindingTokenSatisfied(token, group))
@@ -1493,14 +1587,14 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
     requiredTokens.filterNot(token => objectBindingTokenSatisfied(token, values))
 
   private def bestCoLocatedSemanticDetailTokens(
-      requiredTokens: List[String],
+      slot: ExpectedSemanticSlot,
       rows: List[SemanticRubricSlotRow]
   ): List[String] =
+    val requiredTokens = slot.requiredCoLocatedSemanticDetailTokens
     if requiredTokens.isEmpty then Nil
     else
       rows
-        .flatMap(_.semanticDetailTokenGroups)
-        .map(_.distinct.sorted)
+        .flatMap(row => semanticDetailTokenGroupsForSlot(slot, row))
         .filter(group => requiredTokens.exists(token => group.exists(_.contains(token))))
         .sortBy(group => (-requiredTokens.count(token => group.exists(_.contains(token))), group.mkString("\u0000")))
         .headOption
@@ -1521,6 +1615,37 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
       case "owned_cause_linked"     => 7
       case "clustered_coherent"     => 8
       case _                        => 0
+
+  private def expectedSemanticSlotTerminalStage(
+      slot: ExpectedSemanticSlot,
+      row: SemanticRubricSlotRow
+  ): String =
+    if expectedSemanticSlotRecognitionViewMatch(slot, row) then "view_surfaced"
+    else row.terminalStage
+
+  private def expectedSemanticSlotStrictTerminalStage(
+      slot: ExpectedSemanticSlot,
+      row: SemanticRubricSlotRow
+  ): String =
+    if expectedSemanticSlotRecognitionViewMatch(slot, row) then "view_surfaced"
+    else row.strictLineageTerminalStage
+
+  private def expectedSemanticSlotRecognitionViewMatch(
+      slot: ExpectedSemanticSlot,
+      row: SemanticRubricSlotRow
+  ): Boolean =
+    slot.requiredTerminalStage.contains("view_surfaced") &&
+      slot.requiredCauseKinds.isEmpty &&
+      slot.requiredPrimaryRootCauseKinds.isEmpty &&
+      slot.requiredPrimaryRootArbitrationTiers.isEmpty &&
+      expectedSemanticSlotHasSemanticProbe(slot) &&
+      row.viewSurfaced
+
+  private def expectedSemanticSlotHasSemanticProbe(slot: ExpectedSemanticSlot): Boolean =
+    slot.requiredSemanticDetailTokens.nonEmpty ||
+      slot.requiredCoLocatedSemanticDetailTokens.nonEmpty ||
+      slot.requiredSemanticAnchorTokens.nonEmpty ||
+      slot.requiredObjectBindingTokens.nonEmpty
 
   private def semanticRubricSlotRows(diagnostic: CandidateComparisonDiagnostic): List[SemanticRubricSlotRow] =
     val axisRows =
@@ -1650,6 +1775,11 @@ private[qc] final class MoveReviewPhase3AuditFunnelMetrics(lineRefSummary: LineN
       primaryRootArbitrationTiers = view.primaryRootArbitrationTiers.distinct.sortBy(_.toString),
       primaryRootCauseEvidenceIdTierSignatures = view.primaryRootCauseEvidenceIdTierSignatures.distinct.sorted,
       causeIds = causeIds,
+      causeIdKindSignatures =
+        fallbackFlows
+          .map(flow => causeIdKindSignature(flow.causeId, flow.causeKind))
+          .distinct
+          .sorted,
       claimIds = fallbackFlows.flatMap(_.claimIds).distinct.sorted
     )
 

@@ -497,6 +497,7 @@ object PositionFactNormalizer:
     val developmentEdge = developmentLead(features, side)
     val mobilityEdge = mobilityLead(features, side)
     val opponentLowMobility = lowMobility(features, opponent)
+    val opponentLowMobilitySquares = lowMobilitySquares(features, opponent).map(EvidenceSquare(_))
     val sideSemiOpenFiles = semiOpenFiles(features, side)
     val sideRookOnSeventh = rookOnSeventh(features, side)
     val opponentExposure = kingExposure(features, opponent)
@@ -527,7 +528,7 @@ object PositionFactNormalizer:
           BoardAnchorSignal.OpponentLowMobility,
           opponentLowMobility,
           0.72,
-          detail = Some(BoardAnchorDetail(subjectColor = Some(opponent)))
+          detail = Some(BoardAnchorDetail(subjectColor = Some(opponent), relatedSquares = opponentLowMobilitySquares))
         )
       ),
       Option.when(opponentExposure >= 2)(
@@ -585,6 +586,9 @@ object PositionFactNormalizer:
 
   private def lowMobility(features: PositionFeatures, side: chess.Color): Int =
     if side.white then features.activity.whiteLowMobilityPieces else features.activity.blackLowMobilityPieces
+
+  private def lowMobilitySquares(features: PositionFeatures, side: chess.Color): List[String] =
+    if side.white then features.activity.whiteLowMobilitySquares else features.activity.blackLowMobilitySquares
 
   private def semiOpenFiles(features: PositionFeatures, side: chess.Color): Int =
     if side.white then features.lineControl.whiteSemiOpenFiles else features.lineControl.blackSemiOpenFiles

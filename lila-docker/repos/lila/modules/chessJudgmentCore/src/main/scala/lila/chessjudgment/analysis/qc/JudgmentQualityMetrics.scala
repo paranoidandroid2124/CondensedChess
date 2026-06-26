@@ -1547,8 +1547,8 @@ object CandidateComparisonDiagnostic:
         positionPlanTechniqueSemanticDetailTokens(planTechniqueFrames),
       positionPlanTechniqueSemanticDetailTokenGroups =
         positionPlanTechniqueSemanticDetailTokenGroups(planTechniqueFrames),
-      positionPlanTechniqueObjectBindingSignatures =
-        planTechniqueFrames.flatMap(_.objectBindings.map(_.signature)).distinct.sorted,
+        positionPlanTechniqueObjectBindingSignatures =
+          positionPlanTechniqueObjectBindingSignatures(planTechniqueFrames),
       positionPlanTechniqueEvidenceIds = planTechniqueFrames.flatMap(_.evidenceIds).distinct.sorted,
       positionPlanTechniqueRelativeCauseEvidenceIds = planTechniqueFrames.flatMap(_.relativeCauseEvidenceIds).distinct.sorted
     )
@@ -1717,30 +1717,118 @@ object CandidateComparisonDiagnostic:
         detail.resourceContestSquares.map(value => s"resourceContestSquare:$value") ++
         detail.resourceContestFiles.map(value => s"resourceContestFile:$value") ++
         detail.resourceContestScopes.map(value => s"resourceContestScope:$value") ++
+        positionPlanTechniqueStructuralRouteTokens(detail) ++
         detail.structuralPurposeConsequences.map(value => s"structuralPurposeConsequence:$value") ++
         detail.structuralPurposeSubjects.map(value => s"structuralPurposeSubject:$value") ++
         detail.structuralPurposeCategories.map(value => s"structuralPurposeCategory:$value") ++
         detail.structuralPurposePolarities.map(value => s"structuralPurposePolarity:$value") ++
+        detail.structuralMotifTags ++
+        detail.structuralMotifTags.map(value => s"structuralMotif:$value") ++
         detail.causeEvidenceIds.map(value => s"causeEvidenceId:$value") ++
         detail.proofRoles.map(value => s"proofRole:$value") ++
+        detail.contextCauseEvidenceIds.map(value => s"contextCauseEvidenceId:$value") ++
+        detail.contextProofRoles.map(value => s"contextProofRole:$value") ++
         detail.objectBindingSignatures.flatMap(positionPlanTechniqueObjectBindingTokens) ++
         detail.planAlignmentReasonWeights.toList
           .sortBy(_._1)
           .map { case (reason, weight) => s"planAlignmentReasonWeight:$reason=$weight" } ++
-        detail.sourceEvidenceIds.map(value => s"sourceEvidenceId:$value")
+        detail.sourceEvidenceIds.flatMap(positionPlanTechniqueSourceEvidenceTokens)
+      ).distinct.sorted
+
+  private def positionPlanTechniqueSourceEvidenceTokens(evidenceId: String): List[String] =
+    List(s"sourceEvidenceId:$evidenceId") ++
+      Option
+        .when(evidenceId.startsWith("line:") || evidenceId.contains(":evidence:line:"))("sourceEvidenceId:line:")
+        .toList
+
+  private def positionPlanTechniqueObjectBindingSignatures(frames: List[PositionPlanTechniqueFrame]): List[String] =
+    (
+      frames.flatMap(_.objectBindings.map(_.signature)) ++
+        frames.flatMap(_.semanticDetails.flatMap(_.objectBindingSignatures))
     ).distinct.sorted
 
+  private def positionPlanTechniqueStructuralRouteTokens(detail: PositionPlanTechniqueSemanticDetail): List[String] =
+    val subjectTokens =
+      detail.structuralPurposeSubjects.flatMap(positionPlanTechniqueStructuralSubjectTokens)
+    val routeAxisTokens =
+      detail.structuralRouteMove.toList.flatMap(positionPlanTechniqueMoveAxisTokens)
+    val hasTargetPurpose =
+      detail.axisKind.contains(StrategicAxisKind.Target) ||
+        detail.structuralPurposeCategories.exists(_.toLowerCase.contains("target"))
+    val concreteTargetTokens =
+      Option
+        .when(hasTargetPurpose)(detail.structuralPurposeSubjects.flatMap(positionPlanTechniqueConcreteTargetTokens))
+        .getOrElse(Nil)
+    val targetTokens =
+      Option
+        .when(detail.structuralPurposeCategories.exists(_.toLowerCase.contains("target")))(
+          List("target", "routeTarget")
+        )
+        .getOrElse(Nil)
+    (subjectTokens ++ routeAxisTokens ++ concreteTargetTokens ++ targetTokens).distinct.sorted
+
+  private def positionPlanTechniqueStructuralSubjectTokens(subject: String): List[String] =
+    val normalized = subject.toLowerCase
+    val pieceRoute = """([a-z]+):([a-h][1-8])-([a-h][1-8]).*""".r
+    normalized match
+      case pieceRoute(piece, from, to) =>
+        val routeTokens =
+          List(
+            "piece",
+            s"piece:$piece",
+            piece,
+            "route",
+            "reroute",
+            s"route:$from-$to"
+          )
+        routeTokens ++ positionPlanTechniqueMoveAxisTokens(from + to)
+      case _ =>
+        Nil
+
+  private def positionPlanTechniqueConcreteTargetTokens(subject: String): List[String] =
+    val normalized = subject.toLowerCase.trim
+    if normalized.matches("[a-h][1-8]") then
+      List(s"targetSquare:$normalized", s"objectTarget:Square:$normalized")
+    else Nil
+
+  private def positionPlanTechniqueMoveAxisTokens(move: String): List[String] =
+    val normalized = move.toLowerCase
+    if normalized.matches("[a-h][1-8][a-h][1-8].*") then
+      val fromFile = normalized.charAt(0) - 'a'
+      val fromRank = normalized.charAt(1) - '1'
+      val toFile = normalized.charAt(2) - 'a'
+      val toRank = normalized.charAt(3) - '1'
+      val fileDelta = (toFile - fromFile).abs
+      val rankDelta = (toRank - fromRank).abs
+      if fileDelta == rankDelta && fileDelta > 0 then List("diagonal", "axis:Diagonal")
+      else if fileDelta == 0 && rankDelta > 0 then List("file", "axis:File")
+      else if rankDelta == 0 && fileDelta > 0 then List("rank", "axis:Rank")
+      else Nil
+    else Nil
+
   private def positionPlanTechniqueObjectBindingTokens(signature: String): List[String] =
-    signature
+    val parts = signature
       .split("\\|")
       .toList
-      .collect {
+    (
+      parts.collect {
         case part if part.startsWith("actor=")       => s"objectActor:${part.stripPrefix("actor=")}"
         case part if part.startsWith("target=")      => s"objectTarget:${part.stripPrefix("target=")}"
         case part if part.startsWith("mechanism=")   => s"objectMechanism:${part.stripPrefix("mechanism=")}"
         case part if part.startsWith("consequence=") => s"objectConsequence:${part.stripPrefix("consequence=")}"
         case part if part.startsWith("witness=")     => s"objectWitness:${part.stripPrefix("witness=")}"
-      }
+      } ++ parts.flatMap(positionPlanTechniquePawnAdvanceBreakFileTokens)
+    ).distinct
+
+  private def positionPlanTechniquePawnAdvanceBreakFileTokens(part: String): List[String] =
+    val normalized = part.toLowerCase
+    val pattern = """.*pawnadvance\([^)]*some\(([a-h][1-8][a-h][1-8][a-z]?)\).*""".r
+    normalized match
+      case pattern(move) =>
+        val file = move.take(1)
+        List(s"breakFile:$file", s"break-file-$file")
+      case _ =>
+        Nil
 
   private def relativeCauseMatchesComparison(cause: RelativeCauseFact, fact: CandidateComparisonFact): Boolean =
     cause.comparisonKind == fact.kind &&

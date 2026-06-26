@@ -21,7 +21,9 @@ object LineFactNormalizer:
   ): EvidenceRecord =
     val replay = replaySteps(position.fen, facts)
     val events = lineEvents(lineRef, facts, forcedTheme, materialSummary)
-    val consequences = lineConsequences(facts, forcedTheme, materialSummary)
+    val baseConsequences = lineConsequences(facts, forcedTheme, materialSummary)
+    val endgameHorizons = endgameTechniqueHorizons(position.fen, replay, baseConsequences)
+    val consequences = (baseConsequences ++ endgameTechniqueConsequences(facts, endgameHorizons)).distinct
     val ref =
       EvidenceRef(
         id = id,
@@ -45,7 +47,7 @@ object LineFactNormalizer:
         replay = replay,
         events = events,
         consequences = consequences,
-        endgameHorizons = endgameTechniqueHorizons(position.fen, replay, consequences)
+        endgameHorizons = endgameHorizons
       ),
       parents = parents
     )
@@ -288,6 +290,27 @@ object LineFactNormalizer:
       case (move, index) if PrincipalVariationEvidence.normalizeUci(move.uci).length == 5 =>
         index -> PrincipalVariationEvidence.normalizeUci(move.uci)
     }
+
+  private def endgameTechniqueConsequences(
+      facts: PrincipalVariationEvidence.LineFacts,
+      horizons: List[LineEndgameTechniqueHorizon]
+  ): List[LineConsequence] =
+    val lineMoves = facts.line.moves.map(move => PrincipalVariationEvidence.normalizeUci(move.uci))
+    val rootMove = lineMoves.headOption
+    horizons
+      .filter(horizon =>
+        LineEndgameTechniqueHorizon.defensivePattern(horizon.pattern) &&
+          LineEndgameTechniqueHorizon.maintained(horizon.status)
+      )
+      .map(horizon =>
+        LineConsequence(
+          kind = LineConsequenceKind.DrawResource,
+          lineMoves = lineMoves,
+          proofSignal = true,
+          eventMove = horizon.triggerMove.orElse(rootMove)
+        )
+      )
+      .distinct
 
   private final case class EndgameTechniqueSnapshot(
       plyOffset: Int,

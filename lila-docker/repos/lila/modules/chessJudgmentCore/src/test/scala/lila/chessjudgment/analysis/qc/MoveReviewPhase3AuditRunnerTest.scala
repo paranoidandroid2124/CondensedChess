@@ -8,10 +8,11 @@ import lila.chessjudgment.analysis.line.{ LineFactNormalizer, PrincipalVariation
 import lila.chessjudgment.analysis.position.{ FactExtractor, PositionAnalyzer, PositionFactNormalizer }
 import lila.chessjudgment.analysis.singlePosition.*
 import lila.chessjudgment.analysis.strategic.EndgamePatternOracle
-import lila.chessjudgment.model.{ Fact, FactScope }
+import lila.chessjudgment.model.{ Fact, FactScope, Motif }
 import lila.chessjudgment.model.judgment.*
 import lila.chessjudgment.model.strategic.{ RookEndgameGeometry, RookEndgamePattern, VariationLine }
 import lila.chessjudgment.model.structure.*
+import chess.{ Color, File }
 import chess.format.Fen
 import chess.variant.Standard
 import play.api.libs.json.Json
@@ -655,13 +656,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
   test("expected semantic ownership slots require cause evidence co-located with semantic detail"):
     def diagnosticWithDetailTokens(
         id: String,
-        detailTokens: List[String]
-    ): CandidateComparisonDiagnostic =
-      comparisonDiagnostic(
-        id = id,
-        referenceLeadAxes = List("PawnBreak:Support:central-break-timing"),
-        producedKinds = List(RelativeCauseKind.PawnBreakOpportunity),
-        flows = List(
+        detailTokens: List[String],
+        flowDiagnostics: List[RelativeCauseFlowDiagnostic] = List(
           causeFlow(
             causeId = "cause-central-break",
             kind = RelativeCauseKind.PawnBreakOpportunity,
@@ -669,6 +665,13 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
             claimIds = List("claim-central-break")
           )
         ),
+        relativeCauseEvidenceIds: List[String] = List("cause-central-break")
+    ): CandidateComparisonDiagnostic =
+      comparisonDiagnostic(
+        id = id,
+        referenceLeadAxes = List("PawnBreak:Support:central-break-timing"),
+        producedKinds = flowDiagnostics.map(_.causeKind).distinct,
+        flows = flowDiagnostics,
         primaryRootKinds = List(RelativeCauseKind.PawnBreakOpportunity),
         primaryRootIds = List("cause-central-break"),
         positionPlanTechniqueFrameIds = List(s"frame-$id"),
@@ -679,7 +682,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
         positionPlanTechniqueSemanticDetailTokens = detailTokens,
         positionPlanTechniqueSemanticDetailTokenGroups = List(detailTokens),
         positionPlanTechniqueObjectBindingSignatures = List("target=Pawn:e4|mechanism=Mechanism:pawn-break|proof=DirectProof"),
-        positionPlanTechniqueRelativeCauseEvidenceIds = List("cause-central-break"),
+        positionPlanTechniqueRelativeCauseEvidenceIds = relativeCauseEvidenceIds,
         primaryRootArbitrationTiers = List(MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot)
       )
     val slot =
@@ -688,13 +691,18 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
         unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
         questionId = Some("pawn_break_timing_ownership"),
         requiredTerminalStage = Some("owned_cause_linked"),
-        requiredCauseKinds = List(RelativeCauseKind.PawnBreakOpportunity),
+        requiredCauseKinds = List(RelativeCauseKind.PawnBreakOpportunity, RelativeCauseKind.PlanImprovement),
         requiredSemanticDetailTokens = List("pawnBreakReady:true")
       )
     val borrowedCoverage =
       MoveReviewPhase3AuditRunner.semanticRubricExpectedSlotCoverageJson(
         List(slot),
-        List(diagnosticWithDetailTokens("borrowed-row-cause", List("pawnBreakReady:true", "objectTarget:Pawn:e4")))
+        List(
+          diagnosticWithDetailTokens(
+            "borrowed-row-cause",
+            List("unit:TensionBreakPolicyRoute", "pawnBreakReady:true", "objectTarget:Pawn:e4")
+          )
+        )
       )
     val ownedCoverage =
       MoveReviewPhase3AuditRunner.semanticRubricExpectedSlotCoverageJson(
@@ -702,7 +710,46 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
         List(
           diagnosticWithDetailTokens(
             "co-located-cause",
-            List("pawnBreakReady:true", "objectTarget:Pawn:e4", "causeEvidenceId:cause-central-break")
+            List(
+              "unit:TensionBreakPolicyRoute",
+              "pawnBreakReady:true",
+              "objectTarget:Pawn:e4",
+              "causeEvidenceId:cause-central-break"
+            )
+          )
+        )
+      )
+    val pawnBreakOnlySlot = slot.copy(
+      id = "owned-pawn-break-slot-id-kind-bound",
+      requiredCauseKinds = List(RelativeCauseKind.PawnBreakOpportunity)
+    )
+    val wrongKindCoverage =
+      MoveReviewPhase3AuditRunner.semanticRubricExpectedSlotCoverageJson(
+        List(pawnBreakOnlySlot),
+        List(
+          diagnosticWithDetailTokens(
+            "wrong-kind-cause-id",
+            List(
+              "unit:TensionBreakPolicyRoute",
+              "pawnBreakReady:true",
+              "objectTarget:Pawn:e4",
+              "causeEvidenceId:cause-defensive-context"
+            ),
+            flowDiagnostics = List(
+              causeFlow(
+                causeId = "cause-central-break",
+                kind = RelativeCauseKind.PawnBreakOpportunity,
+                proofAxisKeys = List("PawnBreak:Support:central-break-timing"),
+                claimIds = List("claim-central-break")
+              ),
+              causeFlow(
+                causeId = "cause-defensive-context",
+                kind = RelativeCauseKind.DefensiveResource,
+                proofAxisKeys = List("PawnBreak:Support:central-break-timing"),
+                claimIds = List("claim-defensive-context")
+              )
+            ),
+            relativeCauseEvidenceIds = List("cause-central-break", "cause-defensive-context")
           )
         )
       )
@@ -715,6 +762,91 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals((ownedCoverage \ "slots" \ 0 \ "terminalStageSatisfied").as[Boolean], true)
     assertEquals((ownedCoverage \ "slots" \ 0 \ "causeLineageTokenCoLocationSatisfied").as[Boolean], true)
     assert((ownedCoverage \ "slots" \ 0 \ "terminalStage").as[String] == "clustered_coherent")
+    assertEquals((wrongKindCoverage \ "matchedSlotCount").as[Int], 0)
+    assertEquals((wrongKindCoverage \ "causeBorrowFalsePositiveCount").as[Int], 1)
+    assertEquals((wrongKindCoverage \ "slots" \ 0 \ "causeLineageTokenCoLocationSatisfied").as[Boolean], false)
+    assertEquals((wrongKindCoverage \ "slots" \ 0 \ "legacyMatchedBeforeStrictLineage").as[Boolean], true)
+
+  test("structure compensation slots do not borrow center control ownership from IQP transition detail"):
+    val causeId = "move-review:demo:evidence:relative-cause:played-vs-best:center-control-gain:a:b:0"
+    def diagnosticWithStructuralTokens(
+        id: String,
+        detailTokens: List[String]
+    ): CandidateComparisonDiagnostic =
+      comparisonDiagnostic(
+        id = id,
+        referenceLeadAxes = List("Target:Gain:weak-pawn-target"),
+        producedKinds = List(RelativeCauseKind.CenterControlGain),
+        flows = List(
+          causeFlow(
+            causeId = causeId,
+            kind = RelativeCauseKind.CenterControlGain,
+            proofAxisKeys = List("Target:Gain:weak-pawn-target"),
+            claimIds = List("claim-structural-compensation")
+          )
+        ),
+        primaryRootKinds = List(RelativeCauseKind.CenterControlGain),
+        primaryRootIds = List(causeId),
+        positionPlanTechniqueFrameIds = List(s"frame-$id"),
+        positionPlanTechniqueUnits = List(PositionPlanTechniqueUnit.StructuralTransformation),
+        positionPlanTechniqueAxisKeys = List("Target:Gain:weak-pawn-target"),
+        positionPlanTechniqueSemanticDetailUnits = List(PositionPlanTechniqueUnit.StructuralTransformation),
+        positionPlanTechniqueSemanticDetailAxisKeys = List("Target:Gain:weak-pawn-target"),
+        positionPlanTechniqueSemanticDetailTokens = detailTokens,
+        positionPlanTechniqueSemanticDetailTokenGroups = List(detailTokens),
+        positionPlanTechniqueObjectBindingSignatures = List("target=Pawn:weak-pawn:d4|mechanism=Mechanism:WeakPawnTargetCreated|proof=DirectProof"),
+        positionPlanTechniqueRelativeCauseEvidenceIds = List(causeId),
+        primaryRootArbitrationTiers = List(MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot)
+      )
+    val slot =
+      MoveReviewPhase3AuditRunner.ExpectedSemanticSlot(
+        id = "iqp-structure-compensation-owned",
+        unit = PositionPlanTechniqueUnit.StructuralTransformation,
+        questionId = Some("structure_compensation"),
+        requiredTerminalStage = Some("clustered_coherent"),
+        requiredCauseKinds = List(
+          RelativeCauseKind.StructuralImprovement,
+          RelativeCauseKind.PawnWeaknessTarget,
+          RelativeCauseKind.TargetPressureGain,
+          RelativeCauseKind.PlanContradiction
+        ),
+        requiredSemanticDetailTokens = List("iqp", "isolated", "transition")
+      )
+    val ownedCoverage =
+      MoveReviewPhase3AuditRunner.semanticRubricExpectedSlotCoverageJson(
+        List(slot),
+        List(
+          diagnosticWithStructuralTokens(
+            "owned-iqp-transition",
+            List(
+              "unit:StructuralTransformation",
+              "axisKey:Target:Gain:weak-pawn-target",
+              "iqp",
+              "isolated",
+              "transition",
+              s"causeEvidenceId:$causeId"
+            )
+          )
+        )
+      )
+    val borrowedCoverage =
+      MoveReviewPhase3AuditRunner.semanticRubricExpectedSlotCoverageJson(
+        List(slot),
+        List(
+          diagnosticWithStructuralTokens(
+            "borrowed-iqp-transition",
+            List("unit:StructuralTransformation", "axisKey:Target:Gain:weak-pawn-target", "iqp", "isolated", "transition")
+          )
+        )
+      )
+
+    assertEquals((ownedCoverage \ "matchedSlotCount").as[Int], 0)
+    assertEquals((ownedCoverage \ "slots" \ 0 \ "semanticDetailTokensSatisfied").as[Boolean], true)
+    assertEquals((ownedCoverage \ "slots" \ 0 \ "causeKinds").as[List[String]], Nil)
+    assertEquals((ownedCoverage \ "slots" \ 0 \ "terminalStage").as[String], "missing_semantic_slot")
+    assertEquals((ownedCoverage \ "slots" \ 0 \ "causeLineageTokenCoLocationSatisfied").as[Boolean], false)
+    assertEquals((borrowedCoverage \ "matchedSlotCount").as[Int], 0)
+    assertEquals((borrowedCoverage \ "slots" \ 0 \ "causeLineageTokenCoLocationSatisfied").as[Boolean], false)
 
   test("expected semantic slots match explicit rook endgame technique probes outside structural funnel"):
     def endgameDiagnostic(
@@ -975,6 +1107,42 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assert(lucena.requiredSquares.nonEmpty)
     assertEquals(lucena.brokenSquares, lucena.requiredSquares)
 
+  test("line normalizer marks maintained defensive rook horizon as draw resource proof"):
+    val startFen = "R7/4k3/7r/3KP3/8/8/8/8 b - - 0 1"
+    val afterFen = PrincipalVariationEvidence.legalFenAfter(startFen, "h6a6").get
+    val rawLine =
+      PrincipalVariationEvidence.LineVariationRef(
+        List(PrincipalVariationEvidence.LineMoveRef(1, "h6a6", afterFen))
+      )
+    val validated = PrincipalVariationEvidence.validatedLine(startFen, rawLine, "h6a6").get
+    val facts =
+      PrincipalVariationEvidence.LineFacts(
+        line = validated.line,
+        first = validated.moves.head,
+        reply = validated.reply,
+        continuation = validated.continuation,
+        continuationTail = validated.moves.drop(3)
+      )
+    val position = PositionNodeRef(startFen, 1, Some(chess.Color.Black), Some("root"))
+    val record =
+      LineFactNormalizer.fromValidatedLine(
+        id = "line:philidor-draw-resource",
+        lineRef = lineRef("philidor-draw-resource", "h6a6", 1, LineNodeRole.BestReference),
+        facts = facts,
+        position = position,
+        scope = EvidenceScope.BestLine
+      )
+    val payload =
+      record.payload match
+        case payload: LineFactEvidence => payload
+        case _                         => fail("expected line fact evidence")
+    val philidor = payload.endgameTechniqueHorizons.find(_.pattern == "PhilidorDefense").get
+    val drawResource = payload.proofSignalConsequencesOf(LineConsequenceKind.DrawResource).head
+
+    assertEquals(philidor.status, LineEndgameTechniqueHorizonStatus.Active)
+    assert(drawResource.rootMoveMatched("h6a6"), drawResource)
+    assert(payload.rootOwnedEndgameTechniqueHorizons("h6a6", RelativeCauseKind.DrawResource).nonEmpty)
+
   test("non-capture promotion terminal proof owns root move before suppressing rook technique"):
     val startFen = "6K1/3k1P2/8/8/R7/8/8/7r w - - 0 1"
     val afterFen = PrincipalVariationEvidence.legalFenAfter(startFen, "f7f8q").get
@@ -1048,6 +1216,136 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
 
     assertEquals((coverage \ "slots" \ 0 \ "objectBound").as[Boolean], false)
     assertEquals((coverage \ "slots" \ 0 \ "terminalStage").as[String], "missing_semantic_slot")
+
+  test("recognition view slots can match semantic details without cause ownership"):
+    val detailTokens =
+      List(
+        "unit:EndgameTechniqueRecipe",
+        "pattern:Lucena",
+        "rook-pattern:RookBehindPassedPawn",
+        "requiredSquare:f8"
+      )
+    val diagnostic =
+      comparisonDiagnostic(
+        id = "cmp-rook-recognition-view",
+        referenceLeadAxes = Nil,
+        producedKinds = Nil,
+        flows = Nil,
+        primaryRootKinds = Nil,
+        primaryRootIds = Nil,
+        positionPlanTechniqueFrameIds = List("frame-rook-recognition-view"),
+        positionPlanTechniqueUnits = List(PositionPlanTechniqueUnit.EndgameTechniqueRecipe),
+        positionPlanTechniqueSemanticDetailUnits = List(PositionPlanTechniqueUnit.EndgameTechniqueRecipe),
+        positionPlanTechniqueSemanticDetailTokens = detailTokens,
+        positionPlanTechniqueSemanticDetailTokenGroups = List(detailTokens)
+      )
+    val recognitionSlot =
+      MoveReviewPhase3AuditRunner.ExpectedSemanticSlot(
+        id = "rook-recognition-view",
+        unit = PositionPlanTechniqueUnit.EndgameTechniqueRecipe,
+        requiredTerminalStage = Some("view_surfaced"),
+        requiredSemanticDetailTokens = List("pattern:Lucena", "requiredSquare:f8")
+      )
+    val ownedSlot =
+      recognitionSlot.copy(
+        id = "rook-recognition-owned",
+        requiredCauseKinds = List(RelativeCauseKind.ConversionSecured)
+      )
+
+    val coverage =
+      MoveReviewPhase3AuditRunner.semanticRubricExpectedSlotCoverageJson(List(recognitionSlot, ownedSlot), List(diagnostic))
+
+    assertEquals((coverage \ "matchedSlotCount").as[Int], 1)
+    assertEquals((coverage \ "slots" \ 0 \ "terminalStage").as[String], "view_surfaced")
+    assertEquals((coverage \ "slots" \ 0 \ "matched").as[Boolean], true)
+    assertEquals((coverage \ "slots" \ 1 \ "matched").as[Boolean], false)
+
+  test("resource contest view slots require concrete target binding"):
+    val semanticTokens =
+      List(
+        "unit:SpacePreventionResourceDenial",
+        "space",
+        "queenside",
+        "resourceContestKind:CounterplayRestraint",
+        "resourceContestSquare:a1"
+      )
+    val concreteDiagnostic =
+      comparisonDiagnostic(
+        id = "cmp-resource-contest-concrete",
+        referenceLeadAxes = Nil,
+        producedKinds = Nil,
+        flows = Nil,
+        primaryRootKinds = Nil,
+        primaryRootIds = Nil,
+        positionPlanTechniqueFrameIds = List("frame-resource-contest-concrete"),
+        positionPlanTechniqueUnits = List(PositionPlanTechniqueUnit.SpacePreventionResourceDenial),
+        positionPlanTechniqueSemanticDetailUnits = List(PositionPlanTechniqueUnit.SpacePreventionResourceDenial),
+        positionPlanTechniqueSemanticDetailTokens = semanticTokens,
+        positionPlanTechniqueSemanticDetailTokenGroups = List(semanticTokens)
+      )
+    val sideOnlyDiagnostic =
+      concreteDiagnostic.copy(
+        id = "cmp-resource-contest-side-only",
+        moveJudgmentView = concreteDiagnostic.moveJudgmentView.copy(
+          positionPlanTechniqueSemanticDetailTokens =
+            semanticTokens.filterNot(_.startsWith("resourceContestSquare:")),
+          positionPlanTechniqueSemanticDetailTokenGroups =
+            List(semanticTokens.filterNot(_.startsWith("resourceContestSquare:"))),
+          positionPlanTechniqueObjectBindingSignatures =
+            List("target=Side:white|mechanism=Mechanism:counterplayrestraint")
+        )
+      )
+    val concreteSlot =
+      MoveReviewPhase3AuditRunner.ExpectedSemanticSlot(
+        id = "queenside-space-resource-view",
+        unit = PositionPlanTechniqueUnit.SpacePreventionResourceDenial,
+        requiredTerminalStage = Some("view_surfaced"),
+        requiredSemanticDetailTokens = List("queenside", "space", "resourceContest"),
+        requiredObjectBindingTokens = List("target=Square:a1")
+      )
+    val emptyTargetSlot =
+      concreteSlot.copy(
+        id = "queenside-space-resource-view-empty-target",
+        requiredObjectBindingTokens = List("target=")
+      )
+
+    val concreteCoverage =
+      MoveReviewPhase3AuditRunner.semanticRubricExpectedSlotCoverageJson(List(concreteSlot), List(concreteDiagnostic))
+    val sideOnlyCoverage =
+      MoveReviewPhase3AuditRunner.semanticRubricExpectedSlotCoverageJson(List(concreteSlot), List(sideOnlyDiagnostic))
+    val emptyTargetCoverage =
+      MoveReviewPhase3AuditRunner.semanticRubricExpectedSlotCoverageJson(List(emptyTargetSlot), List(concreteDiagnostic))
+
+    assertEquals((concreteCoverage \ "matchedSlotCount").as[Int], 1)
+    assertEquals((sideOnlyCoverage \ "matchedSlotCount").as[Int], 0)
+    assertEquals((emptyTargetCoverage \ "matchedSlotCount").as[Int], 0)
+
+  test("threat pressure marks active pawn counterplay as race only with root motif"):
+    val fen = "4k3/8/8/8/2P5/8/8/4K3 w - - 0 1"
+    val activePv =
+      List(
+        PvLine(List("c4c5"), sideRelativeEvalCp = 320, mate = None, depth = 20),
+        PvLine(List("e1e2"), sideRelativeEvalCp = -320, mate = None, depth = 20)
+      )
+    val quietPv =
+      List(
+        PvLine(List("e1e2"), sideRelativeEvalCp = 320, mate = None, depth = 20),
+        PvLine(List("c4c5"), sideRelativeEvalCp = -320, mate = None, depth = 20)
+      )
+    val motifs =
+      List(
+        Motif.Initiative(Color.Black, score = 100, plyIndex = 0, move = None),
+        Motif.PawnAdvance(File.C, fromRank = 4, toRank = 5, Color.White, plyIndex = 0, move = Some("c4c5"))
+      )
+
+    val activeSummary =
+      ThreatPressureAssessor.analyze(fen, motifs, activePv, dynamicAssessment, Color.White)
+    val quietSummary =
+      ThreatPressureAssessor.analyze(fen, motifs, quietPv, dynamicAssessment, Color.White)
+
+    assertEquals(activeSummary.counterThreatBetter, true)
+    assertEquals(activeSummary.defense.counterIsBetter, true)
+    assertEquals(quietSummary.counterThreatBetter, false)
 
   test("audit view json exposes pawn tension edges and counter-break files"):
     val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(chess.Color.White), Some("root"))
@@ -1239,6 +1537,16 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(focusSquares, List("d7", "d8"))
     assert(semanticKeys.exists(_.contains("pattern:Lucena")), semanticKeys)
 
+    val projectedDetail =
+      PositionPlanTechniqueProjection
+        .frames(TypedEvidenceGraph(List(record)), Nil, Nil, None)
+        .flatMap(_.semanticDetails)
+        .find(_.boardAnchorSignals.contains(BoardAnchorSignal.EndgameRookPattern.toString))
+        .get
+    assertEquals(projectedDetail.endgameTechniquePattern, Some("Lucena"))
+    assertEquals(projectedDetail.endgameTechniqueRookPattern, Some("RookBehindPassedPawn"))
+    assertEquals(projectedDetail.requiredSquares, List("d7", "d8"))
+
   test("rook endgame pattern anchors preserve typed Philidor ownership geometry"):
     val position = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(chess.Color.White), Some("root"))
     val geometry =
@@ -1291,6 +1599,17 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assert(semanticKey.contains("technique-side:black"), semanticKey)
     assert(semanticKey.contains("passed-pawn:e5"), semanticKey)
 
+    val projectedDetail =
+      PositionPlanTechniqueProjection
+        .frames(TypedEvidenceGraph(List(record)), Nil, Nil, None)
+        .flatMap(_.semanticDetails)
+        .find(_.boardAnchorSignals.contains(BoardAnchorSignal.EndgameRookPattern.toString))
+        .get
+    assertEquals(projectedDetail.endgameTechniquePattern, Some("PhilidorDefense"))
+    assertEquals(projectedDetail.endgameTechniqueRookPattern, Some("KingCutOff"))
+    assertEquals(projectedDetail.endgameTechniqueSide, Some("black"))
+    assert(projectedDetail.requiredSquares.contains("e8"), projectedDetail.requiredSquares)
+
   test("rook endgame oracle attaches technique patterns and geometry from study positions"):
     def board(fen: String) = Fen.read(Standard, Fen.Full(fen)).get.board
     def feature(fen: String, color: chess.Color) = EndgamePatternOracle.analyze(board(fen), color).get
@@ -1316,6 +1635,12 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(lucenaGeometry.promotionSquare.key, "f8")
     assertEquals(lucenaGeometry.techniqueKing.map(_.key), Some("g8"))
 
+    val sameFileBridgeLucenaFen = "8/2KP4/4k3/8/3R4/8/8/2r5 w - - 0 1"
+    val sameFileBridgeLucena = feature(sameFileBridgeLucenaFen, chess.Color.White)
+    assertEquals(sameFileBridgeLucena.primaryPattern, Some("Lucena"))
+    assertEquals(sameFileBridgeLucena.rookEndgamePattern, RookEndgamePattern.RookBehindPassedPawn)
+    assertEquals(anchorKeys(sameFileBridgeLucenaFen, chess.Color.White), List("c1", "c7", "d4", "d7", "d8", "e6"))
+
     val philidorFen = "R7/4k3/7r/3KP3/8/8/8/8 w - - 0 1"
     val philidor = feature(philidorFen, chess.Color.Black)
     assertEquals(philidor.primaryPattern, Some("PhilidorDefense"))
@@ -1329,6 +1654,13 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(philidorGeometry.promotionSquare.key, "e8")
     assertEquals(philidorGeometry.techniqueKing.map(_.key), Some("e7"))
     assertEquals(philidorGeometry.barrierRank.map(_.value + 1), Some(6))
+
+    val postAdvancePhilidorFen = "8/6k1/8/r3P3/4K3/8/8/7R b - - 0 1"
+    val postAdvancePhilidor = feature(postAdvancePhilidorFen, chess.Color.Black)
+    assertEquals(postAdvancePhilidor.primaryPattern, Some("PhilidorDefense"))
+    assertEquals(postAdvancePhilidor.rookEndgamePattern, RookEndgamePattern.KingCutOff)
+    assertEquals(anchorKeys(postAdvancePhilidorFen, chess.Color.Black), List("a5", "e4", "e5", "e8", "g7", "h1"))
+    assertEquals(postAdvancePhilidor.rookEndgameGeometry.flatMap(_.barrierRank), None)
 
     val vancuraFen = "6k1/7R/P1r3K1/8/8/8/8/8 w - - 0 1"
     val vancura = feature(vancuraFen, chess.Color.Black)
@@ -1362,6 +1694,10 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     val sixthRankBridgeLike = feature("6K1/3k4/5P2/8/R7/8/8/7r w - - 0 1", chess.Color.White)
     assertNotEquals(sixthRankBridgeLike.primaryPattern, Some("Lucena"))
     assertNotEquals(sixthRankBridgeLike.rookEndgamePattern, RookEndgamePattern.RookBehindPassedPawn)
+
+    val adjacentFileBridgeLike = feature("8/2KP4/4k3/8/4R3/8/8/2r5 w - - 0 1", chess.Color.White)
+    assertNotEquals(adjacentFileBridgeLike.primaryPattern, Some("Lucena"))
+    assertNotEquals(adjacentFileBridgeLike.rookEndgamePattern, RookEndgamePattern.RookBehindPassedPawn)
 
     val earlyThirdRankDefenseLike = feature("R7/4k3/7r/8/3KP3/8/8/8 w - - 0 1", chess.Color.Black)
     assertNotEquals(earlyThirdRankDefenseLike.primaryPattern, Some("PhilidorDefense"))
@@ -1653,6 +1989,44 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
         List("target=Square:d8|mechanism=Mechanism:EndgameTechniqueHorizon|proof=DirectProof"),
       positionPlanTechniqueRelativeCauseEvidenceIds = List(causeId),
       primaryRootArbitrationTiers = List(MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot)
+    )
+
+  private def dynamicAssessment: SinglePositionAssessment =
+    SinglePositionAssessment(
+      nature = NatureResult(NatureType.Dynamic, tensionScore = 2, openFilesCount = 1, mobilityDiff = 0, lockedCenter = false),
+      criticality = CriticalityResult(
+        CriticalityType.Normal,
+        rawSideRelativeEvalDeltaCpForDiagnostics = Some(120),
+        evalDeltaWinPercent = Some(6.0),
+        mateDistance = None,
+        forcingMovesInPv = 0
+      ),
+      candidateSet = CandidateSetTopology(
+        CandidateSetType.NarrowChoice,
+        bestLineSideRelativeEvalCp = Some(320),
+        secondLineSideRelativeEvalCp = Some(-320),
+        thirdLineSideRelativeEvalCp = None,
+        gapBestToSecondWp = Some(8.0),
+        spreadTop3Wp = None,
+        secondCandidateFailure = Some(CandidateFailureMode.SignificantDisadvantage)
+      ),
+      gamePhase = GamePhaseResult(GamePhaseType.Middlegame, totalMaterial = 24, queensOnBoard = true, minorPiecesCount = 4),
+      simplifyBias = SimplifyBiasResult(
+        isSimplificationWindow = false,
+        rawEvalAdvantageCpForDiagnostics = 0,
+        evalAdvantageWinPercent = 0.0,
+        isEndgameNear = false,
+        exchangeAvailable = false
+      ),
+      drawBias = DrawBiasResult(
+        isDrawish = false,
+        materialSymmetry = false,
+        oppositeColorBishops = false,
+        fortressLikely = false,
+        insufficientMaterial = false
+      ),
+      riskProfile = RiskProfileResult(RiskLevel.Medium, evalVolatility = 80, tacticalMotifsCount = 1, kingExposureSum = 1),
+      judgmentFocus = JudgmentFocusResult(JudgmentFocusType.Plan, JudgmentDriver.DynamicPosition)
     )
 
   private def comparisonDiagnostic(

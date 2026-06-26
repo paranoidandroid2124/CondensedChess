@@ -138,6 +138,7 @@ object MoveReviewPhase3AuditViewJson:
       "structuralPurposeCategories" -> detail.structuralPurposeCategories,
       "structuralPurposePolarities" -> detail.structuralPurposePolarities,
       "structuralPurposeStrength" -> detail.structuralPurposeStrength,
+      "structuralMotifTags" -> detail.structuralMotifTags,
       "boardAnchorKinds" -> detail.boardAnchorKinds,
       "boardAnchorSignals" -> detail.boardAnchorSignals,
       "requiredSquares" -> detail.requiredSquares,
@@ -156,6 +157,8 @@ object MoveReviewPhase3AuditViewJson:
       "sourceEvidenceIds" -> detail.sourceEvidenceIds,
       "causeEvidenceIds" -> detail.causeEvidenceIds,
       "proofRoles" -> detail.proofRoles.map(_.toString),
+      "contextCauseEvidenceIds" -> detail.contextCauseEvidenceIds,
+      "contextProofRoles" -> detail.contextProofRoles.map(_.toString),
       "specificityTier" -> detail.specificityTier.toString
     ) ++ objectBindingSignatureSampleJson(detail.objectBindingSignatures)
 
