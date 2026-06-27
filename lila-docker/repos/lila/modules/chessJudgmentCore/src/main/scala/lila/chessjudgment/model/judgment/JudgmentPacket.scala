@@ -1623,7 +1623,6 @@ case class MoveJudgmentView(
 )
 
 object MoveJudgmentView:
-
   def from(
       relativeAssessments: List[RelativeMoveAssessment],
       evidenceGraph: TypedEvidenceGraph,
@@ -1708,19 +1707,281 @@ object MoveJudgmentView:
         .toSet
     val primaryCandidates = frames.filter(_.role == MoveJudgmentCauseFrameRole.PrimaryCause)
     val secondaryCandidates = frames.filter(_.role == MoveJudgmentCauseFrameRole.SecondaryCause)
-    val demoted =
+    val weakDemoted =
       (primaryCandidates ++ secondaryCandidates)
         .filter(frame => moveJudgmentCauseDemoteWeakFrame(frame, concretePeerKeys))
         .map(moveJudgmentCauseContextFrame)
-    val demotedIds = demoted.map(moveJudgmentCauseFrameIdentity).toSet
+    val weakDemotedIds = weakDemoted.map(moveJudgmentCauseFrameIdentity).toSet
+    val primaryAfterWeakDemotion =
+      primaryCandidates.filterNot(frame => weakDemotedIds.contains(moveJudgmentCauseFrameIdentity(frame)))
+    val secondaryAfterWeakDemotion =
+      secondaryCandidates.filterNot(frame => weakDemotedIds.contains(moveJudgmentCauseFrameIdentity(frame)))
+    val compacted = compactPlayerFacingCauseBuckets(primaryAfterWeakDemotion, secondaryAfterWeakDemotion)
     PlayerFacingCauseBuckets(
-      primary = primaryCandidates.filterNot(frame => demotedIds.contains(moveJudgmentCauseFrameIdentity(frame))),
-      secondary = secondaryCandidates.filterNot(frame => demotedIds.contains(moveJudgmentCauseFrameIdentity(frame))),
+      primary = compacted.primary,
+      secondary = compacted.secondary,
       context =
         (
-          frames.filter(_.role == MoveJudgmentCauseFrameRole.ContextCause) ++ demoted
+          frames.filter(_.role == MoveJudgmentCauseFrameRole.ContextCause) ++ weakDemoted ++ compacted.context
         ).distinctBy(moveJudgmentCauseFrameIdentity)
     )
+
+  private def compactPlayerFacingCauseBuckets(
+      primaryCandidates: List[MoveJudgmentCauseFrame],
+      secondaryCandidates: List[MoveJudgmentCauseFrame]
+  ): PlayerFacingCauseBuckets =
+    val selectedPrimaryIds =
+      primaryCandidates
+        .filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.RootCause)
+        .groupBy(moveJudgmentCauseComparisonKey)
+        .values
+        .flatMap(selectPlayerFacingPrimaryRoots)
+        .map(moveJudgmentCauseFrameIdentity)
+        .toSet
+    val selectedPrimary =
+      primaryCandidates.filter(frame => selectedPrimaryIds.contains(moveJudgmentCauseFrameIdentity(frame)))
+    val primaryOverflow =
+      primaryCandidates.filterNot(frame => selectedPrimaryIds.contains(moveJudgmentCauseFrameIdentity(frame)))
+    val secondaryPool =
+      secondaryCandidates ++ primaryOverflow.map(moveJudgmentCauseSecondaryFrame)
+    val selectedSecondaryIds =
+      selectPlayerFacingSecondaryFrames(secondaryPool.filterNot(_.narrativeRole == MoveJudgmentCauseNarrativeRole.ContextCause))
+        .map(moveJudgmentCauseFrameIdentity)
+        .toSet
+    val selectedSecondary =
+      secondaryPool.filter(frame => selectedSecondaryIds.contains(moveJudgmentCauseFrameIdentity(frame)))
+    val secondaryOverflow =
+      secondaryPool.filterNot(frame => selectedSecondaryIds.contains(moveJudgmentCauseFrameIdentity(frame)))
+    PlayerFacingCauseBuckets(
+      primary = selectedPrimary,
+      secondary = selectedSecondary,
+      context = secondaryOverflow.map(moveJudgmentCauseContextFrame)
+    )
+
+  private def selectPlayerFacingPrimaryRoots(frames: List[MoveJudgmentCauseFrame]): List[MoveJudgmentCauseFrame] =
+    val representatives = frames
+      .groupBy(playerFacingPrimaryCauseFamily)
+      .values
+      .flatMap(group => group.sortBy(playerFacingPrimaryCauseSortKey).lastOption)
+      .toList
+    representatives
+      .filterNot(frame => playerFacingGenericRootDominated(frame, representatives))
+      .sortBy(playerFacingPrimaryCauseSortKey)
+
+  private def selectPlayerFacingSecondaryFrames(frames: List[MoveJudgmentCauseFrame]): List[MoveJudgmentCauseFrame] =
+    frames
+      .groupBy(playerFacingSecondaryCauseFamily)
+      .values
+      .flatMap(group => group.sortBy(playerFacingSecondaryCauseSortKey).lastOption)
+      .toList
+      .sortBy(playerFacingSecondaryCauseSortKey)
+
+  private def playerFacingPrimaryCauseSortKey(frame: MoveJudgmentCauseFrame): (Int, Int, Int, Int, Int, Int, String) =
+    (
+      playerFacingCauseKindRank(frame.causeKind),
+      playerFacingRootTierRank(frame.rootArbitrationTier),
+      boolRank(frame.causeSourceSide == RelativeCauseSourceSide.Candidate),
+      boolRank(frame.concreteObjectReady),
+      frame.proofDirectSourceIds.distinct.size,
+      frame.objectBindingSignatures.distinct.size,
+      frame.causeKind.toString
+    )
+
+  private def playerFacingSecondaryCauseSortKey(frame: MoveJudgmentCauseFrame): (Int, Int, Int, Int, Int, Int, Int, String) =
+    (
+      playerFacingNarrativeRoleRank(frame.narrativeRole),
+      playerFacingWitnessBindingRank(frame.witnessBindingLevel),
+      playerFacingComparisonRank(frame.comparisonKind),
+      playerFacingSecondaryCauseKindRank(frame.causeKind),
+      playerFacingRootTierRank(frame.rootArbitrationTier),
+      boolRank(frame.concreteObjectReady),
+      frame.proofDirectSourceIds.distinct.size,
+      frame.causeKind.toString
+    )
+
+  private def playerFacingGenericRootDominated(
+      frame: MoveJudgmentCauseFrame,
+      roots: List[MoveJudgmentCauseFrame]
+  ): Boolean =
+    playerFacingGenericRoot(frame.causeKind) &&
+      roots.exists(root =>
+        moveJudgmentCauseFrameIdentity(root) != moveJudgmentCauseFrameIdentity(frame) &&
+          playerFacingSpecificRoot(root.causeKind)
+      )
+
+  private def playerFacingGenericRoot(kind: RelativeCauseKind): Boolean =
+    kind == RelativeCauseKind.ActivityGain ||
+      kind == RelativeCauseKind.ActivityLoss ||
+      kind == RelativeCauseKind.CenterControlGain ||
+      kind == RelativeCauseKind.StructuralImprovement
+
+  private def playerFacingSpecificRoot(kind: RelativeCauseKind): Boolean =
+    kind == RelativeCauseKind.PawnBreakOpportunity ||
+      kind == RelativeCauseKind.PawnWeaknessTarget ||
+      kind == RelativeCauseKind.TargetPressureGain ||
+      kind == RelativeCauseKind.TargetPressureRelease ||
+      kind == RelativeCauseKind.OpponentRestriction ||
+      kind == RelativeCauseKind.KingSafetyConcession
+
+  private def playerFacingPrimaryCauseFamily(frame: MoveJudgmentCauseFrame): String =
+    frame.causeKind match
+      case RelativeCauseKind.PawnBreakOpportunity =>
+        "pawn-break"
+      case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.TargetPressureRelease | RelativeCauseKind.PawnWeaknessTarget =>
+        "target"
+      case RelativeCauseKind.ActivityGain | RelativeCauseKind.ActivityLoss =>
+        "activity"
+      case RelativeCauseKind.CenterControlGain =>
+        "center"
+      case RelativeCauseKind.OpponentRestriction | RelativeCauseKind.KingSafetyConcession =>
+        "restriction"
+      case RelativeCauseKind.StructuralImprovement | RelativeCauseKind.MissedStrategicImprovement |
+          RelativeCauseKind.StrategicConcession =>
+        "structure"
+      case RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
+        "plan"
+      case RelativeCauseKind.TacticalRefutationOfPlayed | RelativeCauseKind.CandidateTacticalLiability |
+          RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.WrongRecapturer |
+          RelativeCauseKind.WrongMoveOrder | RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing =>
+        "tactical"
+      case RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity |
+          RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource =>
+        "defense"
+      case RelativeCauseKind.RecaptureRecoveryWindow | RelativeCauseKind.MaterialSwing |
+          RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured | RelativeCauseKind.SacrificeCompensation =>
+        "conversion"
+
+  private def playerFacingSecondaryCauseFamily(frame: MoveJudgmentCauseFrame): String =
+    frame.causeKind match
+      case RelativeCauseKind.TacticalRefutationOfPlayed | RelativeCauseKind.CandidateTacticalLiability |
+          RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.WrongRecapturer |
+          RelativeCauseKind.WrongMoveOrder | RelativeCauseKind.TempoLoss | RelativeCauseKind.KingForcing =>
+        "tactical"
+      case RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity |
+          RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource =>
+        "defense"
+      case RelativeCauseKind.RecaptureRecoveryWindow | RelativeCauseKind.MaterialSwing |
+          RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured | RelativeCauseKind.SacrificeCompensation =>
+        "conversion"
+      case RelativeCauseKind.PawnBreakOpportunity =>
+        "pawn-break"
+      case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.TargetPressureRelease | RelativeCauseKind.PawnWeaknessTarget =>
+        "target"
+      case RelativeCauseKind.ActivityGain | RelativeCauseKind.ActivityLoss | RelativeCauseKind.CenterControlGain |
+          RelativeCauseKind.StructuralImprovement | RelativeCauseKind.OpponentRestriction |
+          RelativeCauseKind.KingSafetyConcession | RelativeCauseKind.MissedStrategicImprovement |
+          RelativeCauseKind.StrategicConcession =>
+        "structure"
+      case RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
+        "plan"
+
+  private def playerFacingCauseKindRank(kind: RelativeCauseKind): Int =
+    kind match
+      case RelativeCauseKind.WrongRecapturer =>
+        120
+      case RelativeCauseKind.WrongMoveOrder | RelativeCauseKind.TempoLoss =>
+        115
+      case RelativeCauseKind.TacticalRefutationOfPlayed | RelativeCauseKind.CandidateTacticalLiability =>
+        110
+      case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.KingForcing =>
+        105
+      case RelativeCauseKind.TargetPressureRelease =>
+        100
+      case RelativeCauseKind.ActivityLoss =>
+        98
+      case RelativeCauseKind.PawnBreakOpportunity =>
+        96
+      case RelativeCauseKind.PawnWeaknessTarget =>
+        94
+      case RelativeCauseKind.OpponentRestriction | RelativeCauseKind.KingSafetyConcession =>
+        92
+      case RelativeCauseKind.TargetPressureGain =>
+        90
+      case RelativeCauseKind.ActivityGain =>
+        88
+      case RelativeCauseKind.CenterControlGain =>
+        86
+      case RelativeCauseKind.StructuralImprovement =>
+        84
+      case RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured =>
+        80
+      case RelativeCauseKind.RecaptureRecoveryWindow | RelativeCauseKind.MaterialSwing =>
+        76
+      case RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity =>
+        70
+      case RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource =>
+        60
+      case RelativeCauseKind.SacrificeCompensation =>
+        55
+      case RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.StrategicConcession =>
+        50
+      case RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
+        40
+
+  private def playerFacingSecondaryCauseKindRank(kind: RelativeCauseKind): Int =
+    kind match
+      case RelativeCauseKind.TacticalRefutationOfPlayed | RelativeCauseKind.CandidateTacticalLiability =>
+        120
+      case RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.KingForcing =>
+        115
+      case RelativeCauseKind.WrongRecapturer | RelativeCauseKind.WrongMoveOrder | RelativeCauseKind.TempoLoss =>
+        110
+      case RelativeCauseKind.OnlyMoveNecessity | RelativeCauseKind.OnlyDefenseNecessity =>
+        100
+      case RelativeCauseKind.RecaptureRecoveryWindow | RelativeCauseKind.MaterialSwing =>
+        95
+      case RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured =>
+        90
+      case RelativeCauseKind.PawnBreakOpportunity =>
+        86
+      case RelativeCauseKind.TargetPressureRelease | RelativeCauseKind.PawnWeaknessTarget | RelativeCauseKind.TargetPressureGain =>
+        84
+      case RelativeCauseKind.OpponentRestriction | RelativeCauseKind.KingSafetyConcession =>
+        82
+      case RelativeCauseKind.ActivityLoss | RelativeCauseKind.ActivityGain | RelativeCauseKind.CenterControlGain |
+          RelativeCauseKind.StructuralImprovement =>
+        78
+      case RelativeCauseKind.DefensiveResource | RelativeCauseKind.DrawResource =>
+        70
+      case RelativeCauseKind.SacrificeCompensation =>
+        65
+      case RelativeCauseKind.MissedStrategicImprovement | RelativeCauseKind.StrategicConcession =>
+        55
+      case RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
+        50
+
+  private def playerFacingRootTierRank(tier: MoveJudgmentCauseRootArbitrationTier): Int =
+    tier match
+      case MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot    => 4
+      case MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot => 3
+      case MoveJudgmentCauseRootArbitrationTier.FallbackRoot      => 2
+      case MoveJudgmentCauseRootArbitrationTier.BroadOwnedRoot    => 1
+      case MoveJudgmentCauseRootArbitrationTier.ContextOnly       => 0
+
+  private def playerFacingNarrativeRoleRank(role: MoveJudgmentCauseNarrativeRole): Int =
+    role match
+      case MoveJudgmentCauseNarrativeRole.TacticalWitness => 4
+      case MoveJudgmentCauseNarrativeRole.RootCause       => 3
+      case MoveJudgmentCauseNarrativeRole.SupportingCause => 2
+      case MoveJudgmentCauseNarrativeRole.ContextCause    => 0
+
+  private def playerFacingWitnessBindingRank(level: MoveJudgmentCauseWitnessBindingLevel): Int =
+    level match
+      case MoveJudgmentCauseWitnessBindingLevel.Punishment         => 4
+      case MoveJudgmentCauseWitnessBindingLevel.ObjectContext      => 3
+      case MoveJudgmentCauseWitnessBindingLevel.LineContext        => 2
+      case MoveJudgmentCauseWitnessBindingLevel.SameComparisonOnly => 1
+      case MoveJudgmentCauseWitnessBindingLevel.NotWitness         => 0
+
+  private def playerFacingComparisonRank(kind: CandidateComparisonKind): Int =
+    kind match
+      case CandidateComparisonKind.PlayedVsBest          => 4
+      case CandidateComparisonKind.PlayedVsAlternative   => 3
+      case CandidateComparisonKind.BestVsSecond          => 2
+      case CandidateComparisonKind.ReferenceVsAlternative => 1
+
+  private def boolRank(value: Boolean): Int =
+    if value then 1 else 0
 
   private def playerFacingConcretePeer(frame: MoveJudgmentCauseFrame): Boolean =
     frame.concreteObjectReady &&
@@ -1745,6 +2006,9 @@ object MoveJudgmentView:
       role = MoveJudgmentCauseFrameRole.ContextCause,
       narrativeRole = MoveJudgmentCauseNarrativeRole.ContextCause
     )
+
+  private def moveJudgmentCauseSecondaryFrame(frame: MoveJudgmentCauseFrame): MoveJudgmentCauseFrame =
+    frame.copy(role = MoveJudgmentCauseFrameRole.SecondaryCause)
 
   private def moveJudgmentCauseComparisonKey(
       frame: MoveJudgmentCauseFrame
