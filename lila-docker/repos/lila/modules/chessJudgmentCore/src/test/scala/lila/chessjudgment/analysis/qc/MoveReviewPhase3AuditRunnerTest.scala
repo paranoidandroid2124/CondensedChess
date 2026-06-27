@@ -1851,6 +1851,205 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(view.moveMeaningClaims.map(_.laneKey).distinct.size, 2)
     assertEquals(view.moveMeaningClaims.map(_.meaningKind), List("PawnBreakTiming", "PawnBreakTiming"))
 
+  test("move meaning claims can use owned contrast support for exact good moves"):
+    val alternativeLine = lineRef("alt", "d2d4", 3, LineNodeRole.Alternative)
+    val cause = causeFrame(
+      causeId = "cause-alt-activity",
+      axisKeys = List("Activity:Gain:activity-gain"),
+      objectSignatures =
+        List(
+          "actor=Piece:knight|actor=Square:g1|target=Square:f3|mechanism=Mechanism:developmentchoice|proof=DirectProof"
+        )
+    ).copy(
+      role = MoveJudgmentCauseFrameRole.ContextCause,
+      causeKind = RelativeCauseKind.ActivityGain,
+      comparisonKind = CandidateComparisonKind.PlayedVsAlternative,
+      causeRole = RelativeCauseRole.PlayedAlternativeContext,
+      causeSourceSide = RelativeCauseSourceSide.Candidate,
+      causeImportance = RelativeCauseImportance.Context,
+      attributionKind = CauseAttributionKind.CandidateCreatesValue,
+      referenceLine = alternativeLine,
+      candidateLine = candidateLine,
+      eventLine = candidateLine,
+      eventRootMove = candidateLine.rootMove,
+      hasOwnedAdmissibleLongTermProof = true,
+      rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot,
+      narrativeRole = MoveJudgmentCauseNarrativeRole.ContextCause
+    )
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.PieceRerouteRoute,
+      axisKey = Some("Activity:Gain:activity-gain"),
+      axisKind = Some(StrategicAxisKind.Activity),
+      axisPolarity = Some(StrategicAxisPolarity.Gain),
+      label = Some("activity-gain"),
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.CandidateStronger),
+      candidateEvidenceIds = List("played-transition"),
+      sourceEvidenceIds = List("played-transition"),
+      causeEvidenceIds = List("cause-alt-activity"),
+      proofRoles = List(RelativeCauseProofRole.DirectProof, RelativeCauseProofRole.ContrastProof),
+      objectBindingSignatures =
+        List(
+          "actor=Piece:knight|actor=Square:g1|target=Square:f3|mechanism=Mechanism:developmentchoice|proof=DirectProof"
+        ),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis,
+      structuralRouteMove = Some(candidateLine.rootMove),
+      structuralPurposeSubjects = List("piece:knight:g1-f3")
+    )
+
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(cause),
+      details = List(detail)
+    )
+
+    assertEquals(view.moveMeaningClaims.map(_.meaningKind), List("PieceRoute"))
+    assertEquals(view.moveMeaningClaims.head.supportLevel, "owned_cause_linked")
+    assertEquals(view.moveMeaningClaims.head.visibility, "reason_grade")
+    assertEquals(view.moveMeaningClaims.head.causeEvidenceIds, List("cause-alt-activity"))
+    assert(view.moveMeaningClaims.head.reasonTokens.contains("causeEvidenceId:cause-alt-activity"))
+
+  test("move meaning claims reject broad or mismatched contrast support"):
+    val alternativeLine = lineRef("alt", "d2d4", 3, LineNodeRole.Alternative)
+    val cause = causeFrame(
+      causeId = "cause-alt-activity",
+      axisKeys = List("Activity:Gain:activity-gain"),
+      objectSignatures =
+        List(
+          "actor=Piece:knight|actor=Square:g1|target=Square:f3|mechanism=Mechanism:developmentchoice|proof=DirectProof"
+        )
+    ).copy(
+      role = MoveJudgmentCauseFrameRole.ContextCause,
+      comparisonKind = CandidateComparisonKind.PlayedVsAlternative,
+      causeRole = RelativeCauseRole.PlayedAlternativeContext,
+      causeSourceSide = RelativeCauseSourceSide.Candidate,
+      causeImportance = RelativeCauseImportance.Context,
+      attributionKind = CauseAttributionKind.CandidateCreatesValue,
+      referenceLine = alternativeLine,
+      candidateLine = candidateLine,
+      eventLine = candidateLine,
+      eventRootMove = candidateLine.rootMove,
+      hasOwnedAdmissibleLongTermProof = true,
+      rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot,
+      narrativeRole = MoveJudgmentCauseNarrativeRole.ContextCause
+    )
+    val exactDetail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.PieceRerouteRoute,
+      axisKey = Some("Activity:Gain:activity-gain"),
+      axisKind = Some(StrategicAxisKind.Activity),
+      axisPolarity = Some(StrategicAxisPolarity.Gain),
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.CandidateStronger),
+      candidateEvidenceIds = List("played-transition"),
+      sourceEvidenceIds = List("played-transition"),
+      causeEvidenceIds = List("cause-alt-activity"),
+      proofRoles = List(RelativeCauseProofRole.DirectProof, RelativeCauseProofRole.ContrastProof),
+      objectBindingSignatures =
+        List(
+          "actor=Piece:knight|actor=Square:g1|target=Square:f3|mechanism=Mechanism:developmentchoice|proof=DirectProof"
+        ),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis,
+      structuralRouteMove = Some(candidateLine.rootMove)
+    )
+    val broadPlan = exactDetail.copy(
+      unit = PositionPlanTechniqueUnit.PlanOptionSet,
+      axisKind = Some(StrategicAxisKind.PlanCoherence),
+      axisPolarity = Some(StrategicAxisPolarity.Preserve),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ContextOnly
+    )
+    val broadActivitySupport = exactDetail.copy(
+      structuralRouteMove = None,
+      structuralPurposeSubjects = Nil,
+      objectBindingSignatures =
+        List(
+          "actor=Side:black|actor=Side:white|target=Square:a1|target=Square:f1|mechanism=Mechanism:activity|mechanism=Mechanism:counterplayrestraint|consequence=Consequence:counterplayrestraint|proof=DirectProof"
+        )
+    )
+    val pawnActivityAsRoute = exactDetail.copy(
+      structuralRouteMove = Some(candidateLine.rootMove),
+      structuralPurposeSubjects = List("piece"),
+      objectBindingSignatures =
+        List(
+          "actor=Move:e2e3|actor=Side:white|actor=Square:e2|target=Square:d4|mechanism=Mechanism:activity|mechanism=Mechanism:centercontrolchanged|consequence=Consequence:activity:gain:activity-gain|proof=DirectProof"
+        )
+    )
+    val routeMotifWithoutPieceObject = exactDetail.copy(
+      structuralRouteMove = Some(candidateLine.rootMove),
+      structuralPurposeSubjects = List("piece:knight:e2-d4"),
+      structuralMotifTags = List("route", "outpost"),
+      objectBindingSignatures =
+        List(
+          "actor=Move:e2e3|actor=Side:white|actor=Square:e2|target=Square:d4|mechanism=Mechanism:activity|consequence=Consequence:activity:gain:activity-gain|proof=DirectProof"
+        )
+    )
+    val broadView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(cause),
+      details = List(broadPlan)
+    )
+    val broadActivitySupportView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(cause),
+      details = List(broadActivitySupport)
+    )
+    val pawnActivityAsRouteView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(cause.copy(objectBindingSignatures = pawnActivityAsRoute.objectBindingSignatures)),
+      details = List(pawnActivityAsRoute)
+    )
+    val routeMotifWithoutPieceObjectView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(cause.copy(objectBindingSignatures = routeMotifWithoutPieceObject.objectBindingSignatures)),
+      details = List(routeMotifWithoutPieceObject)
+    )
+    val mismatchedCauseUnitView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(cause),
+      details = List(exactDetail.copy(unit = PositionPlanTechniqueUnit.StructuralTransformation))
+    )
+    val fallbackRootView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(cause.copy(rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.FallbackRoot)),
+      details = List(exactDetail)
+    )
+    val mismatchedSideView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(cause.copy(causeSourceSide = RelativeCauseSourceSide.Reference)),
+      details = List(exactDetail)
+    )
+    val mismatchedObjectView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses =
+        List(cause.copy(objectBindingSignatures = List("target=Square:h7|mechanism=Mechanism:attack|proof=DirectProof"))),
+      details = List(exactDetail)
+    )
+    val broadActorOnlyView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses =
+        List(
+          cause.copy(
+            objectBindingSignatures = List("actor=Piece:knight|mechanism=Mechanism:developmentchoice|proof=DirectProof")
+          )
+        ),
+      details = List(exactDetail)
+    )
+
+    assertEquals(broadView.moveMeaningClaims.headOption.map(_.supportLevel), Some("contextual"))
+    assertEquals(broadActivitySupportView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
+    assertEquals(pawnActivityAsRouteView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
+    assertEquals(routeMotifWithoutPieceObjectView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
+    assertEquals(mismatchedCauseUnitView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
+    assertEquals(fallbackRootView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
+    assertEquals(mismatchedSideView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
+    assertEquals(mismatchedObjectView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
+    assertEquals(broadActorOnlyView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
+    assertEquals(broadActivitySupportView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
+    assertEquals(pawnActivityAsRouteView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
+    assertEquals(routeMotifWithoutPieceObjectView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
+    assertEquals(mismatchedCauseUnitView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
+    assertEquals(fallbackRootView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
+    assertEquals(mismatchedSideView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
+    assertEquals(mismatchedObjectView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
+    assertEquals(broadActorOnlyView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
+
   test("move meaning claims keep non-binary axes and reject borrowed objects"):
     val ownedCause = causeFrame(
       causeId = "cause-break",

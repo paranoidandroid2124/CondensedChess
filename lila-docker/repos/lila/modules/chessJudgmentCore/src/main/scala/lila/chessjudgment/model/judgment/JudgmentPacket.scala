@@ -1642,18 +1642,15 @@ object MoveMeaningClaim:
   ): List[MoveMeaningClaim] =
     view.verdict.toList
       .flatMap(verdict =>
-        val meaningCauseFrames =
-          causeFrames.filter(frame => causeFrameMatches(frame, verdict))
-        val meaningCauseIds = meaningCauseFrames.flatMap(_.causeEvidenceIds).toSet
         val causeFramesById =
-          meaningCauseFrames
+          causeFrames
             .flatMap(frame => frame.causeEvidenceIds.map(_ -> frame))
             .groupMap(_._1)(_._2)
         view.positionPlanTechniqueFrames
           .filter(frame => frameMatches(evidenceGraph, frame, verdict))
           .flatMap(frame =>
             frame.semanticDetails.flatMap(detail =>
-              fromDetail(frame, detail, verdict, meaningCauseIds, causeFramesById)
+              fromDetail(frame, detail, verdict, causeFramesById)
             )
           )
       )
@@ -1698,12 +1695,23 @@ object MoveMeaningClaim:
       frame: PositionPlanTechniqueFrame,
       detail: PositionPlanTechniqueSemanticDetail,
       verdict: MoveJudgmentVerdictFrame,
-      meaningCauseIds: Set[String],
       causeFramesById: Map[String, List[MoveJudgmentCauseFrame]]
   ): Option[MoveMeaningClaim] =
-    val linkedCauseIds = detail.causeEvidenceIds.filter(meaningCauseIds.contains).distinct.sorted
-    val linkedCauseFrames = linkedCauseIds.flatMap(id => causeFramesById.getOrElse(id, Nil)).distinctBy(_.causeEvidenceIds)
     val objectSignatures = detail.objectBindingSignatures.distinct.sorted
+    val linkedCauseFrames =
+      detail.causeEvidenceIds.distinct.sorted
+        .flatMap(id =>
+          causeFramesById.getOrElse(id, Nil).filter(frame =>
+            causeFrameExplainsMeaningDetail(frame, verdict, detail, objectSignatures)
+          )
+        )
+        .distinctBy(_.causeEvidenceIds)
+    val linkedCauseIds =
+      linkedCauseFrames
+        .flatMap(_.causeEvidenceIds)
+        .filter(detail.causeEvidenceIds.contains)
+        .distinct
+        .sorted
     val support = supportLevel(detail, linkedCauseFrames, objectSignatures)
     for
       meaningKind <- kind(detail, linkedCauseFrames)
@@ -1773,6 +1781,215 @@ object MoveMeaningClaim:
       detail.candidateEvidenceIds.nonEmpty ||
       detail.causeEvidenceIds.nonEmpty ||
       detail.contextCauseEvidenceIds.nonEmpty
+
+  private def causeFrameExplainsMeaningDetail(
+      frame: MoveJudgmentCauseFrame,
+      verdict: MoveJudgmentVerdictFrame,
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String]
+  ): Boolean =
+    causeFrameMatches(frame, verdict) ||
+      eligibleCrossComparisonSupport(frame, verdict, detail, objectSignatures)
+
+  private def eligibleCrossComparisonSupport(
+      frame: MoveJudgmentCauseFrame,
+      verdict: MoveJudgmentVerdictFrame,
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String]
+  ): Boolean =
+    nonLossMeaningVerdict(verdict.verdict) &&
+      crossComparisonPositiveCause(frame, detail) &&
+      detailCanOwnCrossComparisonCause(detail) &&
+      detail.causeEvidenceIds.exists(frame.causeEvidenceIds.contains) &&
+      frame.hasOwnedAdmissibleLongTermProof &&
+      frame.concreteObjectReady &&
+      crossComparisonOwnedRootTier(frame) &&
+      crossComparisonLineOwnsClaimMove(frame, verdict) &&
+      causeFrameObjectOverlapsDetail(frame, objectSignatures)
+
+  private def crossComparisonOwnedRootTier(frame: MoveJudgmentCauseFrame): Boolean =
+    frame.rootArbitrationTier == MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot ||
+      frame.rootArbitrationTier == MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot
+
+  private def nonLossMeaningVerdict(verdict: MoveChoiceVerdict): Boolean =
+    verdict == MoveChoiceVerdict.MatchesReference ||
+      verdict == MoveChoiceVerdict.ImprovesOnReference
+
+  private def crossComparisonPositiveCause(
+      frame: MoveJudgmentCauseFrame,
+      detail: PositionPlanTechniqueSemanticDetail
+  ): Boolean =
+    ClaimEventCluster.kindForCause(frame.causeKind).isEmpty &&
+      crossComparisonCauseMatchesDetail(frame.causeKind, detail)
+
+  private def crossComparisonCauseMatchesDetail(
+      causeKind: RelativeCauseKind,
+      detail: PositionPlanTechniqueSemanticDetail
+  ): Boolean =
+    causeKind match
+      case RelativeCauseKind.ActivityGain =>
+        detail.unit == PositionPlanTechniqueUnit.PieceRerouteRoute
+      case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.PawnWeaknessTarget =>
+        detail.unit == PositionPlanTechniqueUnit.PieceRerouteRoute ||
+          detail.unit == PositionPlanTechniqueUnit.StructuralTransformation ||
+          detail.unit == PositionPlanTechniqueUnit.CompensationSource
+      case RelativeCauseKind.CenterControlGain =>
+        detail.unit == PositionPlanTechniqueUnit.TensionBreakPolicyRoute ||
+          detail.unit == PositionPlanTechniqueUnit.PieceRerouteRoute ||
+          detail.unit == PositionPlanTechniqueUnit.StructuralTransformation
+      case RelativeCauseKind.PawnBreakOpportunity =>
+        detail.unit == PositionPlanTechniqueUnit.TensionBreakPolicyRoute ||
+          detail.unit == PositionPlanTechniqueUnit.StructuralTransformation
+      case RelativeCauseKind.OpponentRestriction =>
+        detail.unit == PositionPlanTechniqueUnit.SpacePreventionResourceDenial ||
+          detail.unit == PositionPlanTechniqueUnit.CounterplayRace
+      case _ =>
+        false
+
+  private def detailCanOwnCrossComparisonCause(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detail.unit != PositionPlanTechniqueUnit.PlanOptionSet &&
+      !detail.axisKind.contains(StrategicAxisKind.PlanCoherence) &&
+      specificity(detail) &&
+      directProof(detail) &&
+      crossComparisonDetailHasOwnedShape(detail)
+
+  private def crossComparisonDetailHasOwnedShape(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detail.unit match
+      case PositionPlanTechniqueUnit.PieceRerouteRoute =>
+        pieceRouteDetailReady(detail)
+      case PositionPlanTechniqueUnit.TensionBreakPolicyRoute =>
+        detail.breakFile.nonEmpty ||
+          detail.tensionSquares.nonEmpty ||
+          detail.tensionEdges.nonEmpty ||
+          detail.counterBreakFiles.nonEmpty
+      case PositionPlanTechniqueUnit.SpacePreventionResourceDenial | PositionPlanTechniqueUnit.CounterplayRace =>
+        detail.resourceContestSquares.nonEmpty ||
+          detail.resourceContestFiles.nonEmpty ||
+          signatureTokens(detail.objectBindingSignatures, "target=").exists(concreteTargetToken)
+      case PositionPlanTechniqueUnit.EndgameTechniqueRecipe =>
+        detail.requiredSquares.nonEmpty ||
+          detail.maintainedSquares.nonEmpty ||
+          detail.endgameTechniquePattern.nonEmpty
+      case PositionPlanTechniqueUnit.StructuralTransformation | PositionPlanTechniqueUnit.CompensationSource =>
+        detail.structuralPurposeSubjects.exists(concreteSubject) ||
+          detail.structuralMotifTags.nonEmpty ||
+          detail.boardAnchorSignals.nonEmpty ||
+          detail.breakFile.nonEmpty ||
+          detail.resourceContestSquares.nonEmpty ||
+          detail.resourceContestFiles.nonEmpty
+      case PositionPlanTechniqueUnit.PlanOptionSet =>
+        false
+
+  private def pieceRouteDetailReady(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    val hasRouteIntent =
+      detail.structuralMotifTags.exists(routeMotifToken) ||
+        detail.structuralPurposeSubjects.exists(routeSubjectToken) ||
+        detail.objectBindingSignatures.exists(routeMechanismToken)
+    hasRouteIntent && detail.objectBindingSignatures.exists(pieceRouteObjectSignature)
+
+  private def routeMotifToken(token: String): Boolean =
+    val normalized = token.toLowerCase
+    normalized.contains("route") ||
+      normalized.contains("rerout") ||
+      normalized.contains("outpost") ||
+      normalized.contains("maneuver")
+
+  private def routeSubjectToken(subject: String): Boolean =
+    val normalized = subject.toLowerCase
+    routeMotifToken(normalized) ||
+      normalized.matches(".*piece:[a-z]+:[a-h][1-8]-[a-h][1-8].*")
+
+  private def pieceRouteObjectSignature(signature: String): Boolean =
+    val normalized = signature.toLowerCase
+    val concretePieceDestination =
+      normalized.contains("actor=piece:") &&
+        (normalized.contains("target=square:") || normalized.matches(".*target=[^|]*[a-h][1-8].*"))
+    concretePieceDestination ||
+      (
+        normalized.contains("actor=piece:") &&
+          routeMechanismToken(signature)
+      )
+
+  private def routeMechanismToken(signature: String): Boolean =
+    val normalized = signature.toLowerCase
+    normalized.contains("developmentchoice") ||
+      normalized.contains("rerouting") ||
+      normalized.contains("maneuver")
+
+  private def crossComparisonLineOwnsClaimMove(
+      frame: MoveJudgmentCauseFrame,
+      verdict: MoveJudgmentVerdictFrame
+  ): Boolean =
+    val claimMove = verdict.candidateLine.rootMove
+    frame.comparisonKind match
+      case CandidateComparisonKind.PlayedVsAlternative =>
+        frame.causeRole == RelativeCauseRole.PlayedAlternativeContext &&
+          frame.causeSourceSide == RelativeCauseSourceSide.Candidate &&
+          frame.eventLine == verdict.candidateLine &&
+          sameMove(frame.eventRootMove, claimMove)
+      case CandidateComparisonKind.BestVsSecond =>
+        frame.causeRole == RelativeCauseRole.CandidateSetConstraint &&
+          frame.causeSourceSide == RelativeCauseSourceSide.Reference &&
+          frame.eventLine == verdict.referenceLine &&
+          sameMove(verdict.referenceLine.rootMove, claimMove) &&
+          sameMove(frame.eventRootMove, claimMove)
+      case CandidateComparisonKind.ReferenceVsAlternative =>
+        frame.causeRole == RelativeCauseRole.AlternativeDiagnostic &&
+          frame.causeSourceSide == RelativeCauseSourceSide.Reference &&
+          frame.eventLine == verdict.referenceLine &&
+          sameMove(verdict.referenceLine.rootMove, claimMove) &&
+          sameMove(frame.eventRootMove, claimMove)
+      case _ =>
+        false
+
+  private def sameMove(left: String, right: String): Boolean =
+    JudgmentSubjectBinding.normalizeMove(left) == JudgmentSubjectBinding.normalizeMove(right)
+
+  private def causeFrameObjectOverlapsDetail(
+      frame: MoveJudgmentCauseFrame,
+      objectSignatures: List[String]
+  ): Boolean =
+    val frameTargets = signatureTokens(frame.objectBindingSignatures, "target=").filter(concreteTargetToken)
+    val detailTargets = signatureTokens(objectSignatures, "target=").filter(concreteTargetToken)
+    val sharedTargets = frameTargets.intersect(detailTargets)
+    if sharedTargets.nonEmpty then true
+    else
+      val frameActors = signatureTokens(frame.objectBindingSignatures, "actor=").filter(specificActorToken)
+      val detailActors = signatureTokens(objectSignatures, "actor=").filter(specificActorToken)
+      val sharedActors = frameActors.intersect(detailActors)
+      val sharedMechanisms =
+        signatureTokens(frame.objectBindingSignatures, "mechanism=")
+          .intersect(signatureTokens(objectSignatures, "mechanism="))
+      val sharedConsequences =
+        signatureTokens(frame.objectBindingSignatures, "consequence=")
+          .intersect(signatureTokens(objectSignatures, "consequence="))
+      sharedActors.nonEmpty && (sharedMechanisms.nonEmpty || sharedConsequences.nonEmpty)
+
+  private def signatureTokens(signatures: List[String], prefix: String): Set[String] =
+    signatures.flatMap(signature =>
+      signature.split("\\|").toList.collect {
+        case part if part.startsWith(prefix) => part
+      }
+    ).toSet
+
+  private def concreteTargetToken(token: String): Boolean =
+    !token.contains("=Side:") &&
+      (
+        token.contains("=Square:") ||
+          token.contains("=File:") ||
+          token.toLowerCase.contains("square:") ||
+          token.toLowerCase.contains("file:") ||
+          token.toLowerCase.matches(".*[a-h][1-8].*")
+      )
+
+  private def specificActorToken(token: String): Boolean =
+    !token.contains("=Side:") &&
+      !token.contains("=Move:") &&
+      (
+        token.contains("=Square:") ||
+          token.toLowerCase.contains("square:") ||
+          token.toLowerCase.matches(".*[a-h][1-8].*")
+      )
 
   private def contextualMeaningDetail(detail: PositionPlanTechniqueSemanticDetail): Boolean =
     detail.unit == PositionPlanTechniqueUnit.PlanOptionSet ||
