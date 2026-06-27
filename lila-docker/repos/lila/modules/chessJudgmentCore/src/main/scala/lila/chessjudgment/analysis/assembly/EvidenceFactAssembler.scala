@@ -1374,9 +1374,9 @@ object EvidenceFactAssembler:
 
   private def moveStructureInputs(moveUci: String): (List[Char], List[String], Option[String]) =
     val normalized = MoveReviewInputNormalizer.normalizeUci(moveUci)
-    val origin = normalized.take(2)
+    val destination = normalized.slice(2, 4)
     val files = ('a' to 'h').toList
-    val createdTensionFrom = Option.when(origin.matches("[a-h][1-8]"))(origin)
+    val createdTensionFrom = Option.when(destination.matches("[a-h][1-8]"))(destination)
     (files, Nil, createdTensionFrom)
 
   private def pawnStructureRecordFor(

@@ -1436,6 +1436,11 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
         .flatMap { case (_, signal) => signal.axis.map(_.label) }
 
     assert(axisLabels.contains("break-file-e-maintain-d4-e5"), axisLabels)
+    val signatures =
+      EvidenceObjectBinding.objectSignatures(EvidenceObjectBinding.fromEvidenceRefs(TypedEvidenceGraph(List(record)), List(record.ref)))
+    assert(signatures.exists(_.contains("target=File:e")), signatures)
+    assert(signatures.exists(signature => signature.contains("target=Square:d4") && signature.contains("target=Square:e5")), signatures)
+    assert(signatures.exists(_.contains("target=File:c")), signatures)
 
   test("pawn play assessor recognizes central advance break candidates"):
     val fen = "rnbq1rk1/pp3ppp/4pn2/8/1bBP4/2N2N2/PP3PPP/R1BQ1RK1 b - - 0 9"

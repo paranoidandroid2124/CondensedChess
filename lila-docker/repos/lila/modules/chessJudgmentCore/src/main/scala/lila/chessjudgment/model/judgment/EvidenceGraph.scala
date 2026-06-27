@@ -499,6 +499,8 @@ object EvidenceObjectBinding:
         val target =
           pawnPlay.breakFile.toList.flatMap(file => objectOf(EvidenceObjectKind.File, file)) ++
             pawnPlay.tensionSquares.flatMap(subjectObject) ++
+            pawnPlay.tensionEdges.flatMap(tensionEdgeObjects) ++
+            pawnPlay.counterBreakFiles.flatMap(file => objectOf(EvidenceObjectKind.File, file)) ++
             pawnPlay.blockadeSquare.toList.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key))
         Option.when(target.nonEmpty)(
           EvidenceObjectBinding(
@@ -627,14 +629,27 @@ object EvidenceObjectBinding:
       .stripPrefix("file:")
       .stripPrefix("target:")
       .stripPrefix("subject:")
+      .stripPrefix("created-tension:")
+      .stripPrefix("resolved-tension:")
+      .stripPrefix("break-file:")
     val pieceRoute = raw"([a-z]+):([a-h][1-8])-([a-h][1-8]).*".r
+    val tensionEdge = raw"([a-h][1-8])-([a-h][1-8])".r
     cleaned match
       case pieceRoute(role, _, to) =>
         objectOf(EvidenceObjectKind.Piece, role) ++ objectOf(EvidenceObjectKind.Square, to)
+      case tensionEdge(from, to) =>
+        objectOf(EvidenceObjectKind.Square, from) ++ objectOf(EvidenceObjectKind.Square, to)
       case _ if cleaned.matches("[a-h][1-8]") => objectOf(EvidenceObjectKind.Square, cleaned)
       case _ if cleaned.matches("[a-h]")      => objectOf(EvidenceObjectKind.File, cleaned)
       case _ if cleaned.contains("pawn")      => objectOf(EvidenceObjectKind.Pawn, cleaned)
       case _                                  => objectOf(EvidenceObjectKind.PlanSubject, cleaned)
+
+  private def tensionEdgeObjects(raw: String): List[ConcreteChessObject] =
+    normalize(raw)
+      .split("-")
+      .toList
+      .flatMap(subjectObject)
+      .distinctBy(_.signaturePart)
 
   private def objectOf(kind: EvidenceObjectKind, raw: String): List[ConcreteChessObject] =
     val key = normalize(raw)
@@ -1846,6 +1861,8 @@ object StrategicMechanismEvidence:
           payload.pawnPlay.exists(pawnPlay =>
             pawnPlay.breakFile.exists(_.trim.nonEmpty) ||
               pawnPlay.tensionSquares.exists(_.trim.nonEmpty) ||
+              pawnPlay.tensionEdges.exists(_.trim.nonEmpty) ||
+              pawnPlay.counterBreakFiles.exists(_.trim.nonEmpty) ||
               pawnPlay.blockadeSquare.nonEmpty
           )
       case payload: StructuralDeltaEvidence =>

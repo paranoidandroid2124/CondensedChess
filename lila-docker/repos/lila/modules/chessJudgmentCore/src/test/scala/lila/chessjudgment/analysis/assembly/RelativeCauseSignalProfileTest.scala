@@ -1,6 +1,9 @@
 package lila.chessjudgment.analysis.assembly
 
 import chess.Color
+import chess.format.Fen
+import chess.variant.Standard
+import lila.chessjudgment.analysis.structure.{ StructuralDeltaAnalyzer, StructuralDeltaContracts }
 import lila.chessjudgment.model.judgment.*
 
 class RelativeCauseSignalProfileTest extends munit.FunSuite:
@@ -36,6 +39,37 @@ class RelativeCauseSignalProfileTest extends munit.FunSuite:
     )
 
     assertEquals(attribution.rootMismatch, false)
+
+  test("structural delta records pawn tension from the moved pawn landing square"):
+    val beforeFen = "4k3/8/8/3p4/8/8/4P3/4K3 w - - 0 1"
+    val afterFen = "4k3/8/8/3p4/4P3/8/8/4K3 b - - 0 1"
+    val beforeBoard = Fen.read(Standard, Fen.Full(beforeFen)).get.board
+    val afterBoard = Fen.read(Standard, Fen.Full(afterFen)).get.board
+    val delta =
+      StructuralDeltaAnalyzer
+        .delta(
+          beforeFen = beforeFen,
+          beforeBoard = beforeBoard,
+          afterFen = afterFen,
+          afterBoard = afterBoard,
+          side = Color.White,
+          files = ('a' to 'h').toList,
+          targets = Nil,
+          createdTensionFrom = Some("e4"),
+          moveUci = Some("e2e4")
+        )
+        .get
+    val consequences = StructuralDeltaContracts.consequences(delta)
+
+    assert(delta.createdTension.contains("e4-d5"), delta.createdTension)
+    assert(
+      consequences.exists(consequence =>
+        consequence.kind == TransitionConsequenceKind.PawnTensionGain &&
+          consequence.subjects.contains("created-tension:e4-d5") &&
+          consequence.subjects.contains("break-file:e")
+      ),
+      consequences
+    )
 
   private def relativeCauseWithLongTermProof(kind: RelativeCauseKind): RelativeCauseFact =
     val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))

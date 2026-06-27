@@ -144,7 +144,7 @@ private[chessjudgment] object StructuralDeltaContracts:
             PawnTensionGain,
             Gain,
             delta.createdTension.size + delta.pawnTensionDelta.max(0),
-            delta.createdTension.map(edge => s"created-tension:$edge")
+            pawnTensionSubjects("created", delta.createdTension)
           )
         ),
         Option.when(delta.resolvedTension.nonEmpty || delta.pawnTensionDelta < 0)(
@@ -152,7 +152,7 @@ private[chessjudgment] object StructuralDeltaContracts:
             PawnTensionResolution,
             Neutral,
             delta.resolvedTension.size + (-delta.pawnTensionDelta).max(0),
-            delta.resolvedTension.map(edge => s"resolved-tension:$edge")
+            pawnTensionSubjects("resolved", delta.resolvedTension)
           )
         ),
         Option.when(delta.targetPressureGain > delta.targetPressureRelease || delta.targetPressureDelta > 0)(
@@ -308,6 +308,12 @@ private[chessjudgment] object StructuralDeltaContracts:
 
   private def developmentMoveSubjectsWithCenterLoss(moves: List[DevelopmentMoveDelta]): List[String] =
     moves.filter(_.centerControlDelta < 0).map(move => s"${developmentMoveLabel(move)}:center${move.centerControlDelta}")
+
+  private def pawnTensionSubjects(prefix: String, edges: List[String]): List[String] =
+    edges.flatMap { edge =>
+      val breakFile = edge.takeWhile(_ != '-').headOption.map(file => s"break-file:$file")
+      List(s"$prefix-tension:$edge") ++ breakFile
+    }.distinct
 
   private def signal(
       kind: StructuralSignalKind,

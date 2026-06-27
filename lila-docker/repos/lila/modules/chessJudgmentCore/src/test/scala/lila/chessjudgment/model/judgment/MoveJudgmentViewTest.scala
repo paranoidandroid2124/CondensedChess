@@ -2562,6 +2562,238 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
     )
 
+  test("links pawn break tension proof to an owned move meaning highlight"):
+    val root = PositionNodeRef("4k3/8/8/3p4/8/8/4P3/4K3 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val afterReference = PositionNodeRef("4k3/8/8/3p4/4P3/8/8/4K3 b - - 0 1", 2, Some(Color.Black), Some("after-reference"))
+    val referenceLine = LineNodeRef("reference-line", "e2e4", 1, LineNodeRole.BestReference)
+    val playedLine = LineNodeRef("played-line", "h2h3", 2, LineNodeRole.Played)
+    val structuralRef = evidenceRef(
+      id = "structural-delta:reference:e2e4:tension",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(referenceLine),
+      scope = EvidenceScope.ReferenceTransition
+    )
+    val contrastRef = evidenceRef(
+      id = "strategic-contrast:reference:e2e4:tension",
+      producer = EvidenceProducer.StrategicMechanismProducer,
+      layer = EvidenceLayer.StrategicMechanism,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.Counterfactual
+    )
+    val causeRef = evidenceRef(
+      id = "relative-cause:played-best:pawn-break-tension",
+      producer = EvidenceProducer.RelativeMoveProducer,
+      layer = EvidenceLayer.RelativeCause,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.Counterfactual
+    )
+    val referenceLineEvidence = evidenceRef(
+      id = "line:reference:e2e4",
+      producer = EvidenceProducer.LegalLineProducer,
+      layer = EvidenceLayer.Line,
+      position = root,
+      line = Some(referenceLine),
+      scope = EvidenceScope.BestLine
+    )
+    val playedLineEvidence = evidenceRef(
+      id = "line:played:h2h3",
+      producer = EvidenceProducer.LegalLineProducer,
+      layer = EvidenceLayer.Line,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedLine
+    )
+    val playedTransitionEvidence = evidenceRef(
+      id = "transition:played:h2h3",
+      producer = EvidenceProducer.MoveTransitionProducer,
+      layer = EvidenceLayer.MoveTransition,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition
+    )
+    val relativeAssessmentEvidence = evidenceRef(
+      id = "relative-assessment:played-best:h2h3",
+      producer = EvidenceProducer.RelativeMoveProducer,
+      layer = EvidenceLayer.RelativeAssessment,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.Counterfactual
+    )
+    val played = MoveTransitionEdge(
+      role = TransitionEdgeRole.Played,
+      id = "played-transition:h2h3",
+      from = root,
+      moveUci = "h2h3",
+      to = root,
+      changedFacts = Nil,
+      planTransition = None,
+      evidence = playedTransitionEvidence
+    )
+    val reference = CandidateLineNode(
+      role = LineNodeRole.BestReference,
+      ref = referenceLine,
+      line = VariationLine(List("e2e4"), scoreCp = 30, depth = 16),
+      whitePovEvalCp = 30,
+      mate = None,
+      depth = 16,
+      evidence = referenceLineEvidence
+    )
+    val candidate = CandidateLineNode(
+      role = LineNodeRole.Played,
+      ref = playedLine,
+      line = VariationLine(List("h2h3"), scoreCp = -50, depth = 16),
+      whitePovEvalCp = -50,
+      mate = None,
+      depth = 16,
+      evidence = playedLineEvidence
+    )
+    val transition = StructuralTransitionBinding(
+      moveUci = "e2e4",
+      role = TransitionEdgeRole.Reference,
+      from = root,
+      to = afterReference,
+      line = Some(referenceLine),
+      perspective = Color.White
+    )
+    val consequence = TransitionConsequence(
+      kind = TransitionConsequenceKind.PawnTensionGain,
+      polarity = StructuralSignalPolarity.Gain,
+      strength = 2,
+      subjects = List("break-file:e", "created-tension:e4-d5")
+    )
+    val structuralDelta = StructuralDeltaEvidence(
+      transition = transition,
+      signals = Nil,
+      consequences = List(consequence)
+    )
+    val axis = StrategicAxisDetail(StrategicAxisKind.PawnBreak, StrategicAxisPolarity.Support, "break-file-e-maintain-e4-d5")
+    val axisComparison = StrategicAxisComparison(
+      axis = axis,
+      outcome = StrategicAxisComparisonOutcome.ReferenceOnly,
+      referenceStrength = 3,
+      candidateStrength = 0,
+      referenceSources = List(structuralRef),
+      candidateSources = Nil
+    )
+    val sustainability = StrategicSustainabilityAssessment(
+      horizon = StrategicSustainabilityHorizon.ShortPv,
+      lineMaintained = true,
+      pvMaintained = true,
+      referencePlyCount = 3,
+      candidatePlyCount = 3
+    )
+    val contrast = StrategicMechanismContrastEvidence(
+      comparisonKind = CandidateComparisonKind.PlayedVsBest,
+      referenceLine = referenceLine,
+      candidateLine = playedLine,
+      axisComparisons = List(axisComparison),
+      planComparison = None,
+      sustainability = sustainability,
+      support = StrategicContrastSupport(directSources = List(structuralRef), contrastSources = Nil, contextSources = Nil)
+    )
+    val cause = RelativeCauseFact(
+      kind = RelativeCauseKind.PawnBreakOpportunity,
+      comparisonKind = CandidateComparisonKind.PlayedVsBest,
+      referenceLine = referenceLine,
+      candidateLine = playedLine,
+      verdict = MoveChoiceVerdict.Mistake,
+      winPercentLossForMover = 8.0,
+      candidateWinPercentDeltaForMover = -8.0,
+      supportEvidence = List(contrastRef, structuralRef),
+      evidenceLines = List(referenceLine, playedLine),
+      role = RelativeCauseRole.PrimaryPlayedCause,
+      eventLine = referenceLine,
+      sourceSide = RelativeCauseSourceSide.Reference,
+      importance = RelativeCauseImportance.Primary,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.ReferenceCreatesResource,
+        ownedEvidence = List(contrastRef, structuralRef),
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(
+      Some(
+        RelativeCauseProof(
+          directProof = RelativeCauseProofSection(
+            role = RelativeCauseProofRole.DirectProof,
+            strength = RelativeCauseProofStrength.Primary,
+            strategicMechanismContrasts = List(
+              StrategicMechanismContrastProof(
+                source = contrastRef,
+                comparisonKind = CandidateComparisonKind.PlayedVsBest,
+                referenceLine = referenceLine,
+                candidateLine = playedLine,
+                axisComparisons = List(axisComparison),
+                sustainability = sustainability
+              )
+            ),
+            transitionConsequences = List(TransitionConsequenceProof(structuralRef, transition, consequence))
+          )
+        )
+      )
+    )
+    val assessment = RelativeMoveAssessment(
+      played = played,
+      referenceTransition = None,
+      reference = reference,
+      candidate = candidate,
+      comparison = EvalComparison(
+        mover = Color.White,
+        referenceLine = referenceLine,
+        candidateLine = playedLine,
+        rawCandidateDeltaCpForDiagnostics = -80,
+        candidateWinPercentDeltaForMover = -8.0,
+        rawCpLossForDiagnostics = 80,
+        winPercentLossForMover = 8.0,
+        verdict = MoveChoiceVerdict.Mistake
+      ),
+      collapse = None,
+      confidence = EvidenceConfidence.EngineBacked,
+      evidence = relativeAssessmentEvidence,
+      counterfactualEvidence = Nil,
+      relativeCauseEvidence = List(causeRef)
+    )
+
+    val view = MoveJudgmentView
+      .from(
+        relativeAssessments = List(assessment),
+        evidenceGraph = TypedEvidenceGraph(
+          List(
+            EvidenceRecord(structuralRef, structuralDelta),
+            EvidenceRecord(contrastRef, contrast, parents = List(structuralRef)),
+            EvidenceRecord(causeRef, RelativeCauseFactEvidence(cause), parents = List(contrastRef, structuralRef))
+          )
+        ),
+        ideas = Nil,
+        claims = Nil,
+        claimLifecycle = Nil,
+        ideaVerdict = None,
+        claimSupportClusters = Nil,
+        claimEventClusters = Nil
+      )
+      .get
+
+    val detail = view.positionPlanTechniqueFrames.flatMap(_.semanticDetails).find(_.axisKey.contains(axis.stableKey)).get
+    assertEquals(detail.unit, PositionPlanTechniqueUnit.TensionBreakPolicyRoute)
+    assertEquals(detail.structuralPurposeConsequences, List("PawnTensionGain"))
+    assertEquals(detail.structuralPurposeSubjects, List("break-file:e", "created-tension:e4-d5"))
+    assertEquals(detail.causeEvidenceIds, List(causeRef.id))
+    assert(detail.proofRoles.contains(RelativeCauseProofRole.DirectProof), detail.proofRoles)
+    val highlight = view.moveMeaningHighlights.find(_.meaningKind == "PawnBreakTiming").get
+    assertEquals(highlight.strength, "owned_cause_linked")
+    assertEquals(highlight.lineRole, "reference")
+    assertEquals(highlight.moveUci, "e2e4")
+    assert(highlight.reasonTokens.contains(s"causeEvidenceId:${causeRef.id}"), highlight.reasonTokens)
+    assert(highlight.objectBindingSignatures.exists(_.contains("target=File:e")), highlight.objectBindingSignatures)
+    assert(
+      highlight.objectBindingSignatures.exists(signature => signature.contains("target=Square:e4") && signature.contains("target=Square:d5")),
+      highlight.objectBindingSignatures
+    )
+
   test("selects one fallback root when no concrete structural or event root exists"):
     val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
     val afterPlayed = PositionNodeRef("8/8/8/8/3P4/8/8/8 b - - 0 1", 2, Some(Color.Black), Some("after-played"))
