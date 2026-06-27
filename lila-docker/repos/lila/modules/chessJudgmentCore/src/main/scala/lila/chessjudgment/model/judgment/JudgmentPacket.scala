@@ -1706,25 +1706,50 @@ object MoveMeaningClaim:
           )
         )
         .distinctBy(_.causeEvidenceIds)
-    val linkedCauseIds =
-      linkedCauseFrames
-        .flatMap(_.causeEvidenceIds)
-        .filter(detail.causeEvidenceIds.contains)
-        .distinct
-        .sorted
-    val support = supportLevel(detail, linkedCauseFrames, objectSignatures)
     for
-      meaningKind <- kind(detail, linkedCauseFrames)
-      support <- support
+      baseMeaningKind <- kind(detail, Nil)
       if detailMatchesLine(frame, detail, verdict)
+      baseClaimRole = role(baseMeaningKind, detail)
+      lineRoleOptions =
+        List(
+          lineRole(frame, detail, verdict, Nil),
+          lineRole(frame, detail, verdict, linkedCauseFrames)
+        ).distinct
+      claimOptions =
+        lineRoleOptions.map { optionLineRole =>
+          val optionMove = moveUci(verdict, optionLineRole)
+          val optionLinkedCauseFrames =
+            linkedCauseFrames.filter(linkedFrame =>
+              causeFrameOwnsMeaningClaim(linkedFrame, detail, objectSignatures, optionMove, baseClaimRole)
+            )
+          val optionMeaningKind = kind(detail, optionLinkedCauseFrames).getOrElse(baseMeaningKind)
+          val optionClaimRole = role(optionMeaningKind, detail)
+          val optionRoleCompatibleCauseFrames =
+            optionLinkedCauseFrames.filter(linkedFrame =>
+              causeFrameOwnsMeaningClaim(linkedFrame, detail, objectSignatures, optionMove, optionClaimRole)
+            )
+          (optionLineRole, optionMove, optionMeaningKind, optionClaimRole, optionRoleCompatibleCauseFrames)
+        }
+      claimSelection = claimOptions.find(_._5.nonEmpty).getOrElse(claimOptions.head)
+      claimLineRole = claimSelection._1
+      claimMove = claimSelection._2
+      meaningKind = claimSelection._3
+      claimRole = claimSelection._4
+      roleCompatibleCauseFrames = claimSelection._5
+      support <- supportLevel(detail, roleCompatibleCauseFrames, objectSignatures)
     yield
-      val claimLineRole = lineRole(frame, detail, verdict, linkedCauseFrames)
-      val claimRole = role(meaningKind, detail)
+      val surfaceObjectSignatures = surfaceObjectBindingSignatures(detail, objectSignatures, claimMove)
+      val linkedCauseIds =
+        roleCompatibleCauseFrames
+          .flatMap(_.causeEvidenceIds)
+          .filter(detail.causeEvidenceIds.contains)
+          .distinct
+          .sorted
       MoveMeaningClaim(
         meaningKind = meaningKind,
         role = claimRole,
-        laneKey = laneKey(meaningKind, detail, objectSignatures),
-        conflictKey = conflictKey(meaningKind, detail, objectSignatures),
+        laneKey = laneKey(meaningKind, detail, surfaceObjectSignatures),
+        conflictKey = conflictKey(meaningKind, detail, surfaceObjectSignatures),
         supportLevel = support,
         visibility = visibility(support),
         lineRole = claimLineRole,
@@ -1735,12 +1760,12 @@ object MoveMeaningClaim:
         axisKind = detail.axisKind,
         axisPolarity = detail.axisPolarity,
         label = detail.label,
-        causeKinds = linkedCauseFrames.map(_.causeKind).distinct.sortBy(_.toString),
-        causeSourceSides = linkedCauseFrames.map(_.causeSourceSide).distinct.sortBy(_.toString),
+        causeKinds = roleCompatibleCauseFrames.map(_.causeKind).distinct.sortBy(_.toString),
+        causeSourceSides = roleCompatibleCauseFrames.map(_.causeSourceSide).distinct.sortBy(_.toString),
         causeEvidenceIds = linkedCauseIds,
         sourceEvidenceIds = detail.sourceEvidenceIds.distinct.sorted,
-        objectBindingSignatures = objectSignatures,
-        reasonTokens = reasonTokens(detail, objectSignatures, linkedCauseIds)
+        objectBindingSignatures = surfaceObjectSignatures,
+        reasonTokens = reasonTokens(detail, surfaceObjectSignatures, linkedCauseIds)
       )
 
   private def supportLevel(
@@ -1762,6 +1787,230 @@ object MoveMeaningClaim:
     else if hasDetailEvidence && contextualMeaningDetail(detail) then
       Some("contextual")
     else None
+
+  private def causeFrameOwnsMeaningClaim(
+      frame: MoveJudgmentCauseFrame,
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String,
+      claimRole: String
+  ): Boolean =
+    detailOwnsClaimMove(detail, objectSignatures, claimMove) &&
+      causeFramePolarityCompatibleWithMeaning(frame, detail, claimRole)
+
+  private def detailOwnsClaimMove(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String
+  ): Boolean =
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
+    val actorMoves = moveTokens(objectSignatures)
+    if detail.unit == PositionPlanTechniqueUnit.PieceRerouteRoute then
+      pieceRouteOwnsClaimMove(detail, claimMove)
+    else if detail.unit == PositionPlanTechniqueUnit.TensionBreakPolicyRoute then
+      pawnBreakOwnsClaimMove(detail, objectSignatures, claimMove)
+    else if actorMoves.nonEmpty && !actorMoves.contains(normalizedClaimMove) then false
+    else
+      detail.unit match
+        case PositionPlanTechniqueUnit.SpacePreventionResourceDenial | PositionPlanTechniqueUnit.CounterplayRace =>
+          resourceDetailOwnsClaimMove(detail, objectSignatures, claimMove)
+        case PositionPlanTechniqueUnit.EndgameTechniqueRecipe =>
+          detail.endgameTechniqueTriggerMove.exists(move => sameMove(move, claimMove)) ||
+            generalDetailOwnsClaimMove(detail, objectSignatures, claimMove)
+        case _ =>
+          generalDetailOwnsClaimMove(detail, objectSignatures, claimMove)
+
+  private def pieceRouteOwnsClaimMove(
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String
+  ): Boolean =
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
+    val routeObjectSignatures = detail.objectBindingSignatures.filter(pieceRouteObjectSignature)
+    val routeActorMoves = moveTokens(routeObjectSignatures)
+    val routeObjectForClaimMove =
+      routeObjectSignatures.exists(signature => moveTokens(List(signature)).contains(normalizedClaimMove))
+    val routeObjectWithoutMoveActor =
+      routeObjectSignatures.exists(signature => moveTokens(List(signature)).isEmpty)
+    routeObjectForClaimMove ||
+      (
+        detail.structuralRouteMove.exists(move => sameMove(move, claimMove)) &&
+          routeActorMoves.forall(_ == normalizedClaimMove) &&
+          routeObjectWithoutMoveActor
+      )
+
+  private def pawnBreakOwnsClaimMove(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String
+  ): Boolean =
+    val tensionTouchesMove =
+      moveTouchesSquares(claimMove, detail.tensionSquares) ||
+        moveTouchesSquares(claimMove, detail.tensionEdges) ||
+        moveTouchesStructuralPurpose(detail, claimMove)
+    detail.breakFile match
+      case Some(_) =>
+        moveTouchesBreakFile(detail, claimMove) || tensionTouchesMove
+      case None =>
+        tensionTouchesMove || targetTokensTouchMove(objectSignatures, claimMove)
+
+  private def resourceDetailOwnsClaimMove(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String
+  ): Boolean =
+    generalDetailOwnsClaimMove(detail, objectSignatures, claimMove) ||
+      moveTouchesSquares(claimMove, detail.resourceContestSquares) ||
+      moveTouchesFiles(claimMove, detail.resourceContestFiles)
+
+  private def generalDetailOwnsClaimMove(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String
+  ): Boolean =
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
+    moveTokens(objectSignatures).contains(normalizedClaimMove) ||
+      detail.structuralRouteMove.exists(move => sameMove(move, claimMove)) ||
+      detail.raceCandidateRootMove.exists(move => sameMove(move, claimMove)) ||
+      detail.raceReferenceRootMove.exists(move => sameMove(move, claimMove))
+
+  private def moveTokens(signatures: List[String]): Set[String] =
+    signatures.flatMap(signature =>
+      signature.split("\\|").toList.collect {
+        case part if part.toLowerCase.startsWith("actor=move:") =>
+          JudgmentSubjectBinding.normalizeMove(part.drop("actor=Move:".length)).toLowerCase
+      }
+    ).toSet
+
+  private def moveTouchesBreakFile(
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String
+  ): Boolean =
+    detail.breakFile.exists(file => moveTouchesFiles(claimMove, List(file)))
+
+  private def moveTouchesSquares(
+      claimMove: String,
+      squaresOrEdges: List[String]
+  ): Boolean =
+    moveEndpoints(claimMove).exists { case (from, to) =>
+      val normalized = squaresOrEdges.map(_.toLowerCase)
+      normalized.exists(token => token.contains(from) || token.contains(to))
+    }
+
+  private def moveTouchesFiles(
+      claimMove: String,
+      files: List[String]
+  ): Boolean =
+    moveEndpoints(claimMove).exists { case (from, to) =>
+      val moveFiles = Set(from.take(1), to.take(1))
+      files.map(_.toLowerCase.trim).exists(file => moveFiles.contains(file.take(1)))
+    }
+
+  private def moveTouchesStructuralPurpose(
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String
+  ): Boolean =
+    moveTouchesSquares(claimMove, detail.structuralPurposeSubjects) ||
+      detail.structuralPurposeSubjects.exists { subject =>
+        val normalized = subject.toLowerCase.trim
+        normalized.startsWith("break-file:") &&
+          moveTouchesFiles(claimMove, List(normalized.stripPrefix("break-file:")))
+      }
+
+  private def targetTokensTouchMove(
+      objectSignatures: List[String],
+      claimMove: String
+  ): Boolean =
+    moveEndpoints(claimMove).exists { case (from, to) =>
+      signatureTokens(objectSignatures, "target=").exists { token =>
+        val normalized = token.toLowerCase
+        normalized.contains(from) ||
+          normalized.contains(to) ||
+          (normalized.contains("file:") && Set(from.take(1), to.take(1)).exists(file => normalized.endsWith(s":$file")))
+      }
+    }
+
+  private def moveEndpoints(move: String): Option[(String, String)] =
+    val normalized = JudgmentSubjectBinding.normalizeMove(move).toLowerCase
+    Option.when(normalized.matches("[a-h][1-8][a-h][1-8].*"))(
+      normalized.take(2) -> normalized.slice(2, 4)
+    )
+
+  private def surfaceObjectBindingSignatures(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String
+  ): List[String] =
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
+    val currentMoveSignatures =
+      objectSignatures.filter(signature => moveTokens(List(signature)).contains(normalizedClaimMove))
+    val noMoveActorSignatures =
+      objectSignatures.filter(signature => moveTokens(List(signature)).isEmpty)
+    val surface =
+      detail.unit match
+        case PositionPlanTechniqueUnit.PieceRerouteRoute =>
+          val routeSignatures =
+            objectSignatures.filter(signature =>
+              pieceRouteObjectSignature(signature) &&
+                (
+                  moveTokens(List(signature)).contains(normalizedClaimMove) ||
+                    moveTokens(List(signature)).isEmpty
+                )
+            )
+          if routeSignatures.nonEmpty then routeSignatures
+          else if currentMoveSignatures.nonEmpty then currentMoveSignatures
+          else noMoveActorSignatures
+        case PositionPlanTechniqueUnit.TensionBreakPolicyRoute =>
+          val pawnSignatures =
+            objectSignatures.filter(signature =>
+              moveTokens(List(signature)).contains(normalizedClaimMove) ||
+                targetTokensTouchMove(List(signature), claimMove)
+            )
+          if pawnSignatures.nonEmpty then pawnSignatures else noMoveActorSignatures
+        case _ =>
+          if currentMoveSignatures.nonEmpty then currentMoveSignatures
+          else noMoveActorSignatures
+    if surface.nonEmpty then surface.distinct.sorted else objectSignatures
+
+  private def causeFramePolarityCompatibleWithMeaning(
+      frame: MoveJudgmentCauseFrame,
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimRole: String
+  ): Boolean =
+    val positiveRole = positiveMeaningRole(claimRole)
+    val negativeDetail =
+      detail.axisPolarity.exists(negativePolarity) ||
+        detail.contrastOutcome.contains(StrategicAxisComparisonOutcome.CandidateConcession) ||
+        detail.structuralPurposePolarities.exists(token =>
+          val normalized = token.toLowerCase
+          normalized.contains("loss") || normalized.contains("concede") || normalized.contains("release")
+        )
+    !(positiveRole && (negativeCauseKind(frame.causeKind) || negativeDetail))
+
+  private def positiveMeaningRole(role: String): Boolean =
+    role == "ImprovesPieceRoute" ||
+      role == "PreparesBreak" ||
+      role == "PreservesTension" ||
+      role == "PreventsCounterplay" ||
+      role == "StartsCounterplayRace" ||
+      role == "MaintainsTechnique" ||
+      role == "SupportsCurrentPlan" ||
+      role == "KeepsAlternativeAvailable" ||
+      role == "ReferencePreservesPlan" ||
+      role == "SharedCompatiblePlan"
+
+  private def negativeCauseKind(kind: RelativeCauseKind): Boolean =
+    kind == RelativeCauseKind.ActivityLoss ||
+      kind == RelativeCauseKind.TargetPressureRelease ||
+      kind == RelativeCauseKind.StrategicConcession ||
+      kind == RelativeCauseKind.MissedStrategicImprovement ||
+      kind == RelativeCauseKind.PlanContradiction ||
+      kind == RelativeCauseKind.KingSafetyConcession ||
+      kind == RelativeCauseKind.CandidateTacticalLiability ||
+      kind == RelativeCauseKind.TacticalRefutationOfPlayed ||
+      kind == RelativeCauseKind.MissedTacticalResource ||
+      kind == RelativeCauseKind.WrongRecapturer ||
+      kind == RelativeCauseKind.WrongMoveOrder ||
+      kind == RelativeCauseKind.TempoLoss
 
   private def specificity(detail: PositionPlanTechniqueSemanticDetail): Boolean =
     detail.specificityTier == PositionPlanTechniqueSpecificityTier.ExactObjectAxis ||

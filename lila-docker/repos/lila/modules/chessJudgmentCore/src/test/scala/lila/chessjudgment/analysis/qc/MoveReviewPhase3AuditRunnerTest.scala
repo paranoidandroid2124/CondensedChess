@@ -2000,6 +2000,19 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       auditCauses = List(cause.copy(objectBindingSignatures = routeMotifWithoutPieceObject.objectBindingSignatures)),
       details = List(routeMotifWithoutPieceObject)
     )
+    val alternativeMoveObject = exactDetail.copy(
+      structuralRouteMove = Some(alternativeLine.rootMove),
+      structuralPurposeSubjects = List("piece:knight:b1-d2"),
+      objectBindingSignatures =
+        List(
+          "actor=Move:d2d4|actor=Piece:knight|actor=Square:b1|target=Square:d2|mechanism=Mechanism:developmentchoice|proof=DirectProof"
+        )
+    )
+    val alternativeMoveObjectView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(cause.copy(objectBindingSignatures = alternativeMoveObject.objectBindingSignatures)),
+      details = List(alternativeMoveObject)
+    )
     val mismatchedCauseUnitView = meaningClaimView(
       verdict = MoveChoiceVerdict.MatchesReference,
       auditCauses = List(cause),
@@ -2036,6 +2049,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(broadActivitySupportView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
     assertEquals(pawnActivityAsRouteView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
     assertEquals(routeMotifWithoutPieceObjectView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
+    assertEquals(alternativeMoveObjectView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
     assertEquals(mismatchedCauseUnitView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
     assertEquals(fallbackRootView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
     assertEquals(mismatchedSideView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
@@ -2044,11 +2058,51 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(broadActivitySupportView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
     assertEquals(pawnActivityAsRouteView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
     assertEquals(routeMotifWithoutPieceObjectView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
+    assertEquals(alternativeMoveObjectView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
     assertEquals(mismatchedCauseUnitView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
     assertEquals(fallbackRootView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
     assertEquals(mismatchedSideView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
     assertEquals(mismatchedObjectView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
     assertEquals(broadActorOnlyView.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
+
+  test("move meaning claims downgrade positive roles when cause polarity conflicts"):
+    val routeSignature =
+      "actor=Move:e2e3|actor=Piece:knight|actor=Square:g1|target=Square:f3|mechanism=Mechanism:developmentchoice|proof=DirectProof"
+    val cause = causeFrame(
+      causeId = "cause-activity-loss",
+      axisKeys = List("Activity:Loss:activity-loss"),
+      objectSignatures = List(routeSignature),
+      rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot
+    ).copy(
+      causeKind = RelativeCauseKind.ActivityLoss,
+      hasOwnedAdmissibleLongTermProof = true,
+      attributionDirectProofEligible = true
+    )
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.PieceRerouteRoute,
+      axisKey = Some("Activity:Gain:activity-gain"),
+      axisKind = Some(StrategicAxisKind.Activity),
+      axisPolarity = Some(StrategicAxisPolarity.Gain),
+      label = Some("activity-gain"),
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.CandidateStronger),
+      candidateEvidenceIds = List("played-transition"),
+      sourceEvidenceIds = List("played-transition"),
+      causeEvidenceIds = List("cause-activity-loss"),
+      proofRoles = List(RelativeCauseProofRole.DirectProof),
+      objectBindingSignatures = List(routeSignature),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis,
+      structuralRouteMove = Some(candidateLine.rootMove),
+      structuralPurposeSubjects = List("piece:knight:g1-f3")
+    )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(cause),
+      details = List(detail)
+    )
+
+    assertEquals(view.moveMeaningClaims.headOption.map(_.role), Some("ImprovesPieceRoute"))
+    assertEquals(view.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
+    assertEquals(view.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
 
   test("move meaning claims keep non-binary axes and reject borrowed objects"):
     val ownedCause = causeFrame(
