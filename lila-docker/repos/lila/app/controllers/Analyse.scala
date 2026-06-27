@@ -71,11 +71,8 @@ final class Analyse(
   private def moveJudgmentViewMeaningJson(view: MoveJudgmentView): JsObject =
     Json.obj(
       "verdict" -> view.verdict.map(verdictJson),
-      "moveMeaningHighlights" -> view.moveMeaningHighlights.map(moveMeaningHighlightJson),
-      "positionPlanTechniqueFrameCount" -> view.positionPlanTechniqueFrames.size,
-      "primaryCauseCount" -> view.primaryCauses.size,
-      "secondaryCauseCount" -> view.secondaryCauses.size,
-      "contextCauseCount" -> view.contextCauses.size
+      "moveMeaningClaims" -> view.moveMeaningClaims.map(moveMeaningClaimJson),
+      "positionPlanTechniqueFrameCount" -> view.positionPlanTechniqueFrames.size
     )
 
   private def verdictJson(frame: MoveJudgmentVerdictFrame): JsObject =
@@ -96,27 +93,29 @@ final class Analyse(
       "role" -> ref.role.toString
     )
 
-  private def moveMeaningHighlightJson(highlight: MoveMeaningHighlight): JsObject =
+  private def moveMeaningClaimJson(claim: MoveMeaningClaim): JsObject =
     Json.obj(
-      "meaningKind" -> highlight.meaningKind,
-      "stance" -> highlight.stance,
-      "strength" -> highlight.strength,
-      "wordingPolicy" -> highlight.wordingPolicy,
-      "lineRole" -> highlight.lineRole,
-      "moveUci" -> highlight.moveUci,
-      "frameId" -> highlight.frameId,
-      "unit" -> highlight.unit.toString,
-      "axisKey" -> highlight.axisKey,
-      "axisKind" -> highlight.axisKind.map(_.toString),
-      "axisPolarity" -> highlight.axisPolarity.map(_.toString),
-      "label" -> highlight.label,
-      "causeKinds" -> highlight.causeKinds.map(_.toString),
-      "causeSourceSides" -> highlight.causeSourceSides.map(_.toString),
-      "causeEvidenceIds" -> highlight.causeEvidenceIds,
-      "sourceEvidenceIds" -> highlight.sourceEvidenceIds,
-      "reasonTokens" -> highlight.reasonTokens,
-      "objectBindingSignatureCount" -> highlight.objectBindingSignatures.size,
-      "objectBindingSignaturesSample" -> highlight.objectBindingSignatures.take(5)
+      "meaningKind" -> claim.meaningKind,
+      "role" -> claim.role,
+      "laneKey" -> claim.laneKey,
+      "conflictKey" -> claim.conflictKey,
+      "supportLevel" -> claim.supportLevel,
+      "visibility" -> claim.visibility,
+      "lineRole" -> claim.lineRole,
+      "moveUci" -> claim.moveUci,
+      "frameId" -> claim.frameId,
+      "unit" -> claim.unit.toString,
+      "axisKey" -> claim.axisKey,
+      "axisKind" -> claim.axisKind.map(_.toString),
+      "axisPolarity" -> claim.axisPolarity.map(_.toString),
+      "label" -> claim.label,
+      "causeKinds" -> claim.causeKinds.map(_.toString),
+      "causeSourceSides" -> claim.causeSourceSides.map(_.toString),
+      "causeEvidenceIds" -> claim.causeEvidenceIds,
+      "sourceEvidenceIds" -> claim.sourceEvidenceIds,
+      "reasonTokens" -> claim.reasonTokens,
+      "objectBindingSignatureCount" -> claim.objectBindingSignatures.size,
+      "objectBindingSignaturesSample" -> claim.objectBindingSignatures.take(5)
     )
 
   private def validationIssueJson(issue: JudgmentPacketValidationIssue): JsObject =

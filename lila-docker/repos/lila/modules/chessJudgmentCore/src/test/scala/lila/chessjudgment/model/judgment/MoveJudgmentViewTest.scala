@@ -1213,11 +1213,11 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
       .get
 
-    assertEquals(view.primaryCauses, Nil)
-    assertEquals(view.contextCauses.map(_.causeKind), List(RelativeCauseKind.StructuralImprovement))
-    assertEquals(view.contextCauses.head.causeRole, RelativeCauseRole.PlayedAlternativeContext)
-    assertEquals(view.contextCauses.head.causeSourceSide, RelativeCauseSourceSide.Candidate)
-    assertEquals(view.contextCauses.head.evidenceIds, List(causeRef.id, structuralRef.id).sorted)
+    assertEquals(view.causeAudit.primary, Nil)
+    assertEquals(view.causeAudit.context.map(_.causeKind), List(RelativeCauseKind.StructuralImprovement))
+    assertEquals(view.causeAudit.context.head.causeRole, RelativeCauseRole.PlayedAlternativeContext)
+    assertEquals(view.causeAudit.context.head.causeSourceSide, RelativeCauseSourceSide.Candidate)
+    assertEquals(view.causeAudit.context.head.evidenceIds, List(causeRef.id, structuralRef.id).sorted)
 
   test("does not expose playable loss relative cause as primary bad cause"):
     val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
@@ -1259,8 +1259,8 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
       .get
 
-    assertEquals(view.primaryCauses, Nil)
-    assertEquals(view.secondaryCauses.map(_.causeKind), List(RelativeCauseKind.TacticalRefutationOfPlayed))
+    assertEquals(view.causeAudit.primary, Nil)
+    assertEquals(view.causeAudit.secondary.map(_.causeKind), List(RelativeCauseKind.TacticalRefutationOfPlayed))
 
   test("keeps line-bound tactical witness but demotes same-comparison-only evidence to context"):
     val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
@@ -1431,11 +1431,11 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
       .get
 
-    val primaryByKind = view.primaryCauses.map(frame => frame.causeKind -> frame).toMap
-    val secondaryByKind = view.secondaryCauses.map(frame => frame.causeKind -> frame).toMap
-    val contextByKind = view.contextCauses.map(frame => frame.causeKind -> frame).toMap
+    val primaryByKind = view.causeAudit.primary.map(frame => frame.causeKind -> frame).toMap
+    val secondaryByKind = view.causeAudit.secondary.map(frame => frame.causeKind -> frame).toMap
+    val contextByKind = view.causeAudit.context.map(frame => frame.causeKind -> frame).toMap
     val structuralRoot = primaryByKind(RelativeCauseKind.StructuralImprovement)
-    assertEquals(view.primaryCauses.map(_.causeKind), List(RelativeCauseKind.StructuralImprovement))
+    assertEquals(view.causeAudit.primary.map(_.causeKind), List(RelativeCauseKind.StructuralImprovement))
     assertEquals(structuralRoot.narrativeRole, MoveJudgmentCauseNarrativeRole.RootCause)
     assertEquals(
       structuralRoot.tacticalWitnessCauseKinds.toSet,
@@ -1631,9 +1631,9 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
       .get
 
-    val tacticalFrame = view.secondaryCauses.find(_.causeKind == RelativeCauseKind.TacticalRefutationOfPlayed).get
-    val structuralFrame = view.primaryCauses.find(_.causeKind == RelativeCauseKind.StructuralImprovement).get
-    assertEquals(view.primaryCauses.map(_.causeKind), List(RelativeCauseKind.StructuralImprovement))
+    val tacticalFrame = view.causeAudit.secondary.find(_.causeKind == RelativeCauseKind.TacticalRefutationOfPlayed).get
+    val structuralFrame = view.causeAudit.primary.find(_.causeKind == RelativeCauseKind.StructuralImprovement).get
+    assertEquals(view.causeAudit.primary.map(_.causeKind), List(RelativeCauseKind.StructuralImprovement))
     assertEquals(structuralFrame.tacticalWitnessCauseKinds, List(RelativeCauseKind.TacticalRefutationOfPlayed))
     assertEquals(structuralFrame.punishmentWitnessCauseKinds, List(RelativeCauseKind.TacticalRefutationOfPlayed))
     assertEquals(structuralFrame.contextualTacticalWitnessCauseKinds, Nil)
@@ -1767,9 +1767,9 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
       .get
 
-    val activityFrame = view.primaryCauses.find(_.causeKind == RelativeCauseKind.ActivityLoss).get
-    val planFrame = view.contextCauses.find(_.causeKind == RelativeCauseKind.PlanContradiction).get
-    assertEquals(view.primaryCauses.map(_.causeKind), List(RelativeCauseKind.ActivityLoss))
+    val activityFrame = view.causeAudit.primary.find(_.causeKind == RelativeCauseKind.ActivityLoss).get
+    val planFrame = view.causeAudit.context.find(_.causeKind == RelativeCauseKind.PlanContradiction).get
+    assertEquals(view.causeAudit.primary.map(_.causeKind), List(RelativeCauseKind.ActivityLoss))
     assertEquals(activityFrame.narrativeRole, MoveJudgmentCauseNarrativeRole.RootCause)
     assertEquals(planFrame.narrativeRole, MoveJudgmentCauseNarrativeRole.ContextCause)
 
@@ -1882,9 +1882,9 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
       .get
 
-    val activityFrame = view.secondaryCauses.find(_.causeKind == RelativeCauseKind.ActivityLoss).get
-    val tacticalFrame = view.primaryCauses.find(_.causeKind == RelativeCauseKind.TacticalRefutationOfPlayed).get
-    assertEquals(view.primaryCauses.map(_.causeKind), List(RelativeCauseKind.TacticalRefutationOfPlayed))
+    val activityFrame = view.causeAudit.secondary.find(_.causeKind == RelativeCauseKind.ActivityLoss).get
+    val tacticalFrame = view.causeAudit.primary.find(_.causeKind == RelativeCauseKind.TacticalRefutationOfPlayed).get
+    assertEquals(view.causeAudit.primary.map(_.causeKind), List(RelativeCauseKind.TacticalRefutationOfPlayed))
     assertEquals(activityFrame.concreteObjectReady, true)
     assertEquals(activityFrame.narrativeRole, MoveJudgmentCauseNarrativeRole.SupportingCause)
     assertEquals(activityFrame.rootArbitrationTier, MoveJudgmentCauseRootArbitrationTier.BroadOwnedRoot)
@@ -1983,8 +1983,8 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
       .get
 
-    val activityFrame = view.secondaryCauses.find(_.causeKind == RelativeCauseKind.ActivityLoss).get
-    assertEquals(view.primaryCauses, Nil)
+    val activityFrame = view.causeAudit.secondary.find(_.causeKind == RelativeCauseKind.ActivityLoss).get
+    assertEquals(view.causeAudit.primary, Nil)
     assertEquals(activityFrame.rootArbitrationTier, MoveJudgmentCauseRootArbitrationTier.BroadOwnedRoot)
     assertEquals(activityFrame.narrativeRole, MoveJudgmentCauseNarrativeRole.SupportingCause)
 
@@ -2132,8 +2132,8 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
       .get
 
-    val rolesByKind = (view.primaryCauses ++ view.secondaryCauses ++ view.contextCauses).map(frame => frame.causeKind -> frame.narrativeRole).toMap
-    assertEquals(view.primaryCauses.map(_.causeKind), List(RelativeCauseKind.TacticalRefutationOfPlayed))
+    val rolesByKind = (view.causeAudit.primary ++ view.causeAudit.secondary ++ view.causeAudit.context).map(frame => frame.causeKind -> frame.narrativeRole).toMap
+    assertEquals(view.causeAudit.primary.map(_.causeKind), List(RelativeCauseKind.TacticalRefutationOfPlayed))
     assertEquals(rolesByKind(RelativeCauseKind.TacticalRefutationOfPlayed), MoveJudgmentCauseNarrativeRole.RootCause)
     assertEquals(rolesByKind(RelativeCauseKind.WrongRecapturer), MoveJudgmentCauseNarrativeRole.SupportingCause)
     assertEquals(rolesByKind(RelativeCauseKind.OnlyDefenseNecessity), MoveJudgmentCauseNarrativeRole.SupportingCause)
@@ -2300,9 +2300,9 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
       .get
 
-    val rolesByKind = (view.primaryCauses ++ view.secondaryCauses ++ view.contextCauses).map(frame => frame.causeKind -> frame.narrativeRole).toMap
-    val tiersByKind = (view.primaryCauses ++ view.secondaryCauses ++ view.contextCauses).map(frame => frame.causeKind -> frame.rootArbitrationTier).toMap
-    assertEquals(view.primaryCauses.map(_.causeKind), List(RelativeCauseKind.PlanContradiction))
+    val rolesByKind = (view.causeAudit.primary ++ view.causeAudit.secondary ++ view.causeAudit.context).map(frame => frame.causeKind -> frame.narrativeRole).toMap
+    val tiersByKind = (view.causeAudit.primary ++ view.causeAudit.secondary ++ view.causeAudit.context).map(frame => frame.causeKind -> frame.rootArbitrationTier).toMap
+    assertEquals(view.causeAudit.primary.map(_.causeKind), List(RelativeCauseKind.PlanContradiction))
     assertEquals(rolesByKind(RelativeCauseKind.PlanContradiction), MoveJudgmentCauseNarrativeRole.RootCause)
     assertEquals(rolesByKind(RelativeCauseKind.WrongRecapturer), MoveJudgmentCauseNarrativeRole.SupportingCause)
     assertEquals(tiersByKind(RelativeCauseKind.PlanContradiction), MoveJudgmentCauseRootArbitrationTier.FallbackRoot)
@@ -2400,12 +2400,12 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
       .get
 
-    val planFrame = view.secondaryCauses.find(_.causeKind == RelativeCauseKind.PlanContradiction).get
-    assertEquals(view.primaryCauses, Nil)
+    val planFrame = view.causeAudit.secondary.find(_.causeKind == RelativeCauseKind.PlanContradiction).get
+    assertEquals(view.causeAudit.primary, Nil)
     assertEquals(planFrame.narrativeRole, MoveJudgmentCauseNarrativeRole.SupportingCause)
     assertEquals(planFrame.rootArbitrationTier, MoveJudgmentCauseRootArbitrationTier.ContextOnly)
 
-  test("demotes weak cause frames when concrete same-comparison peers exist"):
+  test("cause audit demotes weak cause frames when concrete same-comparison peers exist"):
     val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
     val playedLine = LineNodeRef("played-line", "d2d4", 2, LineNodeRole.Played)
     val otherLine = LineNodeRef("other-line", "c2c4", 3, LineNodeRole.Alternative)
@@ -2536,7 +2536,7 @@ class MoveJudgmentViewTest extends munit.FunSuite:
         candidateLine = otherLine
       )
 
-    val buckets = MoveJudgmentView.playerFacingCauseBuckets(
+    val audit = MoveJudgmentView.causeAuditBuckets(
       List(
         concreteRoot,
         objectlessPrimary,
@@ -2549,10 +2549,10 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
     )
 
-    assertEquals(buckets.primary.map(_.causeEvidenceIds.head), List("concrete-root", "objectless-tactical-root"))
-    assertEquals(buckets.secondary.map(_.causeEvidenceIds.head), List("objectless-other-comparison"))
+    assertEquals(audit.primary.map(_.causeEvidenceIds.head), List("concrete-root", "objectless-tactical-root"))
+    assertEquals(audit.secondary.map(_.causeEvidenceIds.head), List("objectless-other-comparison"))
     assertEquals(
-      buckets.context.map(frame => frame.causeEvidenceIds.head -> frame.role).toSet,
+      audit.context.map(frame => frame.causeEvidenceIds.head -> frame.role).toSet,
       Set(
         "objectless-primary" -> MoveJudgmentCauseFrameRole.ContextCause,
         "objectless-secondary" -> MoveJudgmentCauseFrameRole.ContextCause,
@@ -2562,7 +2562,7 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
     )
 
-  test("links pawn break tension proof to an owned move meaning highlight"):
+  test("links pawn break tension proof to an owned move meaning claim"):
     val root = PositionNodeRef("4k3/8/8/3p4/8/8/4P3/4K3 w - - 0 1", 1, Some(Color.White), Some("root"))
     val afterReference = PositionNodeRef("4k3/8/8/3p4/4P3/8/8/4K3 b - - 0 1", 2, Some(Color.Black), Some("after-reference"))
     val referenceLine = LineNodeRef("reference-line", "e2e4", 1, LineNodeRole.BestReference)
@@ -2783,15 +2783,18 @@ class MoveJudgmentViewTest extends munit.FunSuite:
     assertEquals(detail.structuralPurposeSubjects, List("break-file:e", "created-tension:e4-d5"))
     assertEquals(detail.causeEvidenceIds, List(causeRef.id))
     assert(detail.proofRoles.contains(RelativeCauseProofRole.DirectProof), detail.proofRoles)
-    val highlight = view.moveMeaningHighlights.find(_.meaningKind == "PawnBreakTiming").get
-    assertEquals(highlight.strength, "owned_cause_linked")
-    assertEquals(highlight.lineRole, "reference")
-    assertEquals(highlight.moveUci, "e2e4")
-    assert(highlight.reasonTokens.contains(s"causeEvidenceId:${causeRef.id}"), highlight.reasonTokens)
-    assert(highlight.objectBindingSignatures.exists(_.contains("target=File:e")), highlight.objectBindingSignatures)
+    val claim = view.moveMeaningClaims.find(_.meaningKind == "PawnBreakTiming").get
+    assertEquals(claim.role, "PreparesBreak")
+    assertEquals(claim.supportLevel, "owned_cause_linked")
+    assertEquals(claim.visibility, "reason_grade")
+    assert(claim.laneKey.contains("target=File:e"), claim.laneKey)
+    assertEquals(claim.lineRole, "reference")
+    assertEquals(claim.moveUci, "e2e4")
+    assert(claim.reasonTokens.contains(s"causeEvidenceId:${causeRef.id}"), claim.reasonTokens)
+    assert(claim.objectBindingSignatures.exists(_.contains("target=File:e")), claim.objectBindingSignatures)
     assert(
-      highlight.objectBindingSignatures.exists(signature => signature.contains("target=Square:e4") && signature.contains("target=Square:d5")),
-      highlight.objectBindingSignatures
+      claim.objectBindingSignatures.exists(signature => signature.contains("target=Square:e4") && signature.contains("target=Square:d5")),
+      claim.objectBindingSignatures
     )
 
   test("selects one fallback root when no concrete structural or event root exists"):
@@ -2948,8 +2951,8 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
       .get
 
-    val roots = view.primaryCauses.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.RootCause)
-    val rolesByKind = (view.primaryCauses ++ view.secondaryCauses).map(frame => frame.causeKind -> frame.narrativeRole).toMap
+    val roots = view.causeAudit.primary.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.RootCause)
+    val rolesByKind = (view.causeAudit.primary ++ view.causeAudit.secondary).map(frame => frame.causeKind -> frame.narrativeRole).toMap
     assertEquals(roots.map(_.causeKind), List(RelativeCauseKind.PlanContradiction))
     assertEquals(rolesByKind(RelativeCauseKind.PlanImprovement), MoveJudgmentCauseNarrativeRole.SupportingCause)
 
@@ -2999,9 +3002,9 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
       .get
 
-    assertEquals(view.primaryCauses.map(_.causeKind), List(RelativeCauseKind.TacticalRefutationOfPlayed))
-    assertEquals(view.primaryCauses.head.narrativeRole, MoveJudgmentCauseNarrativeRole.RootCause)
-    assertEquals(view.primaryCauses.head.rootArbitrationTier, MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot)
+    assertEquals(view.causeAudit.primary.map(_.causeKind), List(RelativeCauseKind.TacticalRefutationOfPlayed))
+    assertEquals(view.causeAudit.primary.head.narrativeRole, MoveJudgmentCauseNarrativeRole.RootCause)
+    assertEquals(view.causeAudit.primary.head.rootArbitrationTier, MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot)
 
   test("does not demote tactical root when structural cause lacks owned admissible proof"):
     val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
@@ -3099,8 +3102,8 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       )
       .get
 
-    assertEquals(view.primaryCauses.map(_.causeKind), List(RelativeCauseKind.TacticalRefutationOfPlayed))
-    assertEquals(view.primaryCauses.head.narrativeRole, MoveJudgmentCauseNarrativeRole.RootCause)
+    assertEquals(view.causeAudit.primary.map(_.causeKind), List(RelativeCauseKind.TacticalRefutationOfPlayed))
+    assertEquals(view.causeAudit.primary.head.narrativeRole, MoveJudgmentCauseNarrativeRole.RootCause)
 
   test("binds playable loss played-vs-best evidence as context instead of primary cause"):
     val playedLine = LineNodeRef("played-line", "d2d4", 2, LineNodeRole.Played)

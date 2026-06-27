@@ -227,9 +227,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
           MoveJudgmentView(
             verdict = None,
             verdictCarriers = Nil,
-            primaryCauses = Nil,
-            secondaryCauses = Nil,
-            contextCauses = Nil,
+            causeAudit = MoveJudgmentCauseAudit(),
             positionPlanTechniqueFrames = List(contrastFrame),
             supportContextClusterIds = Nil,
             overriddenLocalIdeas = Nil,
@@ -1711,40 +1709,40 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     val view = MoveJudgmentView(
       verdict = None,
       verdictCarriers = Nil,
-      primaryCauses = List(
-        causeFrame(
-          causeId = "cause-side-only",
-          axisKeys = List("Counterplay:Restrain:opponent-low-mobility"),
-          objectSignatures = List(
-            "target=Side:black|mechanism=Mechanism:counterplayrestraint|consequence=Consequence:counterplayrestraint|proof=DirectProof"
+      causeAudit = MoveJudgmentCauseAudit(
+        primary = List(
+          causeFrame(
+            causeId = "cause-side-only",
+            axisKeys = List("Counterplay:Restrain:opponent-low-mobility"),
+            objectSignatures = List(
+              "target=Side:black|mechanism=Mechanism:counterplayrestraint|consequence=Consequence:counterplayrestraint|proof=DirectProof"
+            ),
+            rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.FallbackRoot
           ),
-          rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.FallbackRoot
-        ),
-        causeFrame(
-          causeId = "cause-context-only",
-          axisKeys = List("Activity:Gain:outpost-gain"),
-          objectSignatures = List(
-            "target=Square:e5|mechanism=Mechanism:activity|consequence=Consequence:activity|proof=ContextSupport"
+          causeFrame(
+            causeId = "cause-context-only",
+            axisKeys = List("Activity:Gain:outpost-gain"),
+            objectSignatures = List(
+              "target=Square:e5|mechanism=Mechanism:activity|consequence=Consequence:activity|proof=ContextSupport"
+            ),
+            rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ContextOnly
           ),
-          rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ContextOnly
-        ),
-        causeFrame(
-          causeId = "cause-outpost-direct",
-          axisKeys = List("Activity:Gain:outpost-gain"),
-          objectSignatures = List(
-            "target=Square:d5|mechanism=Mechanism:activity|consequence=Consequence:activity|proof=DirectProof"
+          causeFrame(
+            causeId = "cause-outpost-direct",
+            axisKeys = List("Activity:Gain:outpost-gain"),
+            objectSignatures = List(
+              "target=Square:d5|mechanism=Mechanism:activity|consequence=Consequence:activity|proof=DirectProof"
+            ),
+            rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot
           ),
-          rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot
-        ),
-        causeFrame(
-          causeId = "cause-colocated",
-          axisKeys = Nil,
-          objectSignatures = Nil,
-          witnessBindingLevel = MoveJudgmentCauseWitnessBindingLevel.SameComparisonOnly
+          causeFrame(
+            causeId = "cause-colocated",
+            axisKeys = Nil,
+            objectSignatures = Nil,
+            witnessBindingLevel = MoveJudgmentCauseWitnessBindingLevel.SameComparisonOnly
+          )
         )
       ),
-      secondaryCauses = Nil,
-      contextCauses = Nil,
       supportContextClusterIds = Nil,
       overriddenLocalIdeas = Nil,
       preservedLocalIdeas = Nil
@@ -1761,7 +1759,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals((audit \ "rootArbitrationTierCounts" \ "FallbackRoot").as[Int], 1)
     assertEquals((audit \ "rootArbitrationTierCounts" \ "ContextOnly").as[Int], 2)
 
-  test("move meaning highlights surface concrete played-move reasons without praise wording"):
+  test("move meaning claims surface concrete played-move reasons without praise wording"):
     val cause = causeFrame(
       causeId = "cause-break",
       axisKeys = List("PawnBreak:Support:central-break-timing"),
@@ -1788,22 +1786,72 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       objectBindingSignatures = List("target=Square:e4|mechanism=Mechanism:pawn-break|proof=DirectProof"),
       specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
     )
-    val view = meaningHighlightView(
+    val view = meaningClaimView(
       verdict = MoveChoiceVerdict.MatchesReference,
-      contextCauses = List(cause),
+      auditCauses = List(cause),
       details = List(detail)
     )
 
-    val highlights = view.moveMeaningHighlights
+    val claims = view.moveMeaningClaims
+    assertEquals(claims.map(_.meaningKind), List("PawnBreakTiming"))
+    assertEquals(claims.head.role, "PreservesTension")
+    assertEquals(claims.head.supportLevel, "owned_cause_linked")
+    assertEquals(claims.head.visibility, "reason_grade")
+    assert(claims.head.laneKey.contains("breakFile=e"), claims.head.laneKey)
+    assert(claims.head.reasonTokens.contains("breakFile:e"))
+    assert(claims.head.reasonTokens.contains("tensionSquare:d4"))
 
-    assertEquals(highlights.map(_.meaningKind), List("PawnBreakTiming"))
-    assertEquals(highlights.head.stance, "affirm")
-    assertEquals(highlights.head.strength, "owned_cause_linked")
-    assertEquals(highlights.head.wordingPolicy, "reason_claim_ok")
-    assert(highlights.head.reasonTokens.contains("breakFile:e"))
-    assert(highlights.head.reasonTokens.contains("tensionSquare:d4"))
+  test("move meaning claims preserve compatible pawn break lanes"):
+    val eCause = causeFrame(
+      causeId = "cause-e-break",
+      axisKeys = List("PawnBreak:Support:e-break"),
+      objectSignatures = List("target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof")
+    ).copy(
+      role = MoveJudgmentCauseFrameRole.ContextCause,
+      hasOwnedAdmissibleLongTermProof = true,
+      attributionDirectProofEligible = true
+    )
+    val cCause = causeFrame(
+      causeId = "cause-c-break",
+      axisKeys = List("PawnBreak:Support:c-break"),
+      objectSignatures = List("target=File:c|mechanism=Mechanism:pawn-break|proof=DirectProof")
+    ).copy(
+      role = MoveJudgmentCauseFrameRole.ContextCause,
+      hasOwnedAdmissibleLongTermProof = true,
+      attributionDirectProofEligible = true
+    )
+    def breakDetail(axisKey: String, causeId: String, file: String, square: String) =
+      PositionPlanTechniqueSemanticDetail(
+        unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+        axisKey = Some(axisKey),
+        axisKind = Some(StrategicAxisKind.PawnBreak),
+        axisPolarity = Some(StrategicAxisPolarity.Support),
+        contrastOutcome = Some(StrategicAxisComparisonOutcome.CandidateStronger),
+        breakFile = Some(file),
+        tensionPolicy = Some("prepare"),
+        tensionSquares = List(square),
+        candidateEvidenceIds = List(s"mechanism-$file-break"),
+        sourceEvidenceIds = List(s"mechanism-$file-break"),
+        causeEvidenceIds = List(causeId),
+        proofRoles = List(RelativeCauseProofRole.DirectProof),
+        objectBindingSignatures = List(s"target=File:$file|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+        specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+      )
 
-  test("move meaning highlights keep non-binary axes and reject borrowed objects"):
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(eCause, cCause),
+      details = List(
+        breakDetail("PawnBreak:Support:e-break", "cause-e-break", "e", "e4"),
+        breakDetail("PawnBreak:Support:c-break", "cause-c-break", "c", "c4")
+      )
+    )
+
+    assertEquals(view.moveMeaningClaims.map(_.role), List("PreparesBreak", "PreparesBreak"))
+    assertEquals(view.moveMeaningClaims.map(_.laneKey).distinct.size, 2)
+    assertEquals(view.moveMeaningClaims.map(_.meaningKind), List("PawnBreakTiming", "PawnBreakTiming"))
+
+  test("move meaning claims keep non-binary axes and reject borrowed objects"):
     val ownedCause = causeFrame(
       causeId = "cause-break",
       axisKeys = List("PawnBreak:Support:central-break-timing"),
@@ -1841,19 +1889,19 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
         objectBindingSignatures = List("target=Square:e4|mechanism=Mechanism:pawn-break|proof=DirectProof"),
         specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
       )
-    val broadView = meaningHighlightView(
+    val broadView = meaningClaimView(
       verdict = MoveChoiceVerdict.MatchesReference,
-      contextCauses = List(ownedCause),
+      auditCauses = List(ownedCause),
       details = List(broadPlan)
     )
-    val playableView = meaningHighlightView(
+    val playableView = meaningClaimView(
       verdict = MoveChoiceVerdict.PlayableLoss,
-      contextCauses = List(ownedCause),
+      auditCauses = List(ownedCause),
       details = List(validBreakDetail)
     )
-    val negativeView = meaningHighlightView(
+    val negativeView = meaningClaimView(
       verdict = MoveChoiceVerdict.MatchesReference,
-      contextCauses = List(ownedCause),
+      auditCauses = List(ownedCause),
       details = List(
         validBreakDetail.copy(
           axisPolarity = Some(StrategicAxisPolarity.Release),
@@ -1861,9 +1909,9 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
         )
       )
     )
-    val negativeOutcomeView = meaningHighlightView(
+    val negativeOutcomeView = meaningClaimView(
       verdict = MoveChoiceVerdict.MatchesReference,
-      contextCauses = List(ownedCause),
+      auditCauses = List(ownedCause),
       details = List(
         validBreakDetail.copy(
           axisPolarity = Some(StrategicAxisPolarity.Support),
@@ -1875,16 +1923,16 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       axisPolarity = Some(StrategicAxisPolarity.Support),
     )
     val lineOnlyView =
-      meaningHighlightViewWithHighlights(
-        meaningHighlightView(
+      meaningClaimViewWithClaims(
+        meaningClaimView(
         verdict = MoveChoiceVerdict.MatchesReference,
-        contextCauses = List(ownedCause),
+        auditCauses = List(ownedCause),
         details = List(lineOnlyDetail)
-        ).copy(positionPlanTechniqueFrames = List(meaningHighlightPlanTechniqueFrame(List(lineOnlyDetail)).copy(moveUci = None)))
+        ).copy(positionPlanTechniqueFrames = List(meaningClaimPlanTechniqueFrame(List(lineOnlyDetail)).copy(moveUci = None)))
       )
-    val planCoherenceView = meaningHighlightView(
+    val planCoherenceView = meaningClaimView(
       verdict = MoveChoiceVerdict.MatchesReference,
-      contextCauses = List(ownedCause),
+      auditCauses = List(ownedCause),
       details = List(
         broadPlan.copy(
           axisKind = Some(StrategicAxisKind.PlanCoherence),
@@ -1897,9 +1945,9 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       axisKeys = List("Activity:Gain:piece-activity"),
       objectSignatures = List("target=Side:black|mechanism=Mechanism:activity|proof=DirectProof")
     ).copy(role = MoveJudgmentCauseFrameRole.ContextCause)
-    val sideOnlyView = meaningHighlightView(
+    val sideOnlyView = meaningClaimView(
       verdict = MoveChoiceVerdict.MatchesReference,
-      contextCauses = List(sideOnlyCause),
+      auditCauses = List(sideOnlyCause),
       details = List(
         validBreakDetail.copy(
           unit = PositionPlanTechniqueUnit.StructuralTransformation,
@@ -1913,16 +1961,16 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     )
     val mismatchedReferenceCause =
       ownedCause.copy(referenceLine = lineRef("other-best", "d2d4", 3, LineNodeRole.BestReference))
-    val mismatchedReferenceView = meaningHighlightView(
+    val mismatchedReferenceView = meaningClaimView(
       verdict = MoveChoiceVerdict.MatchesReference,
-      contextCauses = List(mismatchedReferenceCause),
+      auditCauses = List(mismatchedReferenceCause),
       details = List(validBreakDetail)
     )
     val referenceLineView =
-      meaningHighlightViewWithHighlights(
-        meaningHighlightView(
+      meaningClaimViewWithClaims(
+        meaningClaimView(
         verdict = MoveChoiceVerdict.MatchesReference,
-        contextCauses = List(ownedCause.copy(causeSourceSide = RelativeCauseSourceSide.Reference)),
+        auditCauses = List(ownedCause.copy(causeSourceSide = RelativeCauseSourceSide.Reference)),
         details = List(
           validBreakDetail.copy(
             referenceEvidenceIds = List("reference-mechanism"),
@@ -1934,7 +1982,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
         ).copy(
         positionPlanTechniqueFrames =
           List(
-            meaningHighlightPlanTechniqueFrame(
+            meaningClaimPlanTechniqueFrame(
               List(
                 validBreakDetail.copy(
                   referenceEvidenceIds = List("reference-mechanism"),
@@ -1956,39 +2004,42 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
         objectBindingSignatures = Nil
     )
     val frameBorrowedObjectView =
-      meaningHighlightViewWithHighlights(
-        meaningHighlightView(
+      meaningClaimViewWithClaims(
+        meaningClaimView(
         verdict = MoveChoiceVerdict.MatchesReference,
-        contextCauses = List(ownedCause),
+        auditCauses = List(ownedCause),
         details = List(frameBorrowedObjectDetail)
         ).copy(
         positionPlanTechniqueFrames = List(
-          meaningHighlightPlanTechniqueFrame(List(frameBorrowedObjectDetail)).copy(
+          meaningClaimPlanTechniqueFrame(List(frameBorrowedObjectDetail)).copy(
             objectBindingSignatures = List("target=Square:e4|mechanism=Mechanism:activity|proof=DirectProof")
           )
         )
       )
       )
 
-    assertEquals(broadView.moveMeaningHighlights.headOption.map(_.strength), Some("contextual"))
-    assertEquals(playableView.moveMeaningHighlights.headOption.map(_.meaningKind), Some("PawnBreakTiming"))
-    assertEquals(negativeView.moveMeaningHighlights.headOption.map(_.stance), Some("warn"))
-    assertEquals(negativeOutcomeView.moveMeaningHighlights.headOption.map(_.stance), Some("warn"))
-    assertEquals(lineOnlyView.moveMeaningHighlights, Nil)
-    assertEquals(planCoherenceView.moveMeaningHighlights.headOption.map(_.meaningKind), Some("PlanContinuity"))
-    assertEquals(sideOnlyView.moveMeaningHighlights, Nil)
+    assertEquals(broadView.moveMeaningClaims.headOption.map(_.supportLevel), Some("contextual"))
+    assertEquals(playableView.moveMeaningClaims.headOption.map(_.meaningKind), Some("PawnBreakTiming"))
+    assertEquals(negativeView.moveMeaningClaims.headOption.map(_.role), Some("ReleasesPawnTension"))
+    assertEquals(negativeOutcomeView.moveMeaningClaims.headOption.map(_.role), Some("ReleasesPawnTension"))
+    assertEquals(lineOnlyView.moveMeaningClaims, Nil)
+    assertEquals(planCoherenceView.moveMeaningClaims.headOption.map(_.meaningKind), Some("PlanContinuity"))
+    assertEquals(planCoherenceView.moveMeaningClaims.headOption.map(_.role), Some("SharedCompatiblePlan"))
+    assertEquals(planCoherenceView.moveMeaningClaims.headOption.map(_.supportLevel), Some("contextual"))
+    assertEquals(planCoherenceView.moveMeaningClaims.headOption.map(_.visibility), Some("soft_context"))
+    assertEquals(sideOnlyView.moveMeaningClaims, Nil)
     assertEquals(
-      mismatchedReferenceView.moveMeaningHighlights.headOption.map(_.strength),
+      mismatchedReferenceView.moveMeaningClaims.headOption.map(_.supportLevel),
       Some("view_surfaced")
     )
     assertEquals(
-      mismatchedReferenceView.moveMeaningHighlights.flatMap(_.reasonTokens)
+      mismatchedReferenceView.moveMeaningClaims.flatMap(_.reasonTokens)
         .exists(_.startsWith("causeEvidenceId:")),
       false
     )
-    assertEquals(referenceLineView.moveMeaningHighlights.headOption.map(_.lineRole), Some("reference"))
-    assertEquals(referenceLineView.moveMeaningHighlights.headOption.map(_.moveUci), Some(referenceLine.rootMove))
-    assertEquals(frameBorrowedObjectView.moveMeaningHighlights, Nil)
+    assertEquals(referenceLineView.moveMeaningClaims.headOption.map(_.lineRole), Some("reference"))
+    assertEquals(referenceLineView.moveMeaningClaims.headOption.map(_.moveUci), Some(referenceLine.rootMove))
+    assertEquals(frameBorrowedObjectView.moveMeaningClaims, Nil)
 
   test("axisless structural anchor inventory reports structural signals that cannot enter axis lineage"):
     val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(chess.Color.White), Some("root"))
@@ -2053,7 +2104,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
 
   private val referenceLine = lineRef("best", "e2e4", 1, LineNodeRole.BestReference)
   private val candidateLine = lineRef("played", "e2e3", 2, LineNodeRole.Played)
-  private val meaningHighlightPosition =
+  private val meaningClaimPosition =
     PositionNodeRef("8/8/8/8/8/8/4P3/4K3 w - - 0 1", 1, Some(chess.Color.White), Some("root"))
 
   private def lineDiagnostic(ref: LineNodeRef): CandidateLineDiagnostic =
@@ -2201,9 +2252,9 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
         else Nil
     )
 
-  private def meaningHighlightView(
+  private def meaningClaimView(
       verdict: MoveChoiceVerdict,
-      contextCauses: List[MoveJudgmentCauseFrame],
+      auditCauses: List[MoveJudgmentCauseFrame],
       details: List[PositionPlanTechniqueSemanticDetail]
   ): MoveJudgmentView =
     val base =
@@ -2221,27 +2272,26 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
         )
       ),
       verdictCarriers = Nil,
-      primaryCauses = Nil,
-      secondaryCauses = Nil,
-      contextCauses = contextCauses,
-      positionPlanTechniqueFrames = List(meaningHighlightPlanTechniqueFrame(details)),
+      causeAudit = MoveJudgmentCauseAudit(context = auditCauses),
+      positionPlanTechniqueFrames = List(meaningClaimPlanTechniqueFrame(details)),
       supportContextClusterIds = Nil,
       overriddenLocalIdeas = Nil,
       preservedLocalIdeas = Nil
     )
-    meaningHighlightViewWithHighlights(base)
+    meaningClaimViewWithClaims(base)
 
-  private def meaningHighlightViewWithHighlights(view: MoveJudgmentView): MoveJudgmentView =
-    val cleared = view.copy(moveMeaningHighlights = Nil)
-    cleared.copy(moveMeaningHighlights = MoveMeaningHighlight.from(TypedEvidenceGraph(Nil), cleared))
+  private def meaningClaimViewWithClaims(view: MoveJudgmentView): MoveJudgmentView =
+    val cleared = view.copy(moveMeaningClaims = Nil)
+    val claims = MoveMeaningClaim.from(TypedEvidenceGraph(Nil), cleared, cleared.causeAudit.all)
+    cleared.copy(moveMeaningClaims = claims)
 
-  private def meaningHighlightPlanTechniqueFrame(
+  private def meaningClaimPlanTechniqueFrame(
       details: List[PositionPlanTechniqueSemanticDetail]
   ): PositionPlanTechniqueFrame =
     PositionPlanTechniqueFrame(
       id = "frame-move-meaning",
       units = details.map(_.unit).distinct.sortBy(_.toString),
-      position = meaningHighlightPosition,
+      position = meaningClaimPosition,
       line = Some(candidateLine),
       moveUci = Some(candidateLine.rootMove),
       scope = EvidenceScope.PlayedTransition,

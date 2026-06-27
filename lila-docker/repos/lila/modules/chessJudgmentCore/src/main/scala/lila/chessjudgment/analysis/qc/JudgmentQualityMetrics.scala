@@ -781,7 +781,12 @@ final case class ComparisonMoveJudgmentViewDiagnostics(
     positionPlanTechniqueSemanticDetailTokenGroups: List[List[String]] = Nil,
     positionPlanTechniqueObjectBindingSignatures: List[String] = Nil,
     positionPlanTechniqueEvidenceIds: List[String] = Nil,
-    positionPlanTechniqueRelativeCauseEvidenceIds: List[String] = Nil
+    positionPlanTechniqueRelativeCauseEvidenceIds: List[String] = Nil,
+    moveMeaningClaimKinds: List[String] = Nil,
+    moveMeaningClaimRoles: List[String] = Nil,
+    moveMeaningClaimSupportLevels: List[String] = Nil,
+    moveMeaningClaimVisibility: List[String] = Nil,
+    moveMeaningClaimLaneKeys: List[String] = Nil
 ):
   val hasPrimaryCause: Boolean = primaryCauseKinds.nonEmpty
 
@@ -1477,9 +1482,9 @@ object CandidateComparisonDiagnostic:
       fact: CandidateComparisonFact,
       comparisonPosition: PositionNodeRef
   ): ComparisonMoveJudgmentViewDiagnostics =
-    val primaryFrames = comparisonCauseFrames(packet, fact, _.primaryCauses)
-    val secondaryFrames = comparisonCauseFrames(packet, fact, _.secondaryCauses)
-    val contextFrames = comparisonCauseFrames(packet, fact, _.contextCauses)
+    val primaryFrames = comparisonCauseFrames(packet, fact, _.causeAudit.primary)
+    val secondaryFrames = comparisonCauseFrames(packet, fact, _.causeAudit.secondary)
+    val contextFrames = comparisonCauseFrames(packet, fact, _.causeAudit.context)
     val contextCauseEvidenceIds = contextFrames.flatMap(_.causeEvidenceIds).distinct.sorted
     val primaryTacticalWitnessFrames =
       primaryFrames.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.TacticalWitness)
@@ -1490,6 +1495,7 @@ object CandidateComparisonDiagnostic:
     val planTechniqueFrames = comparisonPositionPlanTechniqueFrames(packet, fact, comparisonPosition)
     val allFrames = primaryFrames ++ secondaryFrames ++ contextFrames
     val primaryRootFrames = primaryFrames.filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.RootCause)
+    val moveMeaningClaims = comparisonMoveMeaningClaims(packet, fact)
     ComparisonMoveJudgmentViewDiagnostics(
       primaryCauseKinds = primaryFrames.map(_.causeKind).distinct,
       secondaryCauseKinds = secondaryFrames.map(_.causeKind).distinct,
@@ -1550,8 +1556,24 @@ object CandidateComparisonDiagnostic:
         positionPlanTechniqueObjectBindingSignatures =
           positionPlanTechniqueObjectBindingSignatures(planTechniqueFrames),
       positionPlanTechniqueEvidenceIds = planTechniqueFrames.flatMap(_.evidenceIds).distinct.sorted,
-      positionPlanTechniqueRelativeCauseEvidenceIds = planTechniqueFrames.flatMap(_.relativeCauseEvidenceIds).distinct.sorted
+      positionPlanTechniqueRelativeCauseEvidenceIds = planTechniqueFrames.flatMap(_.relativeCauseEvidenceIds).distinct.sorted,
+      moveMeaningClaimKinds = moveMeaningClaims.map(_.meaningKind).distinct.sorted,
+      moveMeaningClaimRoles = moveMeaningClaims.map(_.role).distinct.sorted,
+      moveMeaningClaimSupportLevels = moveMeaningClaims.map(_.supportLevel).distinct.sorted,
+      moveMeaningClaimVisibility = moveMeaningClaims.map(_.visibility).distinct.sorted,
+      moveMeaningClaimLaneKeys = moveMeaningClaims.map(_.laneKey).distinct.sorted
     )
+
+  private def comparisonMoveMeaningClaims(
+      packet: EvidenceBackedJudgmentPacket,
+      fact: CandidateComparisonFact
+  ): List[MoveMeaningClaim] =
+    val referenceMove = JudgmentSubjectBinding.normalizeMove(fact.referenceLine.rootMove)
+    val candidateMove = JudgmentSubjectBinding.normalizeMove(fact.candidateLine.rootMove)
+    packet.moveJudgmentView.toList.flatMap(_.moveMeaningClaims).filter { claim =>
+      val move = JudgmentSubjectBinding.normalizeMove(claim.moveUci)
+      move == referenceMove || move == candidateMove
+    }
 
   private def primaryRootCauseEvidenceIdTierSignature(
       causeEvidenceId: String,

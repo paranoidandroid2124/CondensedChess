@@ -950,7 +950,7 @@ object MoveReviewPhase3AuditRunner:
       packet.moveJudgmentView.toList.flatMap(_.verdictCarriers.flatMap(_.strategicAxisKeys)).distinct.sorted
     val viewCauseAxisKeys =
       packet.moveJudgmentView.toList.flatMap(view =>
-        (view.primaryCauses ++ view.secondaryCauses ++ view.contextCauses).flatMap(_.proofStrategicAxisKeys)
+        (view.causeAudit.primary ++ view.causeAudit.secondary ++ view.causeAudit.context).flatMap(_.proofStrategicAxisKeys)
       ).distinct.sorted
     val reachability = finalStrategicClaimReachability(packet)
     Json.obj(
@@ -998,7 +998,7 @@ object MoveReviewPhase3AuditRunner:
       ).toSet
     val viewCauseClaimIds =
       packet.moveJudgmentView.toList.flatMap(view =>
-        (view.primaryCauses ++ view.secondaryCauses ++ view.contextCauses).flatMap(frame =>
+        (view.causeAudit.primary ++ view.causeAudit.secondary ++ view.causeAudit.context).flatMap(frame =>
           frame.causeClaimIds ++ frame.evaluationClaimIds ++ frame.witnessClaimIds ++ frame.finalClaimIds
         )
       ).toSet
@@ -1531,7 +1531,7 @@ object MoveReviewPhase3AuditRunner:
       )
 
   private def moveJudgmentPrimaryCauseCount(result: MoveReviewJudgmentResult): Int =
-    result.packet.moveJudgmentView.fold(0)(_.primaryCauses.size)
+    result.packet.moveJudgmentView.fold(0)(_.causeAudit.primary.size)
 
   private def hasMoveJudgmentPrimaryCause(diagnostic: CandidateComparisonDiagnostic): Boolean =
     diagnostic.moveJudgmentView.hasPrimaryCause
@@ -1840,7 +1840,12 @@ object MoveReviewPhase3AuditRunner:
       ),
       "positionPlanTechniqueObjectBindingSignatures" -> diagnostic.positionPlanTechniqueObjectBindingSignatures,
       "positionPlanTechniqueEvidenceIds" -> diagnostic.positionPlanTechniqueEvidenceIds,
-      "positionPlanTechniqueRelativeCauseEvidenceIds" -> diagnostic.positionPlanTechniqueRelativeCauseEvidenceIds
+      "positionPlanTechniqueRelativeCauseEvidenceIds" -> diagnostic.positionPlanTechniqueRelativeCauseEvidenceIds,
+      "moveMeaningClaimKinds" -> diagnostic.moveMeaningClaimKinds,
+      "moveMeaningClaimRoles" -> diagnostic.moveMeaningClaimRoles,
+      "moveMeaningClaimSupportLevels" -> diagnostic.moveMeaningClaimSupportLevels,
+      "moveMeaningClaimVisibility" -> diagnostic.moveMeaningClaimVisibility,
+      "moveMeaningClaimLaneKeys" -> diagnostic.moveMeaningClaimLaneKeys
     )
 
   private def relativeCauseDiagnosticsJson(diagnostic: ComparisonRelativeCauseDiagnostics): JsObject =
@@ -3518,10 +3523,12 @@ object MoveReviewPhase3AuditRunner:
       Json.obj(
         "verdict" -> view.verdict.map(moveJudgmentVerdictJson),
         "verdictCarriers" -> view.verdictCarriers.map(moveJudgmentClaimFrameJson),
-        "primaryCauses" -> view.primaryCauses.map(moveJudgmentCauseFrameJson(result.packet, _)),
-        "secondaryCauses" -> view.secondaryCauses.map(moveJudgmentCauseFrameJson(result.packet, _)),
-        "contextCauses" -> view.contextCauses.map(moveJudgmentCauseFrameJson(result.packet, _)),
-        "moveMeaningHighlights" -> view.moveMeaningHighlights.map(moveMeaningHighlightJson),
+        "causeAudit" -> Json.obj(
+          "primary" -> view.causeAudit.primary.map(moveJudgmentCauseFrameJson(result.packet, _)),
+          "secondary" -> view.causeAudit.secondary.map(moveJudgmentCauseFrameJson(result.packet, _)),
+          "context" -> view.causeAudit.context.map(moveJudgmentCauseFrameJson(result.packet, _))
+        ),
+        "moveMeaningClaims" -> view.moveMeaningClaims.map(moveMeaningClaimJson),
         "positionPlanTechniqueFrames" -> view.positionPlanTechniqueFrames.map(moveJudgmentPositionPlanTechniqueFrameJson),
         "supportContextClusterIds" -> view.supportContextClusterIds,
         "overriddenLocalIdeas" -> view.overriddenLocalIdeas.map(moveJudgmentLocalIdeaFrameJson),
@@ -3617,26 +3624,28 @@ object MoveReviewPhase3AuditRunner:
       "concreteObjectReady" -> frame.concreteObjectReady
     ) ++ objectBindingSignatureSampleJson(frame.objectBindingSignatures)
 
-  private def moveMeaningHighlightJson(highlight: MoveMeaningHighlight): JsObject =
+  private def moveMeaningClaimJson(claim: MoveMeaningClaim): JsObject =
     Json.obj(
-      "meaningKind" -> highlight.meaningKind,
-      "stance" -> highlight.stance,
-      "strength" -> highlight.strength,
-      "wordingPolicy" -> highlight.wordingPolicy,
-      "lineRole" -> highlight.lineRole,
-      "moveUci" -> highlight.moveUci,
-      "frameId" -> highlight.frameId,
-      "unit" -> highlight.unit.toString,
-      "axisKey" -> highlight.axisKey,
-      "axisKind" -> highlight.axisKind.map(_.toString),
-      "axisPolarity" -> highlight.axisPolarity.map(_.toString),
-      "label" -> highlight.label,
-      "causeKinds" -> highlight.causeKinds.map(_.toString),
-      "causeSourceSides" -> highlight.causeSourceSides.map(_.toString),
-      "causeEvidenceIds" -> highlight.causeEvidenceIds,
-      "sourceEvidenceIds" -> highlight.sourceEvidenceIds,
-      "reasonTokens" -> highlight.reasonTokens
-    ) ++ objectBindingSignatureSampleJson(highlight.objectBindingSignatures)
+      "meaningKind" -> claim.meaningKind,
+      "role" -> claim.role,
+      "laneKey" -> claim.laneKey,
+      "conflictKey" -> claim.conflictKey,
+      "supportLevel" -> claim.supportLevel,
+      "visibility" -> claim.visibility,
+      "lineRole" -> claim.lineRole,
+      "moveUci" -> claim.moveUci,
+      "frameId" -> claim.frameId,
+      "unit" -> claim.unit.toString,
+      "axisKey" -> claim.axisKey,
+      "axisKind" -> claim.axisKind.map(_.toString),
+      "axisPolarity" -> claim.axisPolarity.map(_.toString),
+      "label" -> claim.label,
+      "causeKinds" -> claim.causeKinds.map(_.toString),
+      "causeSourceSides" -> claim.causeSourceSides.map(_.toString),
+      "causeEvidenceIds" -> claim.causeEvidenceIds,
+      "sourceEvidenceIds" -> claim.sourceEvidenceIds,
+      "reasonTokens" -> claim.reasonTokens
+    ) ++ objectBindingSignatureSampleJson(claim.objectBindingSignatures)
 
   private def moveJudgmentPositionPlanTechniqueFrameJson(frame: PositionPlanTechniqueFrame): JsObject =
     MoveReviewPhase3AuditViewJson.positionPlanTechniqueFrameJson(frame, lineRefSummary)

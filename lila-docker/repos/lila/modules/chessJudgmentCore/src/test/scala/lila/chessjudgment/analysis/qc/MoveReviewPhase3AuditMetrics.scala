@@ -69,7 +69,7 @@ private[qc] object MoveReviewPhase3AuditMetrics:
 
   def bindingWidthAuditJson(view: Option[MoveJudgmentView]): JsObject =
     val frames =
-      view.toList.flatMap(view => view.primaryCauses ++ view.secondaryCauses ++ view.contextCauses)
+      view.toList.flatMap(view => view.causeAudit.primary ++ view.causeAudit.secondary ++ view.causeAudit.context)
     val sideOnlyTargetFrames =
       frames.filter(frame => frame.objectBindingSignatures.exists(sideOnlyTargetSignature))
     val contextSupportOnlyFrames =

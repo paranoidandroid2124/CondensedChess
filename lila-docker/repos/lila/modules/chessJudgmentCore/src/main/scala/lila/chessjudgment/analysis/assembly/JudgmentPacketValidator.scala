@@ -243,6 +243,7 @@ object JudgmentPacketValidator:
               frame.supportEvidenceSourceIds
           ) ++
           view.positionPlanTechniqueFrames.flatMap(positionPlanTechniqueFrameEvidenceIds) ++
+          view.moveMeaningClaims.flatMap(moveMeaningClaimEvidenceIds) ++
           view.overriddenLocalIdeas.flatMap(_.evidenceIds) ++
           view.preservedLocalIdeas.flatMap(_.evidenceIds)
       (verdictEvidence ++ frameEvidence).distinct.filterNot(graphIds.contains).map { evidenceId =>
@@ -266,6 +267,12 @@ object JudgmentPacketValidator:
             detail.causeEvidenceIds
         ) ++
         frame.objectBindings.map(_.sourceEvidenceId)
+    ).distinct.sorted
+
+  private def moveMeaningClaimEvidenceIds(claim: MoveMeaningClaim): List[String] =
+    (
+      claim.causeEvidenceIds ++
+        claim.sourceEvidenceIds
     ).distinct.sorted
 
   private def missingMoveJudgmentViewClusters(
@@ -295,7 +302,7 @@ object JudgmentPacketValidator:
     }
 
   private def moveJudgmentCauseFrames(view: MoveJudgmentView): List[MoveJudgmentCauseFrame] =
-    view.primaryCauses ++ view.secondaryCauses ++ view.contextCauses
+    view.causeAudit.all
 
   private def missingClaimIdeas(
       packet: EvidenceBackedJudgmentPacket,

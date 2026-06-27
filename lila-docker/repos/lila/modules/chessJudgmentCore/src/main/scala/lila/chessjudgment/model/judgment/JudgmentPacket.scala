@@ -1603,11 +1603,21 @@ case class MoveJudgmentCauseFrame(
     witnessBindingRootCauseEvidenceIds: List[String] = Nil
 )
 
-case class MoveMeaningHighlight(
+case class MoveJudgmentCauseAudit(
+    primary: List[MoveJudgmentCauseFrame] = Nil,
+    secondary: List[MoveJudgmentCauseFrame] = Nil,
+    context: List[MoveJudgmentCauseFrame] = Nil
+):
+  def all: List[MoveJudgmentCauseFrame] =
+    primary ++ secondary ++ context
+
+case class MoveMeaningClaim(
     meaningKind: String,
-    stance: String,
-    strength: String,
-    wordingPolicy: String,
+    role: String,
+    laneKey: String,
+    conflictKey: Option[String],
+    supportLevel: String,
+    visibility: String,
     lineRole: String,
     moveUci: String,
     frameId: String,
@@ -1624,16 +1634,16 @@ case class MoveMeaningHighlight(
     reasonTokens: List[String]
 )
 
-object MoveMeaningHighlight:
+object MoveMeaningClaim:
   def from(
       evidenceGraph: TypedEvidenceGraph,
-      view: MoveJudgmentView
-  ): List[MoveMeaningHighlight] =
+      view: MoveJudgmentView,
+      causeFrames: List[MoveJudgmentCauseFrame]
+  ): List[MoveMeaningClaim] =
     view.verdict.toList
       .flatMap(verdict =>
         val meaningCauseFrames =
-          (view.primaryCauses ++ view.secondaryCauses ++ view.contextCauses)
-            .filter(frame => causeFrameMatches(frame, verdict))
+          causeFrames.filter(frame => causeFrameMatches(frame, verdict))
         val meaningCauseIds = meaningCauseFrames.flatMap(_.causeEvidenceIds).toSet
         val causeFramesById =
           meaningCauseFrames
@@ -1647,11 +1657,11 @@ object MoveMeaningHighlight:
             )
           )
       )
-      .groupBy(highlight => (highlight.meaningKind, highlight.stance, highlight.lineRole))
+      .groupBy(claim => (claim.laneKey, claim.role, claim.lineRole))
       .values
       .flatMap(_.sortBy(sortKey).lastOption)
       .toList
-      .sortBy(highlight => (highlight.meaningKind, highlight.stance, highlight.lineRole, highlight.frameId, highlight.axisKey.getOrElse("")))
+      .sortBy(claim => (claim.meaningKind, claim.role, claim.lineRole, claim.laneKey, claim.frameId))
 
   private def causeFrameMatches(
       frame: MoveJudgmentCauseFrame,
@@ -1690,25 +1700,27 @@ object MoveMeaningHighlight:
       verdict: MoveJudgmentVerdictFrame,
       meaningCauseIds: Set[String],
       causeFramesById: Map[String, List[MoveJudgmentCauseFrame]]
-  ): Option[MoveMeaningHighlight] =
+  ): Option[MoveMeaningClaim] =
     val linkedCauseIds = detail.causeEvidenceIds.filter(meaningCauseIds.contains).distinct.sorted
     val linkedCauseFrames = linkedCauseIds.flatMap(id => causeFramesById.getOrElse(id, Nil)).distinctBy(_.causeEvidenceIds)
     val objectSignatures = detail.objectBindingSignatures.distinct.sorted
-    val evidenceStrength = strength(detail, linkedCauseFrames, objectSignatures)
+    val support = supportLevel(detail, linkedCauseFrames, objectSignatures)
     for
       meaningKind <- kind(detail, linkedCauseFrames)
-      evidenceStrength <- evidenceStrength
+      support <- support
       if detailMatchesLine(frame, detail, verdict)
     yield
-      val highlightStance = stance(detail, linkedCauseFrames)
-      val highlightLineRole = lineRole(frame, detail, verdict, linkedCauseFrames)
-      MoveMeaningHighlight(
+      val claimLineRole = lineRole(frame, detail, verdict, linkedCauseFrames)
+      val claimRole = role(meaningKind, detail)
+      MoveMeaningClaim(
         meaningKind = meaningKind,
-        stance = highlightStance,
-        strength = evidenceStrength,
-        wordingPolicy = wordingPolicy(highlightStance, evidenceStrength),
-        lineRole = highlightLineRole,
-        moveUci = moveUci(verdict, highlightLineRole),
+        role = claimRole,
+        laneKey = laneKey(meaningKind, detail, objectSignatures),
+        conflictKey = conflictKey(meaningKind, detail, objectSignatures),
+        supportLevel = support,
+        visibility = visibility(support),
+        lineRole = claimLineRole,
+        moveUci = moveUci(verdict, claimLineRole),
         frameId = frame.id,
         unit = detail.unit,
         axisKey = detail.axisKey,
@@ -1723,7 +1735,7 @@ object MoveMeaningHighlight:
         reasonTokens = reasonTokens(detail, objectSignatures, linkedCauseIds)
       )
 
-  private def strength(
+  private def supportLevel(
       detail: PositionPlanTechniqueSemanticDetail,
       linkedCauseFrames: List[MoveJudgmentCauseFrame],
       objectSignatures: List[String]
@@ -1739,7 +1751,7 @@ object MoveMeaningHighlight:
       Some("owned_cause_linked")
     else if hasConcreteObject && specificObjectAxis && hasDetailEvidence && anyProof(detail) then
       Some("view_surfaced")
-    else if hasDetailEvidence && contextualDetail(detail) then
+    else if hasDetailEvidence && contextualMeaningDetail(detail) then
       Some("contextual")
     else None
 
@@ -1762,17 +1774,9 @@ object MoveMeaningHighlight:
       detail.causeEvidenceIds.nonEmpty ||
       detail.contextCauseEvidenceIds.nonEmpty
 
-  private def contextualDetail(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+  private def contextualMeaningDetail(detail: PositionPlanTechniqueSemanticDetail): Boolean =
     detail.unit == PositionPlanTechniqueUnit.PlanOptionSet ||
-      detail.axisKind.contains(StrategicAxisKind.PlanCoherence) ||
-      detail.planAlignmentScore.nonEmpty ||
-      detail.matchedPlanIds.nonEmpty ||
-      detail.missingPlanIds.nonEmpty ||
-      detail.planAlignmentReasonCodes.nonEmpty ||
-      detail.openingPriorThemes.nonEmpty ||
-      detail.openingPriorStrategicPlanPriors.nonEmpty ||
-      detail.referencePlanIds.nonEmpty ||
-      detail.candidatePlanIds.nonEmpty
+      detail.axisKind.contains(StrategicAxisKind.PlanCoherence)
 
   private def concreteObject(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -1848,41 +1852,10 @@ object MoveMeaningHighlight:
   ): String =
     if lineRole == "reference" then verdict.referenceLine.rootMove else verdict.candidateLine.rootMove
 
-  private def stance(
-      detail: PositionPlanTechniqueSemanticDetail,
-      linkedCauseFrames: List[MoveJudgmentCauseFrame]
-  ): String =
-    detail.contrastOutcome match
-      case Some(StrategicAxisComparisonOutcome.CandidateOnly | StrategicAxisComparisonOutcome.CandidateStronger) =>
-        if detail.axisPolarity.exists(negativePolarity) then "warn" else "affirm"
-      case Some(StrategicAxisComparisonOutcome.ReferenceOnly | StrategicAxisComparisonOutcome.ReferenceStronger |
-          StrategicAxisComparisonOutcome.ReferencePreservesPlan) =>
-        "contrast"
-      case Some(StrategicAxisComparisonOutcome.CandidateConcession) =>
-        "warn"
-      case Some(StrategicAxisComparisonOutcome.SharedSustained) =>
-        "explain"
-      case None =>
-        if detail.axisPolarity.exists(negativePolarity) then "warn"
-        else if contextualDetail(detail) then "context"
-        else if linkedCauseFrames.exists(_.causeSourceSide == RelativeCauseSourceSide.Reference) then "contrast"
-        else "explain"
-
   private def negativePolarity(polarity: StrategicAxisPolarity): Boolean =
     polarity == StrategicAxisPolarity.Loss ||
       polarity == StrategicAxisPolarity.Release ||
       polarity == StrategicAxisPolarity.Concede
-
-  private def wordingPolicy(stance: String, strength: String): String =
-    strength match
-      case "owned_cause_linked" if stance == "affirm" =>
-        "reason_claim_ok"
-      case "owned_cause_linked" if stance == "warn" || stance == "contrast" =>
-        "reason_warning_ok"
-      case "view_surfaced" =>
-        "feature_explanation_only"
-      case _ =>
-        "soft_context_only"
 
   private def kind(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -1918,6 +1891,100 @@ object MoveMeaningHighlight:
         Some("CounterplayControl")
       case other =>
         other
+
+  private def role(
+      meaningKind: String,
+      detail: PositionPlanTechniqueSemanticDetail
+  ): String =
+    meaningKind match
+      case "PlanContinuity" =>
+        detail.contrastOutcome match
+          case Some(StrategicAxisComparisonOutcome.SharedSustained) =>
+            "SharedCompatiblePlan"
+          case Some(StrategicAxisComparisonOutcome.ReferenceOnly | StrategicAxisComparisonOutcome.ReferenceStronger |
+              StrategicAxisComparisonOutcome.ReferencePreservesPlan) =>
+            "ReferencePreservesPlan"
+          case _ if detail.missingPlanIds.nonEmpty =>
+            "KeepsAlternativeAvailable"
+          case _ =>
+            "SupportsCurrentPlan"
+      case "PawnBreakTiming" =>
+        if detail.axisPolarity.exists(negativePolarity) || detail.contrastOutcome.contains(StrategicAxisComparisonOutcome.CandidateConcession)
+        then "ReleasesPawnTension"
+        else if detail.tensionPolicy.exists(policy => policy.toLowerCase.contains("maintain") || policy.toLowerCase.contains("preserve"))
+        then "PreservesTension"
+        else "PreparesBreak"
+      case "CounterplayControl" =>
+        "PreventsCounterplay"
+      case "CounterplayRace" =>
+        "StartsCounterplayRace"
+      case "PieceRoute" | "PieceActivity" =>
+        "ImprovesPieceRoute"
+      case "TechniqueConversion" =>
+        "MaintainsTechnique"
+      case _ =>
+        "ExplainsMoveFunction"
+
+  private def laneKey(
+      meaningKind: String,
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String]
+  ): String =
+    List(
+      s"kind=$meaningKind",
+      detail.axisKey.map(value => s"axis=$value").getOrElse(s"axis=${detail.axisKind.map(_.toString).getOrElse("none")}"),
+      s"object=${semanticObjectKey(detail, objectSignatures)}"
+    ).mkString("|")
+
+  private def conflictKey(
+      meaningKind: String,
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String]
+  ): Option[String] =
+    Option.when(meaningKind == "PlanContinuity" || meaningKind == "PawnBreakTiming")(
+      List(
+        s"kind=$meaningKind",
+        detail.axisKey.map(value => s"axis=$value").getOrElse(s"axis=${detail.axisKind.map(_.toString).getOrElse("none")}"),
+        s"object=${semanticObjectKey(detail, objectSignatures)}"
+      ).mkString("|")
+    )
+
+  private def semanticObjectKey(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String]
+  ): String =
+    val exactObjects =
+      objectSignatures
+        .flatMap(signature =>
+          signature.split("\\|").toList.collect {
+            case part if part.startsWith("target=") && !part.contains("=Side:") => part
+            case part if part.startsWith("actor=") && !part.contains("=Side:")  => part
+          }
+        )
+        .distinct
+        .sorted
+    val detailObjects =
+      (
+        detail.breakFile.map(value => s"breakFile=$value").toList ++
+          detail.tensionEdges.map(value => s"tensionEdge=$value") ++
+          detail.tensionSquares.map(value => s"tensionSquare=$value") ++
+          detail.counterBreakFiles.map(value => s"counterBreakFile=$value") ++
+          detail.resourceContestSquares.map(value => s"resourceContestSquare=$value") ++
+          detail.resourceContestFiles.map(value => s"resourceContestFile=$value") ++
+          detail.matchedPlanIds.map(value => s"matchedPlan=$value") ++
+          detail.referencePlanIds.map(value => s"referencePlan=$value") ++
+          detail.candidatePlanIds.map(value => s"candidatePlan=$value") ++
+          detail.structuralPurposeSubjects.map(value => s"subject=$value")
+      ).distinct.sorted
+    (exactObjects ++ detailObjects).take(6).mkString(";") match
+      case ""    => "none"
+      case value => value
+
+  private def visibility(supportLevel: String): String =
+    supportLevel match
+      case "owned_cause_linked" => "reason_grade"
+      case "view_surfaced"      => "functional_explanation"
+      case _                    => "soft_context"
 
   private def reasonTokens(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -1955,14 +2022,13 @@ object MoveMeaningHighlight:
         objectSignatures.take(5).map(value => s"objectBinding:$value")
     ).distinct.sorted
 
-  private def sortKey(highlight: MoveMeaningHighlight): (Int, Int, Int, Int, Int, String) =
+  private def sortKey(claim: MoveMeaningClaim): (Int, Int, Int, Int, String) =
     (
-      strengthRank(highlight.strength),
-      if highlight.reasonTokens.exists(_.startsWith("specificityTier:ExactObjectAxis")) then 1 else 0,
-      stanceRank(highlight.stance),
-      kindRank(highlight.meaningKind),
-      highlight.objectBindingSignatures.size,
-      highlight.frameId
+      strengthRank(claim.supportLevel),
+      if claim.reasonTokens.exists(_.startsWith("specificityTier:ExactObjectAxis")) then 1 else 0,
+      kindRank(claim.meaningKind),
+      claim.objectBindingSignatures.size,
+      claim.frameId
     )
 
   private def strengthRank(strength: String): Int =
@@ -1971,15 +2037,6 @@ object MoveMeaningHighlight:
       case "view_surfaced"      => 2
       case "contextual"         => 1
       case _                    => 0
-
-  private def stanceRank(stance: String): Int =
-    stance match
-      case "affirm"   => 4
-      case "warn"     => 3
-      case "contrast" => 2
-      case "explain"  => 1
-      case "context"  => 0
-      case _          => 0
 
   private def kindRank(kind: String): Int =
     kind match
@@ -2006,14 +2063,12 @@ case class MoveJudgmentLocalIdeaFrame(
 case class MoveJudgmentView(
     verdict: Option[MoveJudgmentVerdictFrame],
     verdictCarriers: List[MoveJudgmentClaimFrame],
-    primaryCauses: List[MoveJudgmentCauseFrame],
-    secondaryCauses: List[MoveJudgmentCauseFrame],
-    contextCauses: List[MoveJudgmentCauseFrame],
+    causeAudit: MoveJudgmentCauseAudit = MoveJudgmentCauseAudit(),
     positionPlanTechniqueFrames: List[PositionPlanTechniqueFrame] = Nil,
-    moveMeaningHighlights: List[MoveMeaningHighlight] = Nil,
     supportContextClusterIds: List[String],
     overriddenLocalIdeas: List[MoveJudgmentLocalIdeaFrame],
-    preservedLocalIdeas: List[MoveJudgmentLocalIdeaFrame]
+    preservedLocalIdeas: List[MoveJudgmentLocalIdeaFrame],
+    moveMeaningClaims: List[MoveMeaningClaim] = Nil
 )
 
 object MoveJudgmentView:
@@ -2061,45 +2116,38 @@ object MoveJudgmentView:
         .sorted
     val planTechniqueFrames =
       PositionPlanTechniqueProjection.frames(evidenceGraph, ideas, claims, ideaVerdict)
-    val causeBuckets = playerFacingCauseBuckets(narratedCauseFrames)
+    val causeAudit = causeAuditBuckets(narratedCauseFrames)
     val baseView =
       MoveJudgmentView(
         verdict = relativeAssessments.headOption.map(verdictFrame),
         verdictCarriers = verdictCarriers,
-        primaryCauses = causeBuckets.primary,
-        secondaryCauses = causeBuckets.secondary,
-        contextCauses = causeBuckets.context,
+        causeAudit = causeAudit,
         positionPlanTechniqueFrames = planTechniqueFrames,
         supportContextClusterIds = supportContextClusterIds,
         overriddenLocalIdeas = overriddenLocalIdeas(ideaVerdict, claims),
         preservedLocalIdeas = preservedLocalIdeas(claims)
       )
+    val moveMeaningClaims = MoveMeaningClaim.from(evidenceGraph, baseView, narratedCauseFrames)
     val view =
-      baseView.copy(moveMeaningHighlights = MoveMeaningHighlight.from(evidenceGraph, baseView))
+      baseView.copy(
+        moveMeaningClaims = moveMeaningClaims
+      )
     Option.when(
       view.verdict.nonEmpty ||
         view.verdictCarriers.nonEmpty ||
-        view.primaryCauses.nonEmpty ||
-        view.secondaryCauses.nonEmpty ||
-        view.contextCauses.nonEmpty ||
+        view.causeAudit.all.nonEmpty ||
         view.positionPlanTechniqueFrames.nonEmpty ||
-        view.moveMeaningHighlights.nonEmpty ||
+        view.moveMeaningClaims.nonEmpty ||
         view.overriddenLocalIdeas.nonEmpty ||
         view.preservedLocalIdeas.nonEmpty
     )(view)
 
-  private[judgment] final case class PlayerFacingCauseBuckets(
-      primary: List[MoveJudgmentCauseFrame],
-      secondary: List[MoveJudgmentCauseFrame],
-      context: List[MoveJudgmentCauseFrame]
-  )
-
-  private[judgment] def playerFacingCauseBuckets(
+  private[judgment] def causeAuditBuckets(
       frames: List[MoveJudgmentCauseFrame]
-  ): PlayerFacingCauseBuckets =
+  ): MoveJudgmentCauseAudit =
     val concretePeerKeys =
       frames
-        .filter(playerFacingConcretePeer)
+        .filter(causeAuditConcretePeer)
         .map(moveJudgmentCauseComparisonKey)
         .toSet
     val primaryCandidates = frames.filter(_.role == MoveJudgmentCauseFrameRole.PrimaryCause)
@@ -2113,8 +2161,8 @@ object MoveJudgmentView:
       primaryCandidates.filterNot(frame => weakDemotedIds.contains(moveJudgmentCauseFrameIdentity(frame)))
     val secondaryAfterWeakDemotion =
       secondaryCandidates.filterNot(frame => weakDemotedIds.contains(moveJudgmentCauseFrameIdentity(frame)))
-    val compacted = compactPlayerFacingCauseBuckets(primaryAfterWeakDemotion, secondaryAfterWeakDemotion)
-    PlayerFacingCauseBuckets(
+    val compacted = compactCauseAuditBuckets(primaryAfterWeakDemotion, secondaryAfterWeakDemotion)
+    MoveJudgmentCauseAudit(
       primary = compacted.primary,
       secondary = compacted.secondary,
       context =
@@ -2123,16 +2171,16 @@ object MoveJudgmentView:
         ).distinctBy(moveJudgmentCauseFrameIdentity)
     )
 
-  private def compactPlayerFacingCauseBuckets(
+  private def compactCauseAuditBuckets(
       primaryCandidates: List[MoveJudgmentCauseFrame],
       secondaryCandidates: List[MoveJudgmentCauseFrame]
-  ): PlayerFacingCauseBuckets =
+  ): MoveJudgmentCauseAudit =
     val selectedPrimaryIds =
       primaryCandidates
         .filter(_.narrativeRole == MoveJudgmentCauseNarrativeRole.RootCause)
         .groupBy(moveJudgmentCauseComparisonKey)
         .values
-        .flatMap(selectPlayerFacingPrimaryRoots)
+        .flatMap(selectCauseAuditPrimaryRoots)
         .map(moveJudgmentCauseFrameIdentity)
         .toSet
     val selectedPrimary =
@@ -2142,41 +2190,41 @@ object MoveJudgmentView:
     val secondaryPool =
       secondaryCandidates ++ primaryOverflow.map(moveJudgmentCauseSecondaryFrame)
     val selectedSecondaryIds =
-      selectPlayerFacingSecondaryFrames(secondaryPool.filterNot(_.narrativeRole == MoveJudgmentCauseNarrativeRole.ContextCause))
+      selectCauseAuditSecondaryFrames(secondaryPool.filterNot(_.narrativeRole == MoveJudgmentCauseNarrativeRole.ContextCause))
         .map(moveJudgmentCauseFrameIdentity)
         .toSet
     val selectedSecondary =
       secondaryPool.filter(frame => selectedSecondaryIds.contains(moveJudgmentCauseFrameIdentity(frame)))
     val secondaryOverflow =
       secondaryPool.filterNot(frame => selectedSecondaryIds.contains(moveJudgmentCauseFrameIdentity(frame)))
-    PlayerFacingCauseBuckets(
+    MoveJudgmentCauseAudit(
       primary = selectedPrimary,
       secondary = selectedSecondary,
       context = secondaryOverflow.map(moveJudgmentCauseContextFrame)
     )
 
-  private def selectPlayerFacingPrimaryRoots(frames: List[MoveJudgmentCauseFrame]): List[MoveJudgmentCauseFrame] =
+  private def selectCauseAuditPrimaryRoots(frames: List[MoveJudgmentCauseFrame]): List[MoveJudgmentCauseFrame] =
     val representatives = frames
-      .groupBy(playerFacingPrimaryCauseFamily)
+      .groupBy(causeAuditPrimaryCauseFamily)
       .values
-      .flatMap(group => group.sortBy(playerFacingPrimaryCauseSortKey).lastOption)
+      .flatMap(group => group.sortBy(causeAuditPrimaryCauseSortKey).lastOption)
       .toList
     representatives
-      .filterNot(frame => playerFacingGenericRootDominated(frame, representatives))
-      .sortBy(playerFacingPrimaryCauseSortKey)
+      .filterNot(frame => causeAuditGenericRootDominated(frame, representatives))
+      .sortBy(causeAuditPrimaryCauseSortKey)
 
-  private def selectPlayerFacingSecondaryFrames(frames: List[MoveJudgmentCauseFrame]): List[MoveJudgmentCauseFrame] =
+  private def selectCauseAuditSecondaryFrames(frames: List[MoveJudgmentCauseFrame]): List[MoveJudgmentCauseFrame] =
     frames
-      .groupBy(playerFacingSecondaryCauseFamily)
+      .groupBy(causeAuditSecondaryCauseFamily)
       .values
-      .flatMap(group => group.sortBy(playerFacingSecondaryCauseSortKey).lastOption)
+      .flatMap(group => group.sortBy(causeAuditSecondaryCauseSortKey).lastOption)
       .toList
-      .sortBy(playerFacingSecondaryCauseSortKey)
+      .sortBy(causeAuditSecondaryCauseSortKey)
 
-  private def playerFacingPrimaryCauseSortKey(frame: MoveJudgmentCauseFrame): (Int, Int, Int, Int, Int, Int, String) =
+  private def causeAuditPrimaryCauseSortKey(frame: MoveJudgmentCauseFrame): (Int, Int, Int, Int, Int, Int, String) =
     (
-      playerFacingCauseKindRank(frame.causeKind),
-      playerFacingRootTierRank(frame.rootArbitrationTier),
+      causeAuditCauseKindRank(frame.causeKind),
+      causeAuditRootTierRank(frame.rootArbitrationTier),
       boolRank(frame.causeSourceSide == RelativeCauseSourceSide.Candidate),
       boolRank(frame.concreteObjectReady),
       frame.proofDirectSourceIds.distinct.size,
@@ -2184,35 +2232,35 @@ object MoveJudgmentView:
       frame.causeKind.toString
     )
 
-  private def playerFacingSecondaryCauseSortKey(frame: MoveJudgmentCauseFrame): (Int, Int, Int, Int, Int, Int, Int, String) =
+  private def causeAuditSecondaryCauseSortKey(frame: MoveJudgmentCauseFrame): (Int, Int, Int, Int, Int, Int, Int, String) =
     (
-      playerFacingNarrativeRoleRank(frame.narrativeRole),
-      playerFacingWitnessBindingRank(frame.witnessBindingLevel),
-      playerFacingComparisonRank(frame.comparisonKind),
-      playerFacingSecondaryCauseKindRank(frame.causeKind),
-      playerFacingRootTierRank(frame.rootArbitrationTier),
+      causeAuditNarrativeRoleRank(frame.narrativeRole),
+      causeAuditWitnessBindingRank(frame.witnessBindingLevel),
+      causeAuditComparisonRank(frame.comparisonKind),
+      causeAuditSecondaryCauseKindRank(frame.causeKind),
+      causeAuditRootTierRank(frame.rootArbitrationTier),
       boolRank(frame.concreteObjectReady),
       frame.proofDirectSourceIds.distinct.size,
       frame.causeKind.toString
     )
 
-  private def playerFacingGenericRootDominated(
+  private def causeAuditGenericRootDominated(
       frame: MoveJudgmentCauseFrame,
       roots: List[MoveJudgmentCauseFrame]
   ): Boolean =
-    playerFacingGenericRoot(frame.causeKind) &&
+    causeAuditGenericRoot(frame.causeKind) &&
       roots.exists(root =>
         moveJudgmentCauseFrameIdentity(root) != moveJudgmentCauseFrameIdentity(frame) &&
-          playerFacingSpecificRoot(root.causeKind)
+          causeAuditSpecificRoot(root.causeKind)
       )
 
-  private def playerFacingGenericRoot(kind: RelativeCauseKind): Boolean =
+  private def causeAuditGenericRoot(kind: RelativeCauseKind): Boolean =
     kind == RelativeCauseKind.ActivityGain ||
       kind == RelativeCauseKind.ActivityLoss ||
       kind == RelativeCauseKind.CenterControlGain ||
       kind == RelativeCauseKind.StructuralImprovement
 
-  private def playerFacingSpecificRoot(kind: RelativeCauseKind): Boolean =
+  private def causeAuditSpecificRoot(kind: RelativeCauseKind): Boolean =
     kind == RelativeCauseKind.PawnBreakOpportunity ||
       kind == RelativeCauseKind.PawnWeaknessTarget ||
       kind == RelativeCauseKind.TargetPressureGain ||
@@ -2220,7 +2268,7 @@ object MoveJudgmentView:
       kind == RelativeCauseKind.OpponentRestriction ||
       kind == RelativeCauseKind.KingSafetyConcession
 
-  private def playerFacingPrimaryCauseFamily(frame: MoveJudgmentCauseFrame): String =
+  private def causeAuditPrimaryCauseFamily(frame: MoveJudgmentCauseFrame): String =
     frame.causeKind match
       case RelativeCauseKind.PawnBreakOpportunity =>
         "pawn-break"
@@ -2248,7 +2296,7 @@ object MoveJudgmentView:
           RelativeCauseKind.ConversionMiss | RelativeCauseKind.ConversionSecured | RelativeCauseKind.SacrificeCompensation =>
         "conversion"
 
-  private def playerFacingSecondaryCauseFamily(frame: MoveJudgmentCauseFrame): String =
+  private def causeAuditSecondaryCauseFamily(frame: MoveJudgmentCauseFrame): String =
     frame.causeKind match
       case RelativeCauseKind.TacticalRefutationOfPlayed | RelativeCauseKind.CandidateTacticalLiability |
           RelativeCauseKind.MissedTacticalResource | RelativeCauseKind.WrongRecapturer |
@@ -2272,7 +2320,7 @@ object MoveJudgmentView:
       case RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
         "plan"
 
-  private def playerFacingCauseKindRank(kind: RelativeCauseKind): Int =
+  private def causeAuditCauseKindRank(kind: RelativeCauseKind): Int =
     kind match
       case RelativeCauseKind.WrongRecapturer =>
         120
@@ -2315,7 +2363,7 @@ object MoveJudgmentView:
       case RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
         40
 
-  private def playerFacingSecondaryCauseKindRank(kind: RelativeCauseKind): Int =
+  private def causeAuditSecondaryCauseKindRank(kind: RelativeCauseKind): Int =
     kind match
       case RelativeCauseKind.TacticalRefutationOfPlayed | RelativeCauseKind.CandidateTacticalLiability =>
         120
@@ -2347,7 +2395,7 @@ object MoveJudgmentView:
       case RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
         50
 
-  private def playerFacingRootTierRank(tier: MoveJudgmentCauseRootArbitrationTier): Int =
+  private def causeAuditRootTierRank(tier: MoveJudgmentCauseRootArbitrationTier): Int =
     tier match
       case MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot    => 4
       case MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot => 3
@@ -2355,14 +2403,14 @@ object MoveJudgmentView:
       case MoveJudgmentCauseRootArbitrationTier.BroadOwnedRoot    => 1
       case MoveJudgmentCauseRootArbitrationTier.ContextOnly       => 0
 
-  private def playerFacingNarrativeRoleRank(role: MoveJudgmentCauseNarrativeRole): Int =
+  private def causeAuditNarrativeRoleRank(role: MoveJudgmentCauseNarrativeRole): Int =
     role match
       case MoveJudgmentCauseNarrativeRole.TacticalWitness => 4
       case MoveJudgmentCauseNarrativeRole.RootCause       => 3
       case MoveJudgmentCauseNarrativeRole.SupportingCause => 2
       case MoveJudgmentCauseNarrativeRole.ContextCause    => 0
 
-  private def playerFacingWitnessBindingRank(level: MoveJudgmentCauseWitnessBindingLevel): Int =
+  private def causeAuditWitnessBindingRank(level: MoveJudgmentCauseWitnessBindingLevel): Int =
     level match
       case MoveJudgmentCauseWitnessBindingLevel.Punishment         => 4
       case MoveJudgmentCauseWitnessBindingLevel.ObjectContext      => 3
@@ -2370,7 +2418,7 @@ object MoveJudgmentView:
       case MoveJudgmentCauseWitnessBindingLevel.SameComparisonOnly => 1
       case MoveJudgmentCauseWitnessBindingLevel.NotWitness         => 0
 
-  private def playerFacingComparisonRank(kind: CandidateComparisonKind): Int =
+  private def causeAuditComparisonRank(kind: CandidateComparisonKind): Int =
     kind match
       case CandidateComparisonKind.PlayedVsBest          => 4
       case CandidateComparisonKind.PlayedVsAlternative   => 3
@@ -2380,7 +2428,7 @@ object MoveJudgmentView:
   private def boolRank(value: Boolean): Int =
     if value then 1 else 0
 
-  private def playerFacingConcretePeer(frame: MoveJudgmentCauseFrame): Boolean =
+  private def causeAuditConcretePeer(frame: MoveJudgmentCauseFrame): Boolean =
     frame.concreteObjectReady &&
       (
         frame.rootArbitrationTier == MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot ||
