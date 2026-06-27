@@ -72,6 +72,7 @@ GET   /embed/analysis                  controllers.UserAnalysis.embed
 GET   /api/explorer/:db                controllers.ExplorerProxy.opening(db: String)
 
 # AI Analysis
+POST  /api/chess-judgment/move-meaning controllers.Analyse.moveMeaning
 GET   /support                         controllers.Main.support
 GET   /plan                            controllers.Main.plan
 GET   /beta-feedback                   controllers.BetaFeedback.formPage(surface: String ?= "general", feature: String ?= "", entrypoint: String ?= "", returnTo: String ?= "", notify: Boolean ?= false)

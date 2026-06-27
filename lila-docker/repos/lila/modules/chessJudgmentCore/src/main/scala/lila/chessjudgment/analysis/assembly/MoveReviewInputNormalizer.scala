@@ -1,6 +1,7 @@
 package lila.chessjudgment.analysis.assembly
 
 import chess.Color
+import play.api.libs.json.{ Json, OFormat, Reads }
 import lila.chessjudgment.analysis.evaluation.PerspectiveMath
 import lila.chessjudgment.analysis.opening.{ OpeningRecognitionIndex, OpeningThemePriorIndex }
 import lila.chessjudgment.analysis.line.PrincipalVariationEvidence
@@ -30,6 +31,9 @@ final case class RawOpeningContext(
     family: Option[String] = None
 )
 
+object RawOpeningContext:
+  given OFormat[RawOpeningContext] = Json.format[RawOpeningContext]
+
 final case class RawMoveReviewInput(
     fen: String,
     playedMoveUci: String,
@@ -40,6 +44,9 @@ final case class RawMoveReviewInput(
     movePrefixUci: List[String] = Nil,
     probeResults: List[ProbeResult] = Nil
 )
+
+object RawMoveReviewInput:
+  given Reads[RawMoveReviewInput] = Json.reads[RawMoveReviewInput]
 
 final case class NormalizedCandidateLine(
     role: LineNodeRole,

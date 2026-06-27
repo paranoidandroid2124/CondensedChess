@@ -3521,6 +3521,7 @@ object MoveReviewPhase3AuditRunner:
         "primaryCauses" -> view.primaryCauses.map(moveJudgmentCauseFrameJson(result.packet, _)),
         "secondaryCauses" -> view.secondaryCauses.map(moveJudgmentCauseFrameJson(result.packet, _)),
         "contextCauses" -> view.contextCauses.map(moveJudgmentCauseFrameJson(result.packet, _)),
+        "moveMeaningHighlights" -> view.moveMeaningHighlights.map(moveMeaningHighlightJson),
         "positionPlanTechniqueFrames" -> view.positionPlanTechniqueFrames.map(moveJudgmentPositionPlanTechniqueFrameJson),
         "supportContextClusterIds" -> view.supportContextClusterIds,
         "overriddenLocalIdeas" -> view.overriddenLocalIdeas.map(moveJudgmentLocalIdeaFrameJson),
@@ -3615,6 +3616,27 @@ object MoveReviewPhase3AuditRunner:
       "witnessBindingRootCauseEvidenceIds" -> frame.witnessBindingRootCauseEvidenceIds,
       "concreteObjectReady" -> frame.concreteObjectReady
     ) ++ objectBindingSignatureSampleJson(frame.objectBindingSignatures)
+
+  private def moveMeaningHighlightJson(highlight: MoveMeaningHighlight): JsObject =
+    Json.obj(
+      "meaningKind" -> highlight.meaningKind,
+      "stance" -> highlight.stance,
+      "strength" -> highlight.strength,
+      "wordingPolicy" -> highlight.wordingPolicy,
+      "lineRole" -> highlight.lineRole,
+      "moveUci" -> highlight.moveUci,
+      "frameId" -> highlight.frameId,
+      "unit" -> highlight.unit.toString,
+      "axisKey" -> highlight.axisKey,
+      "axisKind" -> highlight.axisKind.map(_.toString),
+      "axisPolarity" -> highlight.axisPolarity.map(_.toString),
+      "label" -> highlight.label,
+      "causeKinds" -> highlight.causeKinds.map(_.toString),
+      "causeSourceSides" -> highlight.causeSourceSides.map(_.toString),
+      "causeEvidenceIds" -> highlight.causeEvidenceIds,
+      "sourceEvidenceIds" -> highlight.sourceEvidenceIds,
+      "reasonTokens" -> highlight.reasonTokens
+    ) ++ objectBindingSignatureSampleJson(highlight.objectBindingSignatures)
 
   private def moveJudgmentPositionPlanTechniqueFrameJson(frame: PositionPlanTechniqueFrame): JsObject =
     MoveReviewPhase3AuditViewJson.positionPlanTechniqueFrameJson(frame, lineRefSummary)

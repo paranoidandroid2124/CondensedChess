@@ -1603,6 +1603,399 @@ case class MoveJudgmentCauseFrame(
     witnessBindingRootCauseEvidenceIds: List[String] = Nil
 )
 
+case class MoveMeaningHighlight(
+    meaningKind: String,
+    stance: String,
+    strength: String,
+    wordingPolicy: String,
+    lineRole: String,
+    moveUci: String,
+    frameId: String,
+    unit: PositionPlanTechniqueUnit,
+    axisKey: Option[String],
+    axisKind: Option[StrategicAxisKind],
+    axisPolarity: Option[StrategicAxisPolarity],
+    label: Option[String],
+    causeKinds: List[RelativeCauseKind],
+    causeSourceSides: List[RelativeCauseSourceSide],
+    causeEvidenceIds: List[String],
+    sourceEvidenceIds: List[String],
+    objectBindingSignatures: List[String],
+    reasonTokens: List[String]
+)
+
+object MoveMeaningHighlight:
+  def from(
+      evidenceGraph: TypedEvidenceGraph,
+      view: MoveJudgmentView
+  ): List[MoveMeaningHighlight] =
+    view.verdict.toList
+      .flatMap(verdict =>
+        val meaningCauseFrames =
+          (view.primaryCauses ++ view.secondaryCauses ++ view.contextCauses)
+            .filter(frame => causeFrameMatches(frame, verdict))
+        val meaningCauseIds = meaningCauseFrames.flatMap(_.causeEvidenceIds).toSet
+        val causeFramesById =
+          meaningCauseFrames
+            .flatMap(frame => frame.causeEvidenceIds.map(_ -> frame))
+            .groupMap(_._1)(_._2)
+        view.positionPlanTechniqueFrames
+          .filter(frame => frameMatches(evidenceGraph, frame, verdict))
+          .flatMap(frame =>
+            frame.semanticDetails.flatMap(detail =>
+              fromDetail(frame, detail, verdict, meaningCauseIds, causeFramesById)
+            )
+          )
+      )
+      .groupBy(highlight => (highlight.meaningKind, highlight.stance, highlight.lineRole))
+      .values
+      .flatMap(_.sortBy(sortKey).lastOption)
+      .toList
+      .sortBy(highlight => (highlight.meaningKind, highlight.stance, highlight.lineRole, highlight.frameId, highlight.axisKey.getOrElse("")))
+
+  private def causeFrameMatches(
+      frame: MoveJudgmentCauseFrame,
+      verdict: MoveJudgmentVerdictFrame
+  ): Boolean =
+    frame.comparisonKind == verdict.comparisonKind &&
+      frame.referenceLine == verdict.referenceLine &&
+      frame.candidateLine == verdict.candidateLine
+
+  private def frameMatches(
+      graph: TypedEvidenceGraph,
+      frame: PositionPlanTechniqueFrame,
+      verdict: MoveJudgmentVerdictFrame
+  ): Boolean =
+    val candidateMove = JudgmentSubjectBinding.normalizeMove(verdict.candidateLine.rootMove)
+    val referenceMove = JudgmentSubjectBinding.normalizeMove(verdict.referenceLine.rootMove)
+    val frameMove = frame.moveUci.map(JudgmentSubjectBinding.normalizeMove)
+    val candidateLineMoveMatches = frame.line.contains(verdict.candidateLine) && frameMove.contains(candidateMove)
+    val referenceLineMoveMatches = frame.line.contains(verdict.referenceLine) && frameMove.contains(referenceMove)
+    val contrastMatches =
+      (frame.mechanismEvidenceIds ++ frame.evidenceIds).exists(id =>
+        graph.byId.get(id).exists {
+          case EvidenceRecord(_, payload: StrategicMechanismContrastEvidence, _) =>
+            payload.comparisonKind == verdict.comparisonKind &&
+              payload.referenceLine == verdict.referenceLine &&
+              payload.candidateLine == verdict.candidateLine
+          case _ =>
+            false
+        }
+      )
+    candidateLineMoveMatches || referenceLineMoveMatches || contrastMatches
+
+  private def fromDetail(
+      frame: PositionPlanTechniqueFrame,
+      detail: PositionPlanTechniqueSemanticDetail,
+      verdict: MoveJudgmentVerdictFrame,
+      meaningCauseIds: Set[String],
+      causeFramesById: Map[String, List[MoveJudgmentCauseFrame]]
+  ): Option[MoveMeaningHighlight] =
+    val linkedCauseIds = detail.causeEvidenceIds.filter(meaningCauseIds.contains).distinct.sorted
+    val linkedCauseFrames = linkedCauseIds.flatMap(id => causeFramesById.getOrElse(id, Nil)).distinctBy(_.causeEvidenceIds)
+    val objectSignatures = detail.objectBindingSignatures.distinct.sorted
+    val evidenceStrength = strength(detail, linkedCauseFrames, objectSignatures)
+    for
+      meaningKind <- kind(detail, linkedCauseFrames)
+      evidenceStrength <- evidenceStrength
+      if detailMatchesLine(frame, detail, verdict)
+    yield
+      val highlightStance = stance(detail, linkedCauseFrames)
+      val highlightLineRole = lineRole(frame, detail, verdict, linkedCauseFrames)
+      MoveMeaningHighlight(
+        meaningKind = meaningKind,
+        stance = highlightStance,
+        strength = evidenceStrength,
+        wordingPolicy = wordingPolicy(highlightStance, evidenceStrength),
+        lineRole = highlightLineRole,
+        moveUci = moveUci(verdict, highlightLineRole),
+        frameId = frame.id,
+        unit = detail.unit,
+        axisKey = detail.axisKey,
+        axisKind = detail.axisKind,
+        axisPolarity = detail.axisPolarity,
+        label = detail.label,
+        causeKinds = linkedCauseFrames.map(_.causeKind).distinct.sortBy(_.toString),
+        causeSourceSides = linkedCauseFrames.map(_.causeSourceSide).distinct.sortBy(_.toString),
+        causeEvidenceIds = linkedCauseIds,
+        sourceEvidenceIds = detail.sourceEvidenceIds.distinct.sorted,
+        objectBindingSignatures = objectSignatures,
+        reasonTokens = reasonTokens(detail, objectSignatures, linkedCauseIds)
+      )
+
+  private def strength(
+      detail: PositionPlanTechniqueSemanticDetail,
+      linkedCauseFrames: List[MoveJudgmentCauseFrame],
+      objectSignatures: List[String]
+  ): Option[String] =
+    val hasConcreteObject = concreteObject(detail, objectSignatures)
+    val specificObjectAxis = specificity(detail)
+    val direct = directProof(detail)
+    val hasDetailEvidence = detailEvidence(detail)
+    val ownedCause =
+      linkedCauseFrames.exists(frame => frame.concreteObjectReady && frame.hasOwnedAdmissibleLongTermProof) ||
+        linkedCauseFrames.exists(frame => frame.concreteObjectReady && frame.attributionDirectProofEligible)
+    if linkedCauseFrames.nonEmpty && ownedCause && hasConcreteObject && specificObjectAxis && direct then
+      Some("owned_cause_linked")
+    else if hasConcreteObject && specificObjectAxis && hasDetailEvidence && anyProof(detail) then
+      Some("view_surfaced")
+    else if hasDetailEvidence && contextualDetail(detail) then
+      Some("contextual")
+    else None
+
+  private def specificity(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detail.specificityTier == PositionPlanTechniqueSpecificityTier.ExactObjectAxis ||
+      detail.specificityTier == PositionPlanTechniqueSpecificityTier.ConcreteObjectAxis
+
+  private def directProof(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detail.proofRoles.exists(role => role == RelativeCauseProofRole.DirectProof || role == RelativeCauseProofRole.ContrastProof)
+
+  private def anyProof(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    directProof(detail) ||
+      detail.contextProofRoles.nonEmpty ||
+      detail.contrastOutcome.nonEmpty
+
+  private def detailEvidence(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detail.sourceEvidenceIds.nonEmpty ||
+      detail.referenceEvidenceIds.nonEmpty ||
+      detail.candidateEvidenceIds.nonEmpty ||
+      detail.causeEvidenceIds.nonEmpty ||
+      detail.contextCauseEvidenceIds.nonEmpty
+
+  private def contextualDetail(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detail.unit == PositionPlanTechniqueUnit.PlanOptionSet ||
+      detail.axisKind.contains(StrategicAxisKind.PlanCoherence) ||
+      detail.planAlignmentScore.nonEmpty ||
+      detail.matchedPlanIds.nonEmpty ||
+      detail.missingPlanIds.nonEmpty ||
+      detail.planAlignmentReasonCodes.nonEmpty ||
+      detail.openingPriorThemes.nonEmpty ||
+      detail.openingPriorStrategicPlanPriors.nonEmpty ||
+      detail.referencePlanIds.nonEmpty ||
+      detail.candidatePlanIds.nonEmpty
+
+  private def concreteObject(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String]
+  ): Boolean =
+    objectSignatures.exists(concreteObjectSignature) ||
+      detail.requiredSquares.nonEmpty ||
+      detail.maintainedSquares.nonEmpty ||
+      detail.resourceContestSquares.nonEmpty ||
+      detail.resourceContestFiles.nonEmpty ||
+      detail.tensionSquares.nonEmpty ||
+      detail.tensionEdges.nonEmpty ||
+      detail.breakFile.nonEmpty ||
+      detail.structuralPurposeSubjects.exists(concreteSubject)
+
+  private def concreteObjectSignature(signature: String): Boolean =
+    signature
+      .split("\\|")
+      .exists(part =>
+        (part.startsWith("target=") || part.startsWith("actor=")) &&
+          !part.contains("=Side:")
+      )
+
+  private def concreteSubject(subject: String): Boolean =
+    val normalized = subject.toLowerCase.trim
+    normalized.matches(".*[a-h][1-8].*") ||
+      normalized.contains("file") ||
+      normalized.contains("diagonal") ||
+      normalized.contains("pawn") ||
+      normalized.contains("bishop") ||
+      normalized.contains("knight") ||
+      normalized.contains("rook") ||
+      normalized.contains("queen")
+
+  private def detailMatchesLine(
+      frame: PositionPlanTechniqueFrame,
+      detail: PositionPlanTechniqueSemanticDetail,
+      verdict: MoveJudgmentVerdictFrame
+  ): Boolean =
+    val candidateMove = JudgmentSubjectBinding.normalizeMove(verdict.candidateLine.rootMove)
+    val referenceMove = JudgmentSubjectBinding.normalizeMove(verdict.referenceLine.rootMove)
+    val frameMove = frame.moveUci.map(JudgmentSubjectBinding.normalizeMove)
+    val candidateMoveMatches = frame.line.contains(verdict.candidateLine) && frameMove.contains(candidateMove)
+    val referenceMoveMatches = frame.line.contains(verdict.referenceLine) && frameMove.contains(referenceMove)
+    val candidateRootMatches =
+      detail.raceCandidateRootMove.exists(move => JudgmentSubjectBinding.normalizeMove(move) == candidateMove) ||
+        detail.structuralRouteMove.exists(move => JudgmentSubjectBinding.normalizeMove(move) == candidateMove)
+    val referenceRootMatches =
+      detail.raceReferenceRootMove.exists(move => JudgmentSubjectBinding.normalizeMove(move) == referenceMove) ||
+        detail.structuralRouteMove.exists(move => JudgmentSubjectBinding.normalizeMove(move) == referenceMove)
+    val contrastDetail =
+      detail.contrastOutcome.nonEmpty &&
+        (detail.candidateEvidenceIds.nonEmpty || detail.referenceEvidenceIds.nonEmpty)
+    candidateMoveMatches || referenceMoveMatches || candidateRootMatches || referenceRootMatches || contrastDetail
+
+  private def lineRole(
+      frame: PositionPlanTechniqueFrame,
+      detail: PositionPlanTechniqueSemanticDetail,
+      verdict: MoveJudgmentVerdictFrame,
+      linkedCauseFrames: List[MoveJudgmentCauseFrame]
+  ): String =
+    val sourceSides = linkedCauseFrames.map(_.causeSourceSide).distinct
+    if sourceSides == List(RelativeCauseSourceSide.Candidate) then "candidate"
+    else if sourceSides == List(RelativeCauseSourceSide.Reference) then "reference"
+    else if detail.candidateEvidenceIds.nonEmpty && detail.referenceEvidenceIds.nonEmpty then "contrast"
+    else if detail.candidateEvidenceIds.nonEmpty || frame.line.contains(verdict.candidateLine) then "candidate"
+    else if detail.referenceEvidenceIds.nonEmpty || frame.line.contains(verdict.referenceLine) then "reference"
+    else "contrast"
+
+  private def moveUci(
+      verdict: MoveJudgmentVerdictFrame,
+      lineRole: String
+  ): String =
+    if lineRole == "reference" then verdict.referenceLine.rootMove else verdict.candidateLine.rootMove
+
+  private def stance(
+      detail: PositionPlanTechniqueSemanticDetail,
+      linkedCauseFrames: List[MoveJudgmentCauseFrame]
+  ): String =
+    detail.contrastOutcome match
+      case Some(StrategicAxisComparisonOutcome.CandidateOnly | StrategicAxisComparisonOutcome.CandidateStronger) =>
+        if detail.axisPolarity.exists(negativePolarity) then "warn" else "affirm"
+      case Some(StrategicAxisComparisonOutcome.ReferenceOnly | StrategicAxisComparisonOutcome.ReferenceStronger |
+          StrategicAxisComparisonOutcome.ReferencePreservesPlan) =>
+        "contrast"
+      case Some(StrategicAxisComparisonOutcome.CandidateConcession) =>
+        "warn"
+      case Some(StrategicAxisComparisonOutcome.SharedSustained) =>
+        "explain"
+      case None =>
+        if detail.axisPolarity.exists(negativePolarity) then "warn"
+        else if contextualDetail(detail) then "context"
+        else if linkedCauseFrames.exists(_.causeSourceSide == RelativeCauseSourceSide.Reference) then "contrast"
+        else "explain"
+
+  private def negativePolarity(polarity: StrategicAxisPolarity): Boolean =
+    polarity == StrategicAxisPolarity.Loss ||
+      polarity == StrategicAxisPolarity.Release ||
+      polarity == StrategicAxisPolarity.Concede
+
+  private def wordingPolicy(stance: String, strength: String): String =
+    strength match
+      case "owned_cause_linked" if stance == "affirm" =>
+        "reason_claim_ok"
+      case "owned_cause_linked" if stance == "warn" || stance == "contrast" =>
+        "reason_warning_ok"
+      case "view_surfaced" =>
+        "feature_explanation_only"
+      case _ =>
+        "soft_context_only"
+
+  private def kind(
+      detail: PositionPlanTechniqueSemanticDetail,
+      causeFrames: List[MoveJudgmentCauseFrame]
+  ): Option[String] =
+    val base =
+      detail.unit match
+        case PositionPlanTechniqueUnit.TensionBreakPolicyRoute =>
+          Some("PawnBreakTiming")
+        case PositionPlanTechniqueUnit.PlanOptionSet =>
+          Some("PlanContinuity")
+        case PositionPlanTechniqueUnit.EndgameTechniqueRecipe =>
+          Some("TechniqueConversion")
+        case PositionPlanTechniqueUnit.CounterplayRace =>
+          Some("CounterplayRace")
+        case PositionPlanTechniqueUnit.SpacePreventionResourceDenial =>
+          Some("CounterplayControl")
+        case PositionPlanTechniqueUnit.PieceRerouteRoute =>
+          Some("PieceRoute")
+        case PositionPlanTechniqueUnit.StructuralTransformation =>
+          detail.axisKind match
+            case Some(StrategicAxisKind.Target)        => Some("TargetPressure")
+            case Some(StrategicAxisKind.SpaceCenter)   => Some("CenterControl")
+            case Some(StrategicAxisKind.PawnBreak)     => Some("PawnBreakTiming")
+            case Some(StrategicAxisKind.Counterplay)   => Some("CounterplayRace")
+            case Some(StrategicAxisKind.Activity)      => Some("PieceActivity")
+            case Some(StrategicAxisKind.PlanCoherence) => Some("PlanContinuity")
+            case None                                  => Some("StructureShift")
+        case PositionPlanTechniqueUnit.CompensationSource =>
+          Some("Compensation")
+    base match
+      case Some("CounterplayRace") if causeFrames.exists(_.causeKind == RelativeCauseKind.OpponentRestriction) =>
+        Some("CounterplayControl")
+      case other =>
+        other
+
+  private def reasonTokens(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      linkedCauseIds: List[String]
+  ): List[String] =
+    (
+      List(
+        Some(s"unit:${detail.unit}"),
+        detail.axisKey.map(value => s"axisKey:$value"),
+        detail.axisKind.map(value => s"axisKind:$value"),
+        detail.axisPolarity.map(value => s"axisPolarity:$value"),
+        detail.label.map(value => s"label:$value"),
+        detail.breakFile.map(value => s"breakFile:$value"),
+        detail.tensionPolicy.map(value => s"tensionPolicy:$value"),
+        detail.endgameTechniquePattern.map(value => s"pattern:$value"),
+        detail.endgameTechniqueRookPattern.map(value => s"rook-pattern:$value"),
+        detail.endgameTechniqueHorizonStatus.map(value => s"horizonStatus:$value"),
+        Some(s"specificityTier:${detail.specificityTier}")
+      ).flatten ++
+        detail.tensionSquares.map(value => s"tensionSquare:$value") ++
+        detail.tensionEdges.map(value => s"tensionEdge:$value") ++
+        detail.counterBreakFiles.map(value => s"counterBreakFile:$value") ++
+        detail.resourceContestSquares.map(value => s"resourceContestSquare:$value") ++
+        detail.resourceContestFiles.map(value => s"resourceContestFile:$value") ++
+        detail.requiredSquares.map(value => s"requiredSquare:$value") ++
+        detail.maintainedSquares.map(value => s"maintainedSquare:$value") ++
+        detail.brokenSquares.map(value => s"brokenSquare:$value") ++
+        detail.structuralMotifTags.map(value => s"structuralMotif:$value") ++
+        detail.boardAnchorSignals.map(value => s"boardAnchorSignal:$value") ++
+        detail.planAlignmentReasonCodes.map(value => s"planReason:$value") ++
+        linkedCauseIds.map(value => s"causeEvidenceId:$value") ++
+        detail.proofRoles.map(value => s"proofRole:$value") ++
+        detail.contextProofRoles.map(value => s"contextProofRole:$value") ++
+        objectSignatures.take(5).map(value => s"objectBinding:$value")
+    ).distinct.sorted
+
+  private def sortKey(highlight: MoveMeaningHighlight): (Int, Int, Int, Int, Int, String) =
+    (
+      strengthRank(highlight.strength),
+      if highlight.reasonTokens.exists(_.startsWith("specificityTier:ExactObjectAxis")) then 1 else 0,
+      stanceRank(highlight.stance),
+      kindRank(highlight.meaningKind),
+      highlight.objectBindingSignatures.size,
+      highlight.frameId
+    )
+
+  private def strengthRank(strength: String): Int =
+    strength match
+      case "owned_cause_linked" => 3
+      case "view_surfaced"      => 2
+      case "contextual"         => 1
+      case _                    => 0
+
+  private def stanceRank(stance: String): Int =
+    stance match
+      case "affirm"   => 4
+      case "warn"     => 3
+      case "contrast" => 2
+      case "explain"  => 1
+      case "context"  => 0
+      case _          => 0
+
+  private def kindRank(kind: String): Int =
+    kind match
+      case "TechniqueConversion" => 9
+      case "PawnBreakTiming"     => 8
+      case "CounterplayRace"     => 7
+      case "CounterplayControl"  => 7
+      case "TargetPressure"      => 6
+      case "CenterControl"       => 5
+      case "PieceActivity"       => 4
+      case "PieceRoute"          => 4
+      case "Compensation"        => 3
+      case "StructureShift"      => 3
+      case "PlanContinuity"      => 1
+      case _                     => 0
+
 case class MoveJudgmentLocalIdeaFrame(
     ideaId: String,
     relation: IdeaVerdictRelation,
@@ -1617,6 +2010,7 @@ case class MoveJudgmentView(
     secondaryCauses: List[MoveJudgmentCauseFrame],
     contextCauses: List[MoveJudgmentCauseFrame],
     positionPlanTechniqueFrames: List[PositionPlanTechniqueFrame] = Nil,
+    moveMeaningHighlights: List[MoveMeaningHighlight] = Nil,
     supportContextClusterIds: List[String],
     overriddenLocalIdeas: List[MoveJudgmentLocalIdeaFrame],
     preservedLocalIdeas: List[MoveJudgmentLocalIdeaFrame]
@@ -1668,7 +2062,7 @@ object MoveJudgmentView:
     val planTechniqueFrames =
       PositionPlanTechniqueProjection.frames(evidenceGraph, ideas, claims, ideaVerdict)
     val causeBuckets = playerFacingCauseBuckets(narratedCauseFrames)
-    val view =
+    val baseView =
       MoveJudgmentView(
         verdict = relativeAssessments.headOption.map(verdictFrame),
         verdictCarriers = verdictCarriers,
@@ -1680,6 +2074,8 @@ object MoveJudgmentView:
         overriddenLocalIdeas = overriddenLocalIdeas(ideaVerdict, claims),
         preservedLocalIdeas = preservedLocalIdeas(claims)
       )
+    val view =
+      baseView.copy(moveMeaningHighlights = MoveMeaningHighlight.from(evidenceGraph, baseView))
     Option.when(
       view.verdict.nonEmpty ||
         view.verdictCarriers.nonEmpty ||
@@ -1687,6 +2083,7 @@ object MoveJudgmentView:
         view.secondaryCauses.nonEmpty ||
         view.contextCauses.nonEmpty ||
         view.positionPlanTechniqueFrames.nonEmpty ||
+        view.moveMeaningHighlights.nonEmpty ||
         view.overriddenLocalIdeas.nonEmpty ||
         view.preservedLocalIdeas.nonEmpty
     )(view)
