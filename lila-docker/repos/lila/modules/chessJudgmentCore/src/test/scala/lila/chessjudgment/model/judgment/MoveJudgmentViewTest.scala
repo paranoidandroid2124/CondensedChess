@@ -1764,9 +1764,10 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       .get
 
     val activityFrame = view.primaryCauses.find(_.causeKind == RelativeCauseKind.ActivityLoss).get
-    val planFrame = view.primaryCauses.find(_.causeKind == RelativeCauseKind.PlanContradiction).get
+    val planFrame = view.contextCauses.find(_.causeKind == RelativeCauseKind.PlanContradiction).get
+    assertEquals(view.primaryCauses.map(_.causeKind), List(RelativeCauseKind.ActivityLoss))
     assertEquals(activityFrame.narrativeRole, MoveJudgmentCauseNarrativeRole.RootCause)
-    assertEquals(planFrame.narrativeRole, MoveJudgmentCauseNarrativeRole.SupportingCause)
+    assertEquals(planFrame.narrativeRole, MoveJudgmentCauseNarrativeRole.ContextCause)
 
   test("keeps tactical root above broad structural root with only generic activity target"):
     val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
@@ -2394,6 +2395,163 @@ class MoveJudgmentViewTest extends munit.FunSuite:
     val planFrame = view.primaryCauses.find(_.causeKind == RelativeCauseKind.PlanContradiction).get
     assertEquals(planFrame.narrativeRole, MoveJudgmentCauseNarrativeRole.SupportingCause)
     assertEquals(planFrame.rootArbitrationTier, MoveJudgmentCauseRootArbitrationTier.ContextOnly)
+
+  test("demotes weak cause frames when concrete same-comparison peers exist"):
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+    val playedLine = LineNodeRef("played-line", "d2d4", 2, LineNodeRole.Played)
+    val otherLine = LineNodeRef("other-line", "c2c4", 3, LineNodeRole.Alternative)
+
+    def frame(
+        id: String,
+        kind: RelativeCauseKind,
+        role: MoveJudgmentCauseFrameRole,
+        tier: MoveJudgmentCauseRootArbitrationTier,
+        concrete: Boolean,
+        narrativeRole: MoveJudgmentCauseNarrativeRole,
+        candidateLine: LineNodeRef = playedLine
+    ): MoveJudgmentCauseFrame =
+      MoveJudgmentCauseFrame(
+        role = role,
+        clusterId = None,
+        framed = true,
+        causeEvidenceIds = List(id),
+        causeKind = kind,
+        comparisonKind = CandidateComparisonKind.PlayedVsBest,
+        causeRole = RelativeCauseRole.PrimaryPlayedCause,
+        causeSourceSide = RelativeCauseSourceSide.Candidate,
+        causeImportance = RelativeCauseImportance.Primary,
+        attributionKind = CauseAttributionKind.CandidateAllowsLiability,
+        attributionRootMoveMatched = true,
+        attributionDirectProofEligible = true,
+        referenceLine = referenceLine,
+        candidateLine = candidateLine,
+        eventLine = candidateLine,
+        eventRootMove = candidateLine.rootMove,
+        causeClaimIds = Nil,
+        evaluationClaimIds = Nil,
+        witnessClaimIds = Nil,
+        ideaIds = Nil,
+        supportIdeaIds = Nil,
+        claimCandidateIds = Nil,
+        finalClaimIds = Nil,
+        relatedSupportClusterIds = Nil,
+        evidenceIds = Nil,
+        proofDirectSourceIds = Nil,
+        proofContrastSourceIds = Nil,
+        proofContextSupportSourceIds = Nil,
+        proofStrategicAxisLineage = Nil,
+        proofStrategicAxisKeys = Nil,
+        proofStrategicMechanismKinds = Nil,
+        proofStrategicMechanismSourceIds = Nil,
+        proofStrategicMechanismSignalSourceIds = Nil,
+        supportEvidenceSourceIds = Nil,
+        objectBindingSignatures =
+          if concrete then List("target=Square:d4|mechanism=Mechanism:activity|consequence=Consequence:activity")
+          else Nil,
+        concreteObjectReady = concrete,
+        narrativeRole = narrativeRole,
+        rootArbitrationTier = tier
+      )
+
+    val concreteRoot =
+      frame(
+        "concrete-root",
+        RelativeCauseKind.PawnBreakOpportunity,
+        MoveJudgmentCauseFrameRole.PrimaryCause,
+        MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot,
+        concrete = true,
+        narrativeRole = MoveJudgmentCauseNarrativeRole.RootCause
+      )
+    val objectlessPrimary =
+      frame(
+        "objectless-primary",
+        RelativeCauseKind.DefensiveResource,
+        MoveJudgmentCauseFrameRole.PrimaryCause,
+        MoveJudgmentCauseRootArbitrationTier.ContextOnly,
+        concrete = false,
+        narrativeRole = MoveJudgmentCauseNarrativeRole.SupportingCause
+      )
+    val objectlessSecondary =
+      frame(
+        "objectless-secondary",
+        RelativeCauseKind.CandidateTacticalLiability,
+        MoveJudgmentCauseFrameRole.SecondaryCause,
+        MoveJudgmentCauseRootArbitrationTier.ContextOnly,
+        concrete = false,
+        narrativeRole = MoveJudgmentCauseNarrativeRole.SupportingCause
+      )
+    val concreteContextOnly =
+      frame(
+        "concrete-context-only",
+        RelativeCauseKind.DefensiveResource,
+        MoveJudgmentCauseFrameRole.PrimaryCause,
+        MoveJudgmentCauseRootArbitrationTier.ContextOnly,
+        concrete = true,
+        narrativeRole = MoveJudgmentCauseNarrativeRole.SupportingCause
+      )
+    val concreteFallback =
+      frame(
+        "concrete-fallback",
+        RelativeCauseKind.PlanContradiction,
+        MoveJudgmentCauseFrameRole.PrimaryCause,
+        MoveJudgmentCauseRootArbitrationTier.FallbackRoot,
+        concrete = true,
+        narrativeRole = MoveJudgmentCauseNarrativeRole.RootCause
+      )
+    val concreteBroad =
+      frame(
+        "concrete-broad",
+        RelativeCauseKind.ActivityGain,
+        MoveJudgmentCauseFrameRole.SecondaryCause,
+        MoveJudgmentCauseRootArbitrationTier.BroadOwnedRoot,
+        concrete = true,
+        narrativeRole = MoveJudgmentCauseNarrativeRole.SupportingCause
+      )
+    val objectlessTacticalRoot =
+      frame(
+        "objectless-tactical-root",
+        RelativeCauseKind.TacticalRefutationOfPlayed,
+        MoveJudgmentCauseFrameRole.PrimaryCause,
+        MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot,
+        concrete = false,
+        narrativeRole = MoveJudgmentCauseNarrativeRole.RootCause
+      )
+    val objectlessWithoutConcretePeer =
+      frame(
+        "objectless-other-comparison",
+        RelativeCauseKind.DefensiveResource,
+        MoveJudgmentCauseFrameRole.SecondaryCause,
+        MoveJudgmentCauseRootArbitrationTier.ContextOnly,
+        concrete = false,
+        narrativeRole = MoveJudgmentCauseNarrativeRole.SupportingCause,
+        candidateLine = otherLine
+      )
+
+    val buckets = MoveJudgmentView.playerFacingCauseBuckets(
+      List(
+        concreteRoot,
+        objectlessPrimary,
+        objectlessSecondary,
+        concreteContextOnly,
+        concreteFallback,
+        concreteBroad,
+        objectlessTacticalRoot,
+        objectlessWithoutConcretePeer
+      )
+    )
+
+    assertEquals(buckets.primary.map(_.causeEvidenceIds.head), List("concrete-root", "objectless-tactical-root"))
+    assertEquals(buckets.secondary.map(_.causeEvidenceIds.head), List("objectless-other-comparison"))
+    assertEquals(
+      buckets.context.map(frame => frame.causeEvidenceIds.head -> frame.role).toSet,
+      Set(
+        "objectless-primary" -> MoveJudgmentCauseFrameRole.ContextCause,
+        "objectless-secondary" -> MoveJudgmentCauseFrameRole.ContextCause,
+        "concrete-context-only" -> MoveJudgmentCauseFrameRole.ContextCause,
+        "concrete-fallback" -> MoveJudgmentCauseFrameRole.ContextCause,
+        "concrete-broad" -> MoveJudgmentCauseFrameRole.ContextCause
+      )
+    )
 
   test("selects one fallback root when no concrete structural or event root exists"):
     val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))

@@ -1668,13 +1668,14 @@ object MoveJudgmentView:
         .sorted
     val planTechniqueFrames =
       PositionPlanTechniqueProjection.frames(evidenceGraph, ideas, claims, ideaVerdict)
+    val causeBuckets = playerFacingCauseBuckets(narratedCauseFrames)
     val view =
       MoveJudgmentView(
         verdict = relativeAssessments.headOption.map(verdictFrame),
         verdictCarriers = verdictCarriers,
-        primaryCauses = narratedCauseFrames.filter(_.role == MoveJudgmentCauseFrameRole.PrimaryCause),
-        secondaryCauses = narratedCauseFrames.filter(_.role == MoveJudgmentCauseFrameRole.SecondaryCause),
-        contextCauses = narratedCauseFrames.filter(_.role == MoveJudgmentCauseFrameRole.ContextCause),
+        primaryCauses = causeBuckets.primary,
+        secondaryCauses = causeBuckets.secondary,
+        contextCauses = causeBuckets.context,
         positionPlanTechniqueFrames = planTechniqueFrames,
         supportContextClusterIds = supportContextClusterIds,
         overriddenLocalIdeas = overriddenLocalIdeas(ideaVerdict, claims),
@@ -1690,6 +1691,70 @@ object MoveJudgmentView:
         view.overriddenLocalIdeas.nonEmpty ||
         view.preservedLocalIdeas.nonEmpty
     )(view)
+
+  private[judgment] final case class PlayerFacingCauseBuckets(
+      primary: List[MoveJudgmentCauseFrame],
+      secondary: List[MoveJudgmentCauseFrame],
+      context: List[MoveJudgmentCauseFrame]
+  )
+
+  private[judgment] def playerFacingCauseBuckets(
+      frames: List[MoveJudgmentCauseFrame]
+  ): PlayerFacingCauseBuckets =
+    val concretePeerKeys =
+      frames
+        .filter(playerFacingConcretePeer)
+        .map(moveJudgmentCauseComparisonKey)
+        .toSet
+    val primaryCandidates = frames.filter(_.role == MoveJudgmentCauseFrameRole.PrimaryCause)
+    val secondaryCandidates = frames.filter(_.role == MoveJudgmentCauseFrameRole.SecondaryCause)
+    val demoted =
+      (primaryCandidates ++ secondaryCandidates)
+        .filter(frame => moveJudgmentCauseDemoteWeakFrame(frame, concretePeerKeys))
+        .map(moveJudgmentCauseContextFrame)
+    val demotedIds = demoted.map(moveJudgmentCauseFrameIdentity).toSet
+    PlayerFacingCauseBuckets(
+      primary = primaryCandidates.filterNot(frame => demotedIds.contains(moveJudgmentCauseFrameIdentity(frame))),
+      secondary = secondaryCandidates.filterNot(frame => demotedIds.contains(moveJudgmentCauseFrameIdentity(frame))),
+      context =
+        (
+          frames.filter(_.role == MoveJudgmentCauseFrameRole.ContextCause) ++ demoted
+        ).distinctBy(moveJudgmentCauseFrameIdentity)
+    )
+
+  private def playerFacingConcretePeer(frame: MoveJudgmentCauseFrame): Boolean =
+    frame.concreteObjectReady &&
+      (
+        frame.rootArbitrationTier == MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot ||
+          frame.rootArbitrationTier == MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot
+      )
+
+  private def moveJudgmentCauseDemoteWeakFrame(
+      frame: MoveJudgmentCauseFrame,
+      concretePeerKeys: Set[(CandidateComparisonKind, LineNodeRef, LineNodeRef)]
+  ): Boolean =
+    concretePeerKeys.contains(moveJudgmentCauseComparisonKey(frame)) &&
+      (
+        frame.rootArbitrationTier == MoveJudgmentCauseRootArbitrationTier.ContextOnly ||
+          frame.rootArbitrationTier == MoveJudgmentCauseRootArbitrationTier.FallbackRoot ||
+          frame.rootArbitrationTier == MoveJudgmentCauseRootArbitrationTier.BroadOwnedRoot
+      )
+
+  private def moveJudgmentCauseContextFrame(frame: MoveJudgmentCauseFrame): MoveJudgmentCauseFrame =
+    frame.copy(
+      role = MoveJudgmentCauseFrameRole.ContextCause,
+      narrativeRole = MoveJudgmentCauseNarrativeRole.ContextCause
+    )
+
+  private def moveJudgmentCauseComparisonKey(
+      frame: MoveJudgmentCauseFrame
+  ): (CandidateComparisonKind, LineNodeRef, LineNodeRef) =
+    (frame.comparisonKind, frame.referenceLine, frame.candidateLine)
+
+  private def moveJudgmentCauseFrameIdentity(
+      frame: MoveJudgmentCauseFrame
+  ): (List[String], RelativeCauseKind, CandidateComparisonKind, LineNodeRef, LineNodeRef) =
+    (frame.causeEvidenceIds, frame.causeKind, frame.comparisonKind, frame.referenceLine, frame.candidateLine)
 
   private final case class CauseEvidenceEntry(
       id: String,
