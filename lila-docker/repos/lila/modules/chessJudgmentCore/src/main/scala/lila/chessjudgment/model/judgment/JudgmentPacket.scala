@@ -1736,7 +1736,7 @@ object MoveMeaningClaim:
       meaningKind = claimSelection._3
       claimRole = claimSelection._4
       roleCompatibleCauseFrames = claimSelection._5
-      support <- supportLevel(detail, roleCompatibleCauseFrames, objectSignatures)
+      support <- supportLevel(detail, roleCompatibleCauseFrames, objectSignatures, claimMove)
     yield
       val surfaceObjectSignatures = surfaceObjectBindingSignatures(detail, objectSignatures, claimMove)
       val linkedCauseIds =
@@ -1771,22 +1771,67 @@ object MoveMeaningClaim:
   private def supportLevel(
       detail: PositionPlanTechniqueSemanticDetail,
       linkedCauseFrames: List[MoveJudgmentCauseFrame],
-      objectSignatures: List[String]
+      objectSignatures: List[String],
+      claimMove: String
   ): Option[String] =
     val hasConcreteObject = concreteObject(detail, objectSignatures)
     val specificObjectAxis = specificity(detail)
     val direct = directProof(detail)
     val hasDetailEvidence = detailEvidence(detail)
+    val currentMoveFunctionalProof = currentMoveFunctionalDetailProof(detail, objectSignatures, claimMove)
     val ownedCause =
       linkedCauseFrames.exists(frame => frame.concreteObjectReady && frame.hasOwnedAdmissibleLongTermProof) ||
         linkedCauseFrames.exists(frame => frame.concreteObjectReady && frame.attributionDirectProofEligible)
     if linkedCauseFrames.nonEmpty && ownedCause && hasConcreteObject && specificObjectAxis && direct then
       Some("owned_cause_linked")
-    else if hasConcreteObject && specificObjectAxis && hasDetailEvidence && anyProof(detail) then
+    else if hasConcreteObject && (specificObjectAxis || currentMoveFunctionalProof) && hasDetailEvidence && (anyProof(detail) || currentMoveFunctionalProof) then
       Some("view_surfaced")
     else if hasDetailEvidence && contextualMeaningDetail(detail) then
       Some("contextual")
     else None
+
+  private def currentMoveFunctionalDetailProof(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String
+  ): Boolean =
+    val moveOwnedSource =
+      detail.sourceEvidenceIds.exists(id =>
+        val normalized = id.toLowerCase
+        normalized.contains("structural-delta") ||
+          normalized.contains("played-transition") ||
+          normalized.contains("reference-transition")
+      )
+    detail.unit match
+      case PositionPlanTechniqueUnit.PieceRerouteRoute =>
+        moveOwnedSource &&
+          detail.structuralRouteMove.exists(move => sameMove(move, claimMove)) &&
+          pieceRouteDetailReady(detail) &&
+          pieceRouteOwnsClaimMove(detail, claimMove)
+      case PositionPlanTechniqueUnit.StructuralTransformation =>
+        moveOwnedSource &&
+          detail.structuralRouteMove.exists(move => sameMove(move, claimMove)) &&
+          generalDetailOwnsClaimMove(detail, objectSignatures, claimMove) &&
+          detail.axisKind.exists(kind =>
+            kind == StrategicAxisKind.Target ||
+              kind == StrategicAxisKind.SpaceCenter
+          ) &&
+          (
+            detail.structuralPurposeSubjects.exists(concreteSubject) ||
+              signatureTokens(objectSignatures, "target=").exists(concreteTargetToken)
+          )
+      case PositionPlanTechniqueUnit.TensionBreakPolicyRoute =>
+        moveOwnedSource &&
+          pawnBreakOwnsClaimMove(detail, objectSignatures, claimMove) &&
+          (
+            detail.breakFile.nonEmpty ||
+              detail.tensionSquares.nonEmpty ||
+              detail.tensionEdges.nonEmpty ||
+              detail.counterBreakFiles.nonEmpty ||
+              detail.structuralPurposeSubjects.exists(concreteSubject)
+          )
+      case _ =>
+        false
 
   private def causeFrameOwnsMeaningClaim(
       frame: MoveJudgmentCauseFrame,
@@ -2480,6 +2525,9 @@ object MoveMeaningClaim:
         detail.maintainedSquares.map(value => s"maintainedSquare:$value") ++
         detail.brokenSquares.map(value => s"brokenSquare:$value") ++
         detail.structuralMotifTags.map(value => s"structuralMotif:$value") ++
+        detail.structuralPurposeSubjects.map(value => s"structuralSubject:$value") ++
+        detail.structuralPurposeConsequences.map(value => s"structuralConsequence:$value") ++
+        detail.structuralPurposeCategories.map(value => s"structuralCategory:$value") ++
         detail.boardAnchorSignals.map(value => s"boardAnchorSignal:$value") ++
         detail.planAlignmentReasonCodes.map(value => s"planReason:$value") ++
         linkedCauseIds.map(value => s"causeEvidenceId:$value") ++
