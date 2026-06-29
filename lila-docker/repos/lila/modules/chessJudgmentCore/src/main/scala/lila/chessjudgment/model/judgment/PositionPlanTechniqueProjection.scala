@@ -684,19 +684,48 @@ object PositionPlanTechniqueProjection:
   ): List[String] =
     if detail.unit != PositionPlanTechniqueUnit.PieceRerouteRoute then Nil
     else
-      val pieceRoute = raw"([a-z]+):([a-h][1-8])-([a-h][1-8]).*".r
-      detail.structuralPurposeSubjects.collect {
-        case pieceRoute(piece, from, to) =>
-          (
-            detail.structuralRouteMove.map(move => s"actor=Move:${move.toLowerCase}") ::
-              List(
-                Some(s"actor=Piece:${piece.toLowerCase}"),
-                Some(s"actor=Square:${from.toLowerCase}"),
-                Some(s"target=Square:${to.toLowerCase}"),
-                Some("mechanism=Mechanism:developmentchoice"),
-                Some("consequence=Consequence:developmentpieceactivated")
-              )
-          ).flatten.mkString("|")
+      detail.structuralPurposeSubjects.flatMap { subject =>
+        StructuralPurposeSubject.parse(subject) match
+          case Some(StructuralPurposeSubject.PieceRoute(piece, from, to)) =>
+            List(
+              (
+                detail.structuralRouteMove.map(move => s"actor=Move:${move.toLowerCase}") ::
+                  List(
+                    Some(s"actor=Piece:${piece.toLowerCase}"),
+                    Some(s"actor=Square:${from.toLowerCase}"),
+                    Some(s"target=Square:${to.toLowerCase}"),
+                    Some("mechanism=Mechanism:developmentchoice"),
+                    Some("consequence=Consequence:developmentpieceactivated")
+                  )
+              ).flatten.mkString("|")
+            )
+          case Some(StructuralPurposeSubject.Outpost(piece, square)) =>
+            List(
+              (
+                detail.structuralRouteMove.map(move => s"actor=Move:${move.toLowerCase}") ::
+                  List(
+                    Some(s"actor=Piece:${piece.toLowerCase}"),
+                    Some(s"target=Square:${square.toLowerCase}"),
+                    Some("mechanism=Mechanism:outpost"),
+                    Some("consequence=Consequence:outpost")
+                  )
+              ).flatten.mkString("|")
+            )
+          case Some(StructuralPurposeSubject.Battery(axis, from, to, roles)) =>
+            val roleActors = roles.map(role => Some(s"actor=Piece:${role.toLowerCase}"))
+            List(
+              (
+                detail.structuralRouteMove.map(move => s"actor=Move:${move.toLowerCase}") ::
+                  (roleActors ++ List(
+                    Some(s"target=Square:${from.toLowerCase}"),
+                    Some(s"target=Square:${to.toLowerCase}"),
+                    Some(s"mechanism=Mechanism:battery-${axis.toLowerCase}"),
+                    Some("consequence=Consequence:batteryline")
+                  ))
+              ).flatten.mkString("|")
+            )
+          case _ =>
+            Nil
       }.distinct.sorted
 
   private def positionPlanTechniqueExactAxisFallbackCauseRecords(
@@ -794,12 +823,15 @@ object PositionPlanTechniqueProjection:
   private def positionPlanTechniqueConcretePieceRoute(
       detail: PositionPlanTechniqueSemanticDetail
   ): Boolean =
-    val pieceRoute = raw"[a-z]+:[a-h][1-8]-[a-h][1-8].*".r
     detail.structuralRouteMove.nonEmpty &&
-      detail.structuralPurposeSubjects.exists {
-        case pieceRoute() => true
-        case _            => false
-      }
+      detail.structuralPurposeSubjects.exists(positionPlanTechniqueRouteSubject)
+
+  private def positionPlanTechniqueRouteSubject(subject: String): Boolean =
+    StructuralPurposeSubject.parse(subject) match
+      case Some(StructuralPurposeSubject.PieceRoute(_, _, _))   => true
+      case Some(StructuralPurposeSubject.Outpost(_, _))          => true
+      case Some(StructuralPurposeSubject.Battery(_, _, _, _))    => true
+      case _                                                    => false
 
   private def positionPlanTechniqueConcreteStructuralPlanCauseKind(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -1584,12 +1616,8 @@ object PositionPlanTechniqueProjection:
     val consequences = detail.structuralPurposeConsequences.map(_.toLowerCase)
     val categories = detail.structuralPurposeCategories.map(_.toLowerCase)
     val subjects = detail.structuralPurposeSubjects.map(_.toLowerCase)
-    val routeSubject = raw"[a-z]+:[a-h][1-8]-[a-h][1-8].*".r
     val hasConcretePieceRoute =
-      subjects.exists {
-        case routeSubject() => true
-        case _              => false
-      }
+      subjects.exists(positionPlanTechniqueRouteSubject)
     val hasPieceActivity =
       hasConcretePieceRoute ||
       subjects.exists {
@@ -1606,11 +1634,23 @@ object PositionPlanTechniqueProjection:
       consequences.exists(_.contains("outpost")) ||
         categories.exists(_.contains("outpost")) ||
         anchorKeys.exists(_.contains("outpost"))
+    val hasBattery =
+      subjects.exists(_.contains("battery:")) ||
+        consequences.exists(_.contains("battery")) ||
+        categories.exists(_.contains("battery")) ||
+        anchorKeys.exists(_.contains("battery"))
+    val hasDiagonal =
+      subjects.exists(_.contains("diagonal")) ||
+        consequences.exists(_.contains("diagonal")) ||
+        categories.exists(_.contains("diagonal")) ||
+        anchorKeys.exists(_.contains("diagonal"))
     (
       Option.when(hasPieceActivity)("piece").toList ++
         Option.when(hasConcretePieceRoute)("route").toList ++
         Option.when(hasConcretePieceRoute && detail.structuralRouteMove.nonEmpty)("reroute").toList ++
-        Option.when(hasOutpost)("outpost").toList
+        Option.when(hasOutpost)("outpost").toList ++
+        Option.when(hasBattery)("battery").toList ++
+        Option.when(hasDiagonal)("diagonal").toList
     ).distinct.sorted
 
   private def positionPlanTechniqueResourceScopes(anchor: BoardAnchor): List[String] =

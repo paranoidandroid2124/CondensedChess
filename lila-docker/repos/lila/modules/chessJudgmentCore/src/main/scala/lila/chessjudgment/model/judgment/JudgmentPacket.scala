@@ -1707,7 +1707,7 @@ object MoveMeaningClaim:
         )
         .distinctBy(_.causeEvidenceIds)
     for
-      baseMeaningKind <- kind(detail, Nil)
+      baseMeaningKind <- kind(detail)
       if detailMatchesLine(frame, detail, verdict)
       baseClaimRole = role(baseMeaningKind, detail)
       lineRoleOptions =
@@ -1722,7 +1722,7 @@ object MoveMeaningClaim:
             linkedCauseFrames.filter(linkedFrame =>
               causeFrameOwnsMeaningClaim(linkedFrame, detail, objectSignatures, optionMove, baseClaimRole)
             )
-          val optionMeaningKind = kind(detail, optionLinkedCauseFrames).getOrElse(baseMeaningKind)
+          val optionMeaningKind = kind(detail).getOrElse(baseMeaningKind)
           val optionClaimRole = role(optionMeaningKind, detail)
           val optionRoleCompatibleCauseFrames =
             optionLinkedCauseFrames.filter(linkedFrame =>
@@ -1830,6 +1830,10 @@ object MoveMeaningClaim:
               detail.counterBreakFiles.nonEmpty ||
               detail.structuralPurposeSubjects.exists(concreteSubject)
           )
+      case PositionPlanTechniqueUnit.SpacePreventionResourceDenial | PositionPlanTechniqueUnit.CounterplayRace =>
+        moveOwnedSource &&
+          resourceDetailOwnsClaimMove(detail, objectSignatures, claimMove) &&
+          resourceDetailHasConcreteCarrier(detail, objectSignatures)
       case _ =>
         false
 
@@ -1903,9 +1907,23 @@ object MoveMeaningClaim:
       objectSignatures: List[String],
       claimMove: String
   ): Boolean =
-    generalDetailOwnsClaimMove(detail, objectSignatures, claimMove) ||
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
+    moveTokens(objectSignatures).contains(normalizedClaimMove) ||
+      detail.structuralRouteMove.exists(move => sameMove(move, claimMove)) ||
+      detail.defenseMove.exists(move => sameMove(move, claimMove)) ||
       moveTouchesSquares(claimMove, detail.resourceContestSquares) ||
-      moveTouchesFiles(claimMove, detail.resourceContestFiles)
+      moveTouchesFiles(claimMove, detail.resourceContestFiles) ||
+      targetTokensTouchMove(objectSignatures, claimMove)
+
+  private def resourceDetailHasConcreteCarrier(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String]
+  ): Boolean =
+    detail.resourceContestSquares.nonEmpty ||
+      detail.resourceContestFiles.nonEmpty ||
+      detail.defenseMove.nonEmpty ||
+      detail.structuralPurposeSubjects.exists(concreteSubject) ||
+      signatureTokens(objectSignatures, "target=").exists(concreteTargetToken)
 
   private def generalDetailOwnsClaimMove(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -2157,9 +2175,7 @@ object MoveMeaningClaim:
           detail.tensionEdges.nonEmpty ||
           detail.counterBreakFiles.nonEmpty
       case PositionPlanTechniqueUnit.SpacePreventionResourceDenial | PositionPlanTechniqueUnit.CounterplayRace =>
-        detail.resourceContestSquares.nonEmpty ||
-          detail.resourceContestFiles.nonEmpty ||
-          signatureTokens(detail.objectBindingSignatures, "target=").exists(concreteTargetToken)
+        resourceDetailHasConcreteCarrier(detail, detail.objectBindingSignatures)
       case PositionPlanTechniqueUnit.EndgameTechniqueRecipe =>
         detail.requiredSquares.nonEmpty ||
           detail.maintainedSquares.nonEmpty ||
@@ -2186,7 +2202,9 @@ object MoveMeaningClaim:
     normalized.contains("route") ||
       normalized.contains("rerout") ||
       normalized.contains("outpost") ||
-      normalized.contains("maneuver")
+      normalized.contains("maneuver") ||
+      normalized.contains("battery") ||
+      normalized.contains("diagonal")
 
   private def routeSubjectToken(subject: String): Boolean =
     val normalized = subject.toLowerCase
@@ -2208,7 +2226,8 @@ object MoveMeaningClaim:
     val normalized = signature.toLowerCase
     normalized.contains("developmentchoice") ||
       normalized.contains("rerouting") ||
-      normalized.contains("maneuver")
+      normalized.contains("maneuver") ||
+      normalized.contains("battery")
 
   private def crossComparisonLineOwnsClaimMove(
       frame: MoveJudgmentCauseFrame,
@@ -2369,8 +2388,7 @@ object MoveMeaningClaim:
       polarity == StrategicAxisPolarity.Concede
 
   private def kind(
-      detail: PositionPlanTechniqueSemanticDetail,
-      causeFrames: List[MoveJudgmentCauseFrame]
+      detail: PositionPlanTechniqueSemanticDetail
   ): Option[String] =
     val base =
       detail.unit match
@@ -2383,7 +2401,9 @@ object MoveMeaningClaim:
         case PositionPlanTechniqueUnit.CounterplayRace =>
           Some("CounterplayRace")
         case PositionPlanTechniqueUnit.SpacePreventionResourceDenial =>
-          Some("CounterplayControl")
+          detail.axisKind match
+            case Some(StrategicAxisKind.SpaceCenter) => Some("CenterControl")
+            case _                                   => Some("CounterplayControl")
         case PositionPlanTechniqueUnit.PieceRerouteRoute =>
           Some("PieceRoute")
         case PositionPlanTechniqueUnit.StructuralTransformation =>
@@ -2397,11 +2417,7 @@ object MoveMeaningClaim:
             case None                                  => Some("StructureShift")
         case PositionPlanTechniqueUnit.CompensationSource =>
           Some("Compensation")
-    base match
-      case Some("CounterplayRace") if causeFrames.exists(_.causeKind == RelativeCauseKind.OpponentRestriction) =>
-        Some("CounterplayControl")
-      case other =>
-        other
+    base
 
   private def role(
       meaningKind: String,
@@ -2426,9 +2442,13 @@ object MoveMeaningClaim:
         then "PreservesTension"
         else "PreparesBreak"
       case "CounterplayControl" =>
-        "PreventsCounterplay"
+        if detail.axisPolarity.exists(negativePolarity) || detail.contrastOutcome.contains(StrategicAxisComparisonOutcome.CandidateConcession)
+        then "ConcedesCounterplay"
+        else "PreventsCounterplay"
       case "CounterplayRace" =>
-        "StartsCounterplayRace"
+        if detail.axisPolarity.exists(negativePolarity) || detail.contrastOutcome.contains(StrategicAxisComparisonOutcome.CandidateConcession)
+        then "ConcedesCounterplayRace"
+        else "StartsCounterplayRace"
       case "PieceRoute" | "PieceActivity" =>
         "ImprovesPieceRoute"
       case "TechniqueConversion" =>
@@ -2521,6 +2541,14 @@ object MoveMeaningClaim:
         detail.counterBreakFiles.map(value => s"counterBreakFile:$value") ++
         detail.resourceContestSquares.map(value => s"resourceContestSquare:$value") ++
         detail.resourceContestFiles.map(value => s"resourceContestFile:$value") ++
+        detail.resourceContestKinds.map(value => s"resourceContestKind:$value") ++
+        detail.resourceContestSignals.map(value => s"resourceContestSignal:$value") ++
+        detail.resourceContestScopes.map(value => s"resourceContestScope:$value") ++
+        detail.defenseMove.map(value => s"defenseMove:$value").toList ++
+        detail.prophylaxisNeeded.map(value => s"prophylaxisNeeded:$value").toList ++
+        detail.turnsToImpact.map(value => s"turnsToImpact:$value").toList ++
+        detail.raceCandidateRootMove.map(value => s"raceCandidateRootMove:$value").toList ++
+        detail.raceReferenceRootMove.map(value => s"raceReferenceRootMove:$value").toList ++
         detail.requiredSquares.map(value => s"requiredSquare:$value") ++
         detail.maintainedSquares.map(value => s"maintainedSquare:$value") ++
         detail.brokenSquares.map(value => s"brokenSquare:$value") ++

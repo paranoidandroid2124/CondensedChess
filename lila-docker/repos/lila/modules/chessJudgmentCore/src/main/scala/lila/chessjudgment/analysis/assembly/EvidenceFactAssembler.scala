@@ -240,7 +240,7 @@ object EvidenceFactAssembler:
           node.assessment.flatMap { assessment =>
             PawnPlayAssessor.analyze(
               features = features,
-              motifs = motifsForLineRole(context, LineNodeRole.BestReference),
+              motifs = pawnPlayMotifsForPosition(context, node.role),
               positionAssessment = assessment,
               sideToMove = side
             )
@@ -1338,6 +1338,19 @@ object EvidenceFactAssembler:
         case EvidenceRecord(ref, payload: MoveMotifEvidence, _) if ref.line.contains(lineRef) => payload.motif
       })
     }.getOrElse(Nil)
+
+  private def pawnPlayMotifsForPosition(context: JudgmentAssemblyContext, role: PositionNodeRole): List[Motif] =
+    role match
+      case PositionNodeRole.AfterPlayed =>
+        motifsForLineRole(context, LineNodeRole.Played)
+      case PositionNodeRole.AfterReference =>
+        motifsForLineRole(context, LineNodeRole.BestReference)
+      case PositionNodeRole.AfterAlternative =>
+        motifsForLineRole(context, LineNodeRole.Alternative)
+      case PositionNodeRole.AfterThreat =>
+        motifsForLineRole(context, LineNodeRole.Threat)
+      case PositionNodeRole.Before =>
+        motifsForLineRole(context, LineNodeRole.BestReference)
 
   private def motifsForLineNode(context: JudgmentAssemblyContext, line: CandidateLineNode): List[Motif] =
     context.evidenceGraph.records.collect {

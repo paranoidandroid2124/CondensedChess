@@ -555,9 +555,10 @@ private[chessjudgment] object StructuralDeltaAnalyzer:
   private def batteryLines(fen: String, side: Color): Set[String] =
     Fen.read(_root_.chess.variant.Standard, Fen.Full(fen)).toList.flatMap { position =>
       MoveAnalyzer.detectStateMotifs(position, 0).collect {
-        case Motif.Battery(_, _, axis, color, _, _, Some(front), Some(back)) if color == side =>
-          val ordered = List(front.key, back.key).sorted
-          s"battery:${axis.toString.toLowerCase}:${ordered.mkString("-")}"
+        case Motif.Battery(frontRole, backRole, axis, color, _, _, Some(front), Some(back)) if color == side =>
+          val endpoints =
+            List(front.key -> frontRole.name.toLowerCase, back.key -> backRole.name.toLowerCase).sortBy(_._1)
+          s"battery:${axis.toString.toLowerCase}:${endpoints.map(_._1).mkString("-")}:${endpoints.map(_._2).mkString("-")}"
       }
     }.toSet
 

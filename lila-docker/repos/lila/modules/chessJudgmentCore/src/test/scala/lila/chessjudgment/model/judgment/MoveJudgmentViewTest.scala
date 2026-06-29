@@ -602,6 +602,139 @@ class MoveJudgmentViewTest extends munit.FunSuite:
     assertEquals(detail.causeEvidenceIds, List(causeRef.id))
     assert(detail.proofRoles.contains(RelativeCauseProofRole.DirectProof), detail.proofRoles)
 
+  test("preserves diagonal battery piece roles and target squares in piece route detail"):
+    val root = PositionNodeRef("8/8/8/8/8/8/6P1/2B1K2Q w - - 0 1", 1, Some(Color.White), Some("root"))
+    val afterPlayed = PositionNodeRef("8/8/7Q/8/8/8/6P1/2B1K3 b - - 1 1", 2, Some(Color.Black), Some("after-played"))
+    val playedLine = LineNodeRef("played-line", "h1h6", 1, LineNodeRole.Played)
+    val structuralRef = evidenceRef(
+      id = "structural-delta:played:h1h6:diagonal-battery",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition
+    )
+    val causeRef = evidenceRef(
+      id = "relative-cause:played-best:diagonal-battery-plan",
+      producer = EvidenceProducer.RelativeMoveProducer,
+      layer = EvidenceLayer.RelativeCause,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.Counterfactual
+    )
+    val mechanismRef = evidenceRef(
+      id = "strategic-mechanism:activity:h1h6:diagonal-battery",
+      producer = EvidenceProducer.StrategicMechanismProducer,
+      layer = EvidenceLayer.StrategicMechanism,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition
+    )
+    val transition = StructuralTransitionBinding(
+      moveUci = "h1h6",
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = afterPlayed,
+      line = Some(playedLine),
+      perspective = Color.White
+    )
+    val structuralDelta = StructuralDeltaEvidence(
+      transition = transition,
+      signals = Nil,
+      consequences = List(
+        TransitionConsequence(
+          kind = TransitionConsequenceKind.BatteryPressureGain,
+          polarity = StructuralSignalPolarity.Gain,
+          strength = 3,
+          subjects = List("battery:diagonal:c1-h6:bishop-queen")
+        )
+      )
+    )
+    val axis = StrategicAxisDetail(StrategicAxisKind.Activity, StrategicAxisPolarity.Gain, "diagonal-battery")
+    val mechanism = StrategicMechanismEvidence(
+      kind = StrategicMechanismKind.Activity,
+      signals = List(
+        StrategicMechanismSignal(
+          kind = StrategicMechanismSignalKind.StructuralDelta,
+          label = "diagonal-battery",
+          source = structuralRef,
+          strength = 3,
+          axis = Some(axis)
+        )
+      ),
+      semanticAnchors = Nil
+    )
+    val planCause = RelativeCauseFact(
+      kind = RelativeCauseKind.PlanImprovement,
+      comparisonKind = CandidateComparisonKind.PlayedVsBest,
+      referenceLine = LineNodeRef("reference-line", "e1e2", 1, LineNodeRole.BestReference),
+      candidateLine = playedLine,
+      verdict = MoveChoiceVerdict.MatchesReference,
+      winPercentLossForMover = 0.0,
+      candidateWinPercentDeltaForMover = 0.0,
+      supportEvidence = List(mechanismRef),
+      evidenceLines = List(playedLine),
+      role = RelativeCauseRole.PrimaryPlayedCause,
+      eventLine = playedLine,
+      sourceSide = RelativeCauseSourceSide.Candidate,
+      importance = RelativeCauseImportance.Primary,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.CandidateCreatesValue,
+        ownedEvidence = List(mechanismRef),
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(
+      Some(
+        RelativeCauseProof(
+          directProof = RelativeCauseProofSection(
+            role = RelativeCauseProofRole.DirectProof,
+            strength = RelativeCauseProofStrength.Primary,
+            strategicMechanisms = List(
+              StrategicMechanismProof(
+                source = mechanismRef,
+                kind = StrategicMechanismKind.Activity,
+                signals = mechanism.signals
+              )
+            )
+          )
+        )
+      )
+    )
+
+    val frame = PositionPlanTechniqueProjection
+      .frames(
+        TypedEvidenceGraph(
+          List(
+            EvidenceRecord(structuralRef, structuralDelta),
+            EvidenceRecord(mechanismRef, mechanism, parents = List(structuralRef)),
+            EvidenceRecord(causeRef, RelativeCauseFactEvidence(planCause), parents = List(mechanismRef))
+          )
+        ),
+        Nil,
+        Nil,
+        None
+      )
+      .head
+    val detail = frame.semanticDetails.find(_.unit == PositionPlanTechniqueUnit.PieceRerouteRoute).get
+
+    assertEquals(detail.structuralPurposeSubjects, List("battery:diagonal:c1-h6:bishop-queen"))
+    assert(detail.structuralMotifTags.contains("battery"), detail.structuralMotifTags)
+    assert(detail.structuralMotifTags.contains("diagonal"), detail.structuralMotifTags)
+    assertEquals(detail.causeEvidenceIds, List(causeRef.id))
+    assert(detail.proofRoles.contains(RelativeCauseProofRole.DirectProof), detail.proofRoles)
+    assertEquals(detail.specificityTier, PositionPlanTechniqueSpecificityTier.ExactObjectAxis)
+    assert(
+      detail.objectBindingSignatures.exists(signature =>
+        signature.contains("actor=Piece:bishop") &&
+          signature.contains("actor=Piece:queen") &&
+          signature.contains("target=Square:c1") &&
+          signature.contains("target=Square:h6") &&
+          signature.contains("mechanism=Mechanism:battery-diagonal")
+      ),
+      detail.objectBindingSignatures
+    )
+
   test("decodes counterplay race line lead from strategic contrast"):
     val root = PositionNodeRef("8/8/8/8/8/8/4P3/4K3 w - - 0 1", 1, Some(Color.White), Some("root"))
     val referenceLine = LineNodeRef("reference-line", "b2b4", 1, LineNodeRole.BestReference)

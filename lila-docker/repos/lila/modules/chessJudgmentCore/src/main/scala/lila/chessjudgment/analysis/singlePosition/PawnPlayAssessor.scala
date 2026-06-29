@@ -59,7 +59,8 @@ object PawnPlayAssessor:
       val tensionPolicy = computeTensionPolicy(features, positionAssessment, breakReady, advanceOrCapture)
       val tensionSquares = extractTensionSquares(board)
       val tensionEdges = extractTensionEdges(board)
-      val driver = computePrimaryDriver(breakReady, urgency, advanceOrCapture, features.centralSpace.pawnTensionCount)
+      val driver =
+        computePrimaryDriver(breakReady, urgency, advanceOrCapture, features.centralSpace.pawnTensionCount, counterBreak)
 
       PawnPlayAnalysis(
         pawnBreakReady = breakReady,
@@ -420,12 +421,14 @@ object PawnPlayAssessor:
     breakReady: Boolean,
     urgency: PassedPawnUrgency,
     advanceOrCapture: Boolean,
-    tensionCount: Int
+    tensionCount: Int,
+    counterBreak: Boolean
   ): PawnPlayDriver =
     if urgency == PassedPawnUrgency.Critical then PawnPlayDriver.PassedPawn
     else if advanceOrCapture then PawnPlayDriver.TensionCritical
     else if breakReady then PawnPlayDriver.BreakReady
     else if tensionCount > 0 then PawnPlayDriver.TensionActive
+    else if counterBreak then PawnPlayDriver.Defensive
     else PawnPlayDriver.Quiet
 
   private def colorMatches(motifColor: Color, isWhite: Boolean): Boolean =

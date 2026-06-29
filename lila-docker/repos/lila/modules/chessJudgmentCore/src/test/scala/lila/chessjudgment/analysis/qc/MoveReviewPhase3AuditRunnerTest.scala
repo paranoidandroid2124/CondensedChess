@@ -1440,6 +1440,77 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assert(signatures.exists(signature => signature.contains("target=Square:d4") && signature.contains("target=Square:e5")), signatures)
     assert(signatures.exists(_.contains("target=File:c")), signatures)
 
+  test("structural pawn tension delta uses concrete break and tension subjects as axis label"):
+    val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(chess.Color.White), Some("root"))
+    val after = PositionNodeRef("8/8/8/8/4P3/8/8/8 b - - 0 1", 2, Some(chess.Color.Black), Some("after"))
+    val transition = StructuralTransitionBinding(
+      moveUci = "e2e4",
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = after,
+      line = Some(candidateLine),
+      perspective = chess.Color.White
+    )
+    val record =
+      EvidenceRecord(
+        evidenceRef("structural-delta:pawn-tension", root),
+        StructuralDeltaEvidence(
+          transition = transition,
+          signals = Nil,
+          consequences = List(
+            TransitionConsequence(
+              TransitionConsequenceKind.PawnTensionGain,
+              StructuralSignalPolarity.Gain,
+              strength = 3,
+              subjects = List("break-file:e", "created-tension:e4-d5")
+            )
+          )
+        )
+      )
+    val axisLabels =
+      StrategicMechanismEvidence
+        .sourceMechanisms(record)
+        .flatMap { case (_, signal) => signal.axis.map(_.label) }
+
+    assert(axisLabels.contains("break-file-e-created-tension-e4-d5"), axisLabels)
+    assert(!axisLabels.contains("pawn-structure-delta"), axisLabels)
+
+  test("structural pawn tension resolution emits release axis instead of positive break support"):
+    val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(chess.Color.White), Some("root"))
+    val after = PositionNodeRef("8/8/8/8/8/8/8/8 b - - 0 1", 2, Some(chess.Color.Black), Some("after"))
+    val transition = StructuralTransitionBinding(
+      moveUci = "d4e5",
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = after,
+      line = Some(candidateLine),
+      perspective = chess.Color.White
+    )
+    val record =
+      EvidenceRecord(
+        evidenceRef("structural-delta:pawn-tension-resolution", root),
+        StructuralDeltaEvidence(
+          transition = transition,
+          signals = Nil,
+          consequences = List(
+            TransitionConsequence(
+              TransitionConsequenceKind.PawnTensionResolution,
+              StructuralSignalPolarity.Loss,
+              strength = 3,
+              subjects = List("resolved-tension:d4-e5")
+            )
+          )
+        )
+      )
+    val axes =
+      StrategicMechanismEvidence
+        .sourceMechanisms(record)
+        .flatMap { case (_, signal) => signal.axis }
+
+    assert(axes.exists(axis => axis.kind == StrategicAxisKind.PawnBreak && axis.polarity == StrategicAxisPolarity.Release), axes)
+    assert(axes.exists(_.label == "resolved-tension-d4-e5"), axes)
+    assert(!axes.exists(axis => axis.polarity == StrategicAxisPolarity.Support && axis.label == "resolved-tension-d4-e5"), axes)
+
   test("pawn play assessor recognizes central advance break candidates"):
     val fen = "rnbq1rk1/pp3ppp/4pn2/8/1bBP4/2N2N2/PP3PPP/R1BQ1RK1 b - - 0 9"
     val features = PositionAnalyzer.extractFeatures(fen, 17).get
@@ -1483,6 +1554,29 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assert(pawnPlay.pawnBreakReady)
     assertEquals(pawnPlay.breakFile, Some("e"))
     assertEquals(pawnPlay.primaryDriver, PawnPlayDriver.BreakReady)
+
+  test("pawn play assessor keeps opponent counter-break as defensive driver when no stronger pawn action exists"):
+    val fen = "4k3/8/8/8/8/8/4K3/8 w - - 0 1"
+    val features = PositionAnalyzer.extractFeatures(fen, 1).get
+    val assessment =
+      SinglePositionAssessor.classify(
+        features = features,
+        multiPv = Nil,
+        currentWhitePovEvalCp = 0,
+        sideToMove = chess.Color.White
+      )
+    val pawnPlay =
+      PawnPlayAssessor.analyze(
+        features = features,
+        motifs = List(Motif.PawnBreak(File.C, File.D, Color.Black, plyIndex = 0, move = Some("c7d6"))),
+        positionAssessment = assessment,
+        sideToMove = chess.Color.White
+      ).get
+
+    assertEquals(pawnPlay.pawnBreakReady, false)
+    assertEquals(pawnPlay.counterBreak, true)
+    assertEquals(pawnPlay.counterBreakFiles, List("c"))
+    assertEquals(pawnPlay.primaryDriver, PawnPlayDriver.Defensive)
 
   test("board fact anchors preserve concrete target squares for outposts and weak squares"):
     val position = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(chess.Color.White), Some("root"))
@@ -1965,6 +2059,129 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     )
 
     assertEquals(view.moveMeaningClaims, Nil)
+
+  test("move meaning claims preserve concrete counterplay resource without side-only promotion"):
+    val resourceSignature =
+      "actor=Move:e2e3|target=Square:e4|mechanism=Mechanism:counterplayrestraint|consequence=Consequence:counterplayrestraint"
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.SpacePreventionResourceDenial,
+      axisKey = Some("Counterplay:Restrain:opponent-low-mobility"),
+      axisKind = Some(StrategicAxisKind.Counterplay),
+      axisPolarity = Some(StrategicAxisPolarity.Restrain),
+      label = Some("opponent-low-mobility"),
+      candidateEvidenceIds = List("played-transition"),
+      sourceEvidenceIds = List("structural-delta:played:e2e3", "played-transition"),
+      objectBindingSignatures = List(resourceSignature),
+      specificityTier = PositionPlanTechniqueSpecificityTier.BroadAxis,
+      resourceContestSquares = List("e4"),
+      resourceContestKinds = List("CounterplayRestraint"),
+      resourceContestSignals = List("OpponentLowMobility"),
+      resourceContestScopes = List("counterplay")
+    )
+    val sideOnly = detail.copy(
+      objectBindingSignatures = List("target=Side:black|mechanism=Mechanism:counterplayrestraint"),
+      resourceContestSquares = Nil,
+      resourceContestKinds = Nil,
+      resourceContestSignals = Nil,
+      resourceContestScopes = Nil
+    )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(detail, sideOnly)
+    )
+
+    assertEquals(view.moveMeaningClaims.map(_.meaningKind), List("CounterplayControl"))
+    assertEquals(view.moveMeaningClaims.head.supportLevel, "view_surfaced")
+    assertEquals(view.moveMeaningClaims.head.role, "PreventsCounterplay")
+    assert(view.moveMeaningClaims.head.reasonTokens.contains("resourceContestSquare:e4"))
+    assert(view.moveMeaningClaims.head.reasonTokens.contains("resourceContestKind:CounterplayRestraint"))
+    assert(view.moveMeaningClaims.head.reasonTokens.contains("resourceContestScope:counterplay"))
+
+  test("move meaning claims do not label center control or concessions as positive counterplay"):
+    val centerDetail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.SpacePreventionResourceDenial,
+      axisKey = Some("SpaceCenter:Gain:center-control-gain"),
+      axisKind = Some(StrategicAxisKind.SpaceCenter),
+      axisPolarity = Some(StrategicAxisPolarity.Gain),
+      label = Some("center-control-gain"),
+      candidateEvidenceIds = List("played-transition"),
+      sourceEvidenceIds = List("structural-delta:played:e2e3", "played-transition"),
+      objectBindingSignatures =
+        List("actor=Move:e2e3|target=Square:e4|mechanism=Mechanism:centercontrolgain"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.BroadAxis,
+      structuralRouteMove = Some(candidateLine.rootMove),
+      structuralPurposeSubjects = List("center:e4")
+    )
+    val concededRace = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.CounterplayRace,
+      axisKey = Some("Counterplay:Concede:king-safety-concession"),
+      axisKind = Some(StrategicAxisKind.Counterplay),
+      axisPolarity = Some(StrategicAxisPolarity.Concede),
+      label = Some("king-safety-concession"),
+      candidateEvidenceIds = List("played-transition"),
+      sourceEvidenceIds = List("structural-delta:played:e2e3", "played-transition"),
+      objectBindingSignatures =
+        List("actor=Move:e2e3|target=Square:e4|mechanism=Mechanism:kingsafety"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.BroadAxis,
+      resourceContestSquares = List("e4")
+    )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(centerDetail, concededRace)
+    )
+
+    assertEquals(view.moveMeaningClaims.map(_.meaningKind), List("CenterControl", "CounterplayRace"))
+    assertEquals(view.moveMeaningClaims.map(_.role), List("ExplainsMoveFunction", "ConcedesCounterplayRace"))
+    assert(!view.moveMeaningClaims.exists(claim => claim.meaningKind == "CounterplayControl" && claim.axisKey.contains("SpaceCenter")))
+    assert(!view.moveMeaningClaims.exists(_.role == "StartsCounterplayRace"))
+
+  test("move meaning claims keep counterplay race distinct and require concrete resource ownership"):
+    val raceDetail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.CounterplayRace,
+      axisKey = Some("Counterplay:Gain:counterplay-race"),
+      axisKind = Some(StrategicAxisKind.Counterplay),
+      axisPolarity = Some(StrategicAxisPolarity.Gain),
+      label = Some("counterplay-race"),
+      candidateEvidenceIds = List("played-transition"),
+      sourceEvidenceIds = List("structural-delta:played:e2e3", "played-transition"),
+      causeEvidenceIds = List("cause-counter-race"),
+      proofRoles = List(RelativeCauseProofRole.DirectProof),
+      objectBindingSignatures =
+        List("actor=Move:e2e3|target=Square:e4|mechanism=Mechanism:counterplayrace"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ConcreteObjectAxis,
+      resourceContestSquares = List("e4"),
+      raceCandidateRootMove = Some(candidateLine.rootMove)
+    )
+    val restrictionCause = causeFrame(
+      causeId = "cause-counter-race",
+      axisKeys = List("Counterplay:Gain:counterplay-race"),
+      objectSignatures = raceDetail.objectBindingSignatures,
+      rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot,
+      causeKind = RelativeCauseKind.OpponentRestriction
+    )
+    val actorOnlyRace = raceDetail.copy(
+      causeEvidenceIds = Nil,
+      objectBindingSignatures = List("actor=Move:e2e3|mechanism=Mechanism:counterplayrace"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.BroadAxis,
+      resourceContestSquares = Nil
+    )
+    val linkedView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(restrictionCause),
+      details = List(raceDetail)
+    )
+    val actorOnlyView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(actorOnlyRace)
+    )
+
+    assertEquals(linkedView.moveMeaningClaims.map(_.meaningKind), List("CounterplayRace"))
+    assertEquals(linkedView.moveMeaningClaims.map(_.role), List("StartsCounterplayRace"))
+    assertEquals(linkedView.moveMeaningClaims.head.supportLevel, "owned_cause_linked")
+    assertEquals(actorOnlyView.moveMeaningClaims, Nil)
 
   test("move meaning claims reject broad or mismatched contrast support"):
     val alternativeLine = lineRef("alt", "d2d4", 3, LineNodeRole.Alternative)
@@ -2516,14 +2733,15 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       axisKeys: List[String],
       objectSignatures: List[String],
       witnessBindingLevel: MoveJudgmentCauseWitnessBindingLevel = MoveJudgmentCauseWitnessBindingLevel.NotWitness,
-      rootArbitrationTier: MoveJudgmentCauseRootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ContextOnly
+      rootArbitrationTier: MoveJudgmentCauseRootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ContextOnly,
+      causeKind: RelativeCauseKind = RelativeCauseKind.ActivityGain
   ): MoveJudgmentCauseFrame =
     MoveJudgmentCauseFrame(
       role = MoveJudgmentCauseFrameRole.PrimaryCause,
       clusterId = None,
       framed = false,
       causeEvidenceIds = List(causeId),
-      causeKind = RelativeCauseKind.ActivityGain,
+      causeKind = causeKind,
       comparisonKind = CandidateComparisonKind.PlayedVsBest,
       causeRole = RelativeCauseRole.PrimaryPlayedCause,
       causeSourceSide = RelativeCauseSourceSide.Candidate,

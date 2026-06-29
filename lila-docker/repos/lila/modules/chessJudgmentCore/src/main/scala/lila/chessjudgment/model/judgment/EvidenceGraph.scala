@@ -632,17 +632,21 @@ object EvidenceObjectBinding:
       .stripPrefix("created-tension:")
       .stripPrefix("resolved-tension:")
       .stripPrefix("break-file:")
-    val pieceRoute = raw"([a-z]+):([a-h][1-8])-([a-h][1-8]).*".r
-    val tensionEdge = raw"([a-h][1-8])-([a-h][1-8])".r
-    cleaned match
-      case pieceRoute(role, _, to) =>
+    StructuralPurposeSubject.parse(cleaned) match
+      case Some(StructuralPurposeSubject.PieceRoute(role, _, to)) =>
         objectOf(EvidenceObjectKind.Piece, role) ++ objectOf(EvidenceObjectKind.Square, to)
-      case tensionEdge(from, to) =>
+      case Some(StructuralPurposeSubject.Outpost(role, square)) =>
+        objectOf(EvidenceObjectKind.Piece, role) ++ objectOf(EvidenceObjectKind.Square, square)
+      case Some(StructuralPurposeSubject.Battery(_, from, to, roles)) =>
+        roles.flatMap(role => objectOf(EvidenceObjectKind.Piece, role)) ++
+          objectOf(EvidenceObjectKind.Square, from) ++
+          objectOf(EvidenceObjectKind.Square, to)
+      case Some(StructuralPurposeSubject.TensionEdge(from, to)) =>
         objectOf(EvidenceObjectKind.Square, from) ++ objectOf(EvidenceObjectKind.Square, to)
-      case _ if cleaned.matches("[a-h][1-8]") => objectOf(EvidenceObjectKind.Square, cleaned)
-      case _ if cleaned.matches("[a-h]")      => objectOf(EvidenceObjectKind.File, cleaned)
-      case _ if cleaned.contains("pawn")      => objectOf(EvidenceObjectKind.Pawn, cleaned)
-      case _                                  => objectOf(EvidenceObjectKind.PlanSubject, cleaned)
+      case None if cleaned.matches("[a-h][1-8]") => objectOf(EvidenceObjectKind.Square, cleaned)
+      case None if cleaned.matches("[a-h]")      => objectOf(EvidenceObjectKind.File, cleaned)
+      case None if cleaned.contains("pawn")      => objectOf(EvidenceObjectKind.Pawn, cleaned)
+      case None                                  => objectOf(EvidenceObjectKind.PlanSubject, cleaned)
 
   private def tensionEdgeObjects(raw: String): List[ConcreteChessObject] =
     normalize(raw)
@@ -660,6 +664,34 @@ object EvidenceObjectBinding:
 
   private def colorKey(color: Color): String =
     if color.white then "white" else "black"
+
+private[judgment] object StructuralPurposeSubject:
+  sealed trait Parsed
+  final case class PieceRoute(piece: String, from: String, to: String) extends Parsed
+  final case class Outpost(piece: String, square: String) extends Parsed
+  final case class Battery(axis: String, from: String, to: String, roles: List[String]) extends Parsed
+  final case class TensionEdge(from: String, to: String) extends Parsed
+
+  private val pieceRoute = raw"([a-z]+):([a-h][1-8])-([a-h][1-8]).*".r
+  private val outpost = raw"outpost:([a-z]+):([a-h][1-8]).*".r
+  private val battery = raw"battery:([a-z]+):([a-h][1-8])-([a-h][1-8])(?::([a-z-]+))?.*".r
+  private val tensionEdge = raw"([a-h][1-8])-([a-h][1-8])".r
+
+  def parse(raw: String): Option[Parsed] =
+    normalize(raw) match
+      case outpost(piece, square) =>
+        Some(Outpost(piece, square))
+      case battery(axis, from, to, roles) =>
+        Some(Battery(axis, from, to, Option(roles).toList.flatMap(_.split("-").toList).filter(_.nonEmpty).distinct.sorted))
+      case pieceRoute(piece, from, to) =>
+        Some(PieceRoute(piece, from, to))
+      case tensionEdge(from, to) =>
+        Some(TensionEdge(from, to))
+      case _ =>
+        None
+
+  private def normalize(raw: String): String =
+    Option(raw).getOrElse("").trim.toLowerCase
 
 enum RelationParticipantRole:
   case Attacker
@@ -1662,10 +1694,13 @@ object StrategicMechanismEvidence:
           Option.when(payload.hasPawnStructureDelta)(
             StrategicMechanismKind.PawnStructure -> signal(
               StrategicMechanismSignalKind.StructuralDelta,
-              "pawn-structure-delta",
+              structuralPawnBreakLabel(payload),
               record.ref,
               2,
-              concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.PawnBreak, StrategicAxisPolarity.Support, "pawn-structure-delta"))
+              concreteAxis(
+                record,
+                structuralPawnBreakAxis(payload)
+              )
             )
           ),
           Option.when(payload.hasPassedPawnProgress)(
@@ -1944,6 +1979,23 @@ object StrategicMechanismEvidence:
       val squares = pawnPlay.tensionSquares.map(axisLabelToken).filter(_.nonEmpty).distinct.sorted
       Option.when(edges.nonEmpty || squares.nonEmpty)((if edges.nonEmpty then edges else squares).mkString("-"))
     List(Some(base), policy, tension).flatten.filter(_.nonEmpty).mkString("-")
+
+  private def structuralPawnBreakLabel(payload: StructuralDeltaEvidence): String =
+    val tensionSubjects =
+      (
+        payload.consequencesOf(TransitionConsequenceKind.PawnTensionGain).flatMap(_.subjects) ++
+          payload.consequencesOf(TransitionConsequenceKind.PawnTensionResolution).flatMap(_.subjects)
+      ).map(axisLabelToken).filter(_.nonEmpty).distinct.sorted
+    if tensionSubjects.nonEmpty then tensionSubjects.mkString("-")
+    else "pawn-structure-delta"
+
+  private def structuralPawnBreakAxis(payload: StructuralDeltaEvidence): Option[StrategicAxisDetail] =
+    val polarity =
+      if payload.consequencesOf(TransitionConsequenceKind.PawnTensionResolution).nonEmpty &&
+        payload.consequencesOf(TransitionConsequenceKind.PawnTensionGain).isEmpty
+      then StrategicAxisPolarity.Release
+      else StrategicAxisPolarity.Support
+    structuralDeltaAxis(StrategicAxisKind.PawnBreak, polarity, structuralPawnBreakLabel(payload))
 
   private def axisLabelToken(raw: String): String =
     raw.trim.toLowerCase.replaceAll("[^a-z0-9]+", "-").stripPrefix("-").stripSuffix("-")
@@ -3543,7 +3595,7 @@ object StructuralDeltaEvidence:
       OutpostGain -> Set(StructuralAnchor, StrategicMove, StrategicSupport),
       OutpostConcession -> Set(StrategicSupport),
       RookLiftActivation -> Set(StructuralAnchor, StrategicMove, StrategicSupport),
-      BatteryPressureGain -> Set(StructuralAnchor, StrategicMove, StrategicSupport),
+      BatteryPressureGain -> Set(PieceActivity, StructuralAnchor, StrategicMove, StrategicSupport),
       KingRingPressureGain -> Set(StructuralAnchor, StrategicMove, StrategicSupport),
       KingRingPressureConcession -> Set(StrategicSupport)
     )
