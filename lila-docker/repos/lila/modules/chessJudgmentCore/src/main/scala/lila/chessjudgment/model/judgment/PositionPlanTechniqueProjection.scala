@@ -862,10 +862,31 @@ object PositionPlanTechniqueProjection:
 
   private def positionPlanTechniqueRouteSubject(subject: String): Boolean =
     StructuralPurposeSubject.parse(subject) match
+      case Some(StructuralPurposeSubject.PieceRoute(_, _, _)) =>
+        positionPlanTechniqueQualifiedRouteSubject(subject)
+      case Some(StructuralPurposeSubject.Outpost(_, _))       => true
+      case Some(StructuralPurposeSubject.Battery(_, _, _, _)) => true
+      case _                                                  => false
+
+  private def positionPlanTechniquePieceRouteSubject(subject: String): Boolean =
+    StructuralPurposeSubject.parse(subject) match
       case Some(StructuralPurposeSubject.PieceRoute(_, _, _))   => true
       case Some(StructuralPurposeSubject.Outpost(_, _))          => true
       case Some(StructuralPurposeSubject.Battery(_, _, _, _))    => true
       case _                                                    => false
+
+  private def positionPlanTechniqueQualifiedRouteSubject(subject: String): Boolean =
+    val normalized = subject.toLowerCase
+    normalized.contains("outpost") ||
+      normalized.contains("battery") ||
+      normalized.contains("diagonal") ||
+      normalized.contains("maneuver") ||
+      normalized.contains("filecontrol") ||
+      normalized.contains("file-control") ||
+      normalized.contains("fileaccess") ||
+      normalized.contains("file-access") ||
+      normalized.contains("fileoccupation") ||
+      normalized.contains("file-occupation")
 
   private def positionPlanTechniqueConcreteStructuralPlanCauseKind(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -1700,10 +1721,12 @@ object PositionPlanTechniqueProjection:
     val consequences = detail.structuralPurposeConsequences.map(_.toLowerCase)
     val categories = detail.structuralPurposeCategories.map(_.toLowerCase)
     val subjects = detail.structuralPurposeSubjects.map(_.toLowerCase)
-    val hasConcretePieceRoute =
+    val hasPieceRouteSubject =
+      subjects.exists(positionPlanTechniquePieceRouteSubject)
+    val hasQualifiedRoute =
       subjects.exists(positionPlanTechniqueRouteSubject)
     val hasPieceActivity =
-      hasConcretePieceRoute ||
+      hasPieceRouteSubject ||
       subjects.exists {
         case subject => subject.contains("piece") || subject.contains("mobility")
       } ||
@@ -1728,14 +1751,31 @@ object PositionPlanTechniqueProjection:
         consequences.exists(_.contains("diagonal")) ||
         categories.exists(_.contains("diagonal")) ||
         anchorKeys.exists(_.contains("diagonal"))
+    val hasQualifiedRouteToken =
+      subjects.exists(positionPlanTechniqueQualifiedRouteSubject) ||
+        consequences.exists(positionPlanTechniqueQualifiedRouteSubject) ||
+        categories.exists(positionPlanTechniqueQualifiedRouteSubject) ||
+        anchorKeys.exists(positionPlanTechniqueQualifiedRouteSubject)
+    val hasFileRoute =
+      (subjects ++ consequences ++ categories ++ anchorKeys).exists(positionPlanTechniqueFileRouteToken)
     (
       Option.when(hasPieceActivity)("piece").toList ++
-        Option.when(hasConcretePieceRoute)("route").toList ++
-        Option.when(hasConcretePieceRoute && detail.structuralRouteMove.nonEmpty)("reroute").toList ++
+        Option.when(hasQualifiedRoute || hasQualifiedRouteToken)("route").toList ++
+        Option.when((hasQualifiedRoute || hasQualifiedRouteToken) && detail.structuralRouteMove.nonEmpty)("reroute").toList ++
         Option.when(hasOutpost)("outpost").toList ++
         Option.when(hasBattery)("battery").toList ++
-        Option.when(hasDiagonal)("diagonal").toList
+        Option.when(hasDiagonal)("diagonal").toList ++
+        Option.when(hasFileRoute)("file")
     ).distinct.sorted
+
+  private def positionPlanTechniqueFileRouteToken(token: String): Boolean =
+    val normalized = token.toLowerCase
+    normalized.contains("filecontrol") ||
+      normalized.contains("file-control") ||
+      normalized.contains("fileaccess") ||
+      normalized.contains("file-access") ||
+      normalized.contains("fileoccupation") ||
+      normalized.contains("file-occupation")
 
   private def positionPlanTechniqueResourceScopes(anchor: BoardAnchor): List[String] =
     val base =

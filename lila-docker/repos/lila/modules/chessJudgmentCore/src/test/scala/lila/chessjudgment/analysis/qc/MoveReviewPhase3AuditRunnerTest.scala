@@ -2415,11 +2415,11 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       details = List(detail)
     )
 
-    assertEquals(view.moveMeaningClaims.map(_.meaningKind), List("PieceRoute"))
-    assertEquals(view.moveMeaningClaims.head.supportLevel, "owned_cause_linked")
-    assertEquals(view.moveMeaningClaims.head.visibility, "reason_grade")
-    assertEquals(view.moveMeaningClaims.head.causeEvidenceIds, List("cause-alt-activity"))
-    assert(view.moveMeaningClaims.head.reasonTokens.contains("causeEvidenceId:cause-alt-activity"))
+    assertEquals(view.moveMeaningClaims.map(_.meaningKind), List("PieceActivity"))
+    assertEquals(view.moveMeaningClaims.head.supportLevel, "view_surfaced")
+    assertEquals(view.moveMeaningClaims.head.visibility, "functional_explanation")
+    assertEquals(view.moveMeaningClaims.head.causeEvidenceIds, Nil)
+    assert(!view.moveMeaningClaims.head.reasonTokens.contains("causeEvidenceId:cause-alt-activity"))
 
   test("move meaning claims surface current-move structural route without cause ownership"):
     val routeSignature =
@@ -2439,7 +2439,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       structuralPurposeSubjects = List("knight:e2-e3", "knight:e2-e3:mobility+2"),
       structuralPurposeConsequences = List("DevelopmentPieceActivated"),
       structuralPurposeCategories = List("PieceActivity"),
-      structuralMotifTags = List("piece", "route", "reroute")
+      structuralMotifTags = List("piece")
     )
     val view = meaningClaimView(
       verdict = MoveChoiceVerdict.MatchesReference,
@@ -2447,13 +2447,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       details = List(detail)
     )
 
-    assertEquals(view.moveMeaningClaims.map(_.meaningKind), List("PieceRoute"))
-    assertEquals(view.moveMeaningClaims.head.supportLevel, "view_surfaced")
-    assertEquals(view.moveMeaningClaims.head.visibility, "functional_explanation")
-    assertEquals(view.moveMeaningClaims.head.surfaceLane, "current_move_function")
-    assertEquals(view.moveMeaningClaims.head.causeEvidenceIds, Nil)
-    assert(view.moveMeaningClaims.head.reasonTokens.contains("structuralSubject:knight:e2-e3"))
-    assert(view.moveMeaningClaims.head.reasonTokens.exists(_.startsWith("objectBinding:actor=Move:e2e3")))
+    assertEquals(view.moveMeaningClaims, Nil)
 
   test("move meaning claims do not surface generic structure shift from current-move route alone"):
     val routeSignature =
@@ -2828,10 +2822,10 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     )
 
     assertEquals(broadView.moveMeaningClaims.headOption.map(_.supportLevel), Some("contextual"))
-    assertEquals(broadActivitySupportView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
+    assertEquals(broadActivitySupportView.moveMeaningClaims, Nil)
     assertEquals(pawnActivityAsRouteView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
     assertEquals(routeMotifWithoutPieceObjectView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
-    assertEquals(alternativeMoveObjectView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
+    assertEquals(alternativeMoveObjectView.moveMeaningClaims, Nil)
     assertEquals(mismatchedCauseUnitView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
     assertEquals(fallbackRootView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
     assertEquals(mismatchedSideView.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
@@ -2882,7 +2876,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       details = List(detail)
     )
 
-    assertEquals(view.moveMeaningClaims.headOption.map(_.role), Some("ImprovesPieceRoute"))
+    assertEquals(view.moveMeaningClaims.headOption.map(_.role), Some("ImprovesPieceActivity"))
     assertEquals(view.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
     assertEquals(view.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
 

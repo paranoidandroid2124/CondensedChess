@@ -466,10 +466,10 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       .get
 
     assertEquals(detail.structuralPurposeSubjects, List("knight:g1-f3"))
-    assertEquals(detail.structuralMotifTags, List("piece", "reroute", "route"))
-    assertEquals(detail.causeEvidenceIds, List(causeRef.id))
-    assert(detail.proofRoles.contains(RelativeCauseProofRole.DirectProof), detail.proofRoles)
-    assertEquals(detail.specificityTier, PositionPlanTechniqueSpecificityTier.ExactObjectAxis)
+    assertEquals(detail.structuralMotifTags, List("piece"))
+    assertEquals(detail.causeEvidenceIds, Nil)
+    assertEquals(detail.proofRoles, Nil)
+    assertEquals(detail.specificityTier, PositionPlanTechniqueSpecificityTier.BroadAxis)
     assert(
       detail.objectBindingSignatures.exists(signature =>
         signature.contains("actor=Piece:knight") &&
