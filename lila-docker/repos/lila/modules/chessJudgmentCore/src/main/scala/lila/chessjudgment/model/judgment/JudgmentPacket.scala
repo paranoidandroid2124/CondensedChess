@@ -3,6 +3,8 @@ package lila.chessjudgment.model.judgment
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 
+import chess.{ Pawn, Square }
+import chess.format.Fen
 import lila.chessjudgment.model.{ ProbeAdmissionDiagnostic, ProbeRequest }
 
 enum ClaimFamily:
@@ -1732,7 +1734,7 @@ object MoveMeaningClaim:
               )
             )
           val optionMeaningKind = kind(detail).getOrElse(baseMeaningKind)
-          val optionClaimRole = role(optionMeaningKind, detail)
+          val optionClaimRole = role(optionMeaningKind, detail, optionMove, frame.position.fen)
           val optionRoleCompatibleCauseFrames =
             optionLinkedCauseFrames.filter(linkedFrame =>
               causeFrameOwnsMeaningClaim(
@@ -1756,7 +1758,7 @@ object MoveMeaningClaim:
       meaningKind = claimSelection._3
       claimRole = claimSelection._4
       roleCompatibleCauseFrames = claimSelection._5
-      support <- supportLevel(detail, roleCompatibleCauseFrames, objectSignatures, claimMove)
+      support <- supportLevel(detail, roleCompatibleCauseFrames, objectSignatures, claimMove, frame.position.fen)
     yield
       val surfaceObjectSignatures = surfaceObjectBindingSignatures(detail, objectSignatures, claimMove)
       val linkedCauseIds =
@@ -1793,22 +1795,28 @@ object MoveMeaningClaim:
       detail: PositionPlanTechniqueSemanticDetail,
       linkedCauseFrames: List[MoveJudgmentCauseFrame],
       objectSignatures: List[String],
-      claimMove: String
+      claimMove: String,
+      positionFen: String
   ): Option[String] =
     val hasConcreteObject = concreteObject(detail, objectSignatures)
     val specificObjectAxis = specificity(detail)
     val direct = directProof(detail)
     val hasDetailEvidence = detailEvidence(detail)
-    val currentMoveFunctionalProof = currentMoveFunctionalDetailProof(detail, objectSignatures, claimMove)
+    val currentMoveFunctionalProof = currentMoveFunctionalDetailProof(detail, objectSignatures, claimMove, positionFen)
     val ownedCause =
       linkedCauseFrames.exists(frame => frame.concreteObjectReady && frame.hasOwnedAdmissibleLongTermProof) ||
         linkedCauseFrames.exists(frame => frame.concreteObjectReady && frame.attributionDirectProofEligible)
     val ownedMeaningReady =
       detail.unit != PositionPlanTechniqueUnit.TensionBreakPolicyRoute ||
-        pawnBreakOwnedCauseReady(detail, objectSignatures, claimMove)
+        pawnBreakOwnedCauseReady(detail, objectSignatures, claimMove, positionFen)
+    val viewMeaningReady =
+      detail.unit != PositionPlanTechniqueUnit.TensionBreakPolicyRoute ||
+        currentMoveFunctionalProof
     if linkedCauseFrames.nonEmpty && ownedCause && hasConcreteObject && specificObjectAxis && direct && ownedMeaningReady then
       Some("owned_cause_linked")
-    else if hasConcreteObject && (specificObjectAxis || currentMoveFunctionalProof) && hasDetailEvidence && (anyProof(detail) || currentMoveFunctionalProof) then
+    else if viewMeaningReady && hasConcreteObject && (specificObjectAxis || currentMoveFunctionalProof) && hasDetailEvidence &&
+        (anyProof(detail) || currentMoveFunctionalProof)
+    then
       Some("view_surfaced")
     else if hasDetailEvidence && contextualMeaningDetail(detail) then
       Some("contextual")
@@ -1817,7 +1825,8 @@ object MoveMeaningClaim:
   private def currentMoveFunctionalDetailProof(
       detail: PositionPlanTechniqueSemanticDetail,
       objectSignatures: List[String],
-      claimMove: String
+      claimMove: String,
+      positionFen: String
   ): Boolean =
     val moveOwnedSource =
       detail.sourceEvidenceIds.exists(id =>
@@ -1846,14 +1855,9 @@ object MoveMeaningClaim:
           )
       case PositionPlanTechniqueUnit.TensionBreakPolicyRoute =>
         moveOwnedSource &&
+          pawnMoveFromPawn(positionFen, claimMove) &&
           pawnBreakOwnsClaimMove(detail, objectSignatures, claimMove) &&
-          (
-            detail.breakFile.nonEmpty ||
-              detail.tensionSquares.nonEmpty ||
-              detail.tensionEdges.nonEmpty ||
-              detail.counterBreakFiles.nonEmpty ||
-              detail.structuralPurposeSubjects.exists(concreteSubject)
-          )
+          pawnBreakCurrentMoveFunctionalCarrier(detail)
       case PositionPlanTechniqueUnit.SpacePreventionResourceDenial | PositionPlanTechniqueUnit.CounterplayRace =>
         moveOwnedSource &&
           resourceDetailOwnsClaimMove(detail, objectSignatures, claimMove) &&
@@ -2037,9 +2041,11 @@ object MoveMeaningClaim:
   private def pawnBreakOwnedCauseReady(
       detail: PositionPlanTechniqueSemanticDetail,
       objectSignatures: List[String],
-      claimMove: String
+      claimMove: String,
+      positionFen: String
   ): Boolean =
-    pawnBreakTensionCarrier(detail) &&
+    pawnMoveFromPawn(positionFen, claimMove) &&
+      pawnBreakTensionCarrier(detail) &&
       pawnBreakOwnsClaimMove(detail, objectSignatures, claimMove) &&
       pawnBreakTensionPolicyOwnsMove(detail, claimMove)
 
@@ -2047,6 +2053,32 @@ object MoveMeaningClaim:
     detail.tensionSquares.nonEmpty ||
       detail.tensionEdges.nonEmpty ||
       detail.structuralPurposeSubjects.exists(pawnBreakTensionSubject)
+
+  private def pawnBreakCurrentMoveFunctionalCarrier(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    pawnBreakTensionCarrier(detail) ||
+      detail.structuralPurposeConsequences.exists(pawnBreakTensionConsequence)
+
+  private def pawnBreakTensionConsequence(consequence: String): Boolean =
+    val normalized = consequence.toLowerCase
+    normalized == "pawntensiongain" ||
+      normalized == "pawntensionresolution"
+
+  private def pawnMoveFromPawn(positionFen: String, claimMove: String): Boolean =
+    moveEndpoints(claimMove).exists { case (from, to) =>
+      val fileDelta = (to.charAt(0) - from.charAt(0)).abs
+      val rankDelta = (to.charAt(1) - from.charAt(1)).abs
+      val pawnLikeMove =
+        (fileDelta == 0 && (rankDelta == 1 || rankDelta == 2)) ||
+        (fileDelta == 1 && rankDelta == 1)
+      pawnLikeMove &&
+        Fen
+          .read(chess.variant.Standard, Fen.Full(positionFen))
+          .exists(position =>
+            Square.fromKey(from).exists(square =>
+              position.board.pieceAt(square).exists(_.role == Pawn)
+            )
+          )
+    }
 
   private def pawnBreakTensionSubject(subject: String): Boolean =
     val normalized = subject.toLowerCase
@@ -2072,6 +2104,64 @@ object MoveMeaningClaim:
           squares.contains(from) && !squares.contains(to)
         destinationStillTense && !movedThroughSameEdge && !movedAwayFromTrackedSquare
       }
+
+  private def role(
+      meaningKind: String,
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String,
+      positionFen: String
+  ): String =
+    if meaningKind != "PawnBreakTiming" then role(meaningKind, detail)
+    else if pawnBreakMoveResolvesTrackedTension(detail, claimMove, positionFen) then "ReleasesPawnTension"
+    else if pawnBreakMovePreservesTrackedTension(detail, claimMove, positionFen) then "PreservesTension"
+    else "PreparesBreak"
+
+  private def pawnBreakMoveResolvesTrackedTension(
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String,
+      positionFen: String
+  ): Boolean =
+    moveEndpoints(claimMove).exists { case (from, to) =>
+      detail.tensionEdges.exists(edge =>
+        val edgeSquares = squareTokens(edge)
+        val edgeEndpoints = edgeSquares.take(2).toSet
+        edgeSquares.lengthCompare(2) >= 0 &&
+          pawnTensionEdgeExists(positionFen, edgeSquares.head, edgeSquares(1)) &&
+          (
+            edgeEndpoints == Set(from, to) ||
+              (edgeEndpoints.contains(from) && !edgeEndpoints.contains(to))
+          )
+      )
+    }
+
+  private def pawnBreakMovePreservesTrackedTension(
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String,
+      positionFen: String
+  ): Boolean =
+    detail.tensionPolicy.exists(policy => policy.toLowerCase.contains("maintain") || policy.toLowerCase.contains("preserve")) &&
+      detail.tensionEdges.exists(edge =>
+        val edgeSquares = squareTokens(edge)
+        edgeSquares.lengthCompare(2) >= 0 &&
+          pawnTensionEdgeExists(positionFen, edgeSquares.head, edgeSquares(1))
+      ) &&
+      pawnBreakTensionPolicyOwnsMove(detail, claimMove)
+
+  private def pawnTensionEdgeExists(positionFen: String, first: String, second: String): Boolean =
+    Fen
+      .read(chess.variant.Standard, Fen.Full(positionFen))
+      .flatMap(position =>
+        for
+          firstSquare <- Square.fromKey(first)
+          secondSquare <- Square.fromKey(second)
+          firstPiece <- position.board.pieceAt(firstSquare)
+          secondPiece <- position.board.pieceAt(secondSquare)
+        yield firstPiece.role == Pawn && secondPiece.role == Pawn && firstPiece.color != secondPiece.color
+      )
+      .contains(true)
+
+  private def squareTokens(value: String): List[String] =
+    "[a-h][1-8]".r.findAllIn(value.toLowerCase).toList
 
   private def resourceDetailOwnsClaimMove(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -2734,6 +2824,10 @@ object MoveMeaningClaim:
         detail.axisKind.map(value => s"axisKind:$value"),
         detail.axisPolarity.map(value => s"axisPolarity:$value"),
         detail.label.map(value => s"label:$value"),
+        detail.contrastOutcome.map(value => s"contrastOutcome:$value"),
+        detail.referenceStrength.map(value => s"referenceStrength:$value"),
+        detail.candidateStrength.map(value => s"candidateStrength:$value"),
+        detail.narrativeHorizon.map(value => s"narrativeHorizon:$value"),
         detail.breakFile.map(value => s"breakFile:$value"),
         detail.tensionPolicy.map(value => s"tensionPolicy:$value"),
         detail.endgameTechniquePattern.map(value => s"pattern:$value"),

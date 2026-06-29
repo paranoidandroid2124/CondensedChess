@@ -678,6 +678,47 @@ class RelativeCauseSignalProfileTest extends munit.FunSuite:
 
     assertEquals(RelativeCauseDraftPlanner.drafts(profile), Nil)
 
+  test("does not draft current move pawn break from file-only break-ready axis"):
+    val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val playedLine = LineNodeRef("played-line", "d2d3", 1, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "d2d3", 1, LineNodeRole.BestReference)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:played:d2d3:file-only-break",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val mechanismRecord = EvidenceRecord(
+      ref = EvidenceRef(
+        id = "strategic-mechanism:pawn-break:d2d3:file-only",
+        producer = EvidenceProducer.StrategicMechanismProducer,
+        layer = EvidenceLayer.StrategicMechanism,
+        position = root,
+        line = Some(playedLine),
+        scope = EvidenceScope.PlayedTransition,
+        confidence = EvidenceConfidence.EngineBacked
+      ),
+      payload = StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.PawnStructure,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "break-file-d",
+            source = structuralRef,
+            strength = 2,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.PawnBreak, StrategicAxisPolarity.Support, "break-file-d"))
+          )
+        ),
+        semanticAnchors = Nil
+      )
+    )
+    val profile = exactPlayedProfile(referenceLine, playedLine, List(mechanismRecord))
+
+    assertEquals(RelativeCauseDraftPlanner.drafts(profile), Nil)
+
   test("does not draft current move pawn break preparation from a mixed release axis"):
     val root = PositionNodeRef("8/8/8/3p4/2P5/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
     val playedLine = LineNodeRef("played-line", "c4d5", 1, LineNodeRole.Played)

@@ -1511,6 +1511,40 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assert(axes.exists(_.label == "resolved-tension-d4-e5"), axes)
     assert(!axes.exists(axis => axis.polarity == StrategicAxisPolarity.Support && axis.label == "resolved-tension-d4-e5"), axes)
 
+  test("non-tension pawn structure deltas do not emit pawn break axes"):
+    val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(chess.Color.White), Some("root"))
+    val after = PositionNodeRef("8/8/8/8/8/8/8/8 b - - 0 1", 2, Some(chess.Color.Black), Some("after"))
+    val transition = StructuralTransitionBinding(
+      moveUci = "d2d4",
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = after,
+      line = Some(candidateLine),
+      perspective = chess.Color.White
+    )
+    val record =
+      EvidenceRecord(
+        evidenceRef("structural-delta:open-file-only", root),
+        StructuralDeltaEvidence(
+          transition = transition,
+          signals = Nil,
+          consequences = List(
+            TransitionConsequence(
+              TransitionConsequenceKind.OpenFileGain,
+              StructuralSignalPolarity.Gain,
+              strength = 2,
+              subjects = List("file:d")
+            )
+          )
+        )
+      )
+    val axes =
+      StrategicMechanismEvidence
+        .sourceMechanisms(record)
+        .flatMap { case (_, signal) => signal.axis }
+
+    assert(!axes.exists(_.kind == StrategicAxisKind.PawnBreak), axes)
+
   test("pawn play assessor recognizes central advance break candidates"):
     val fen = "rnbq1rk1/pp3ppp/4pn2/8/1bBP4/2N2N2/PP3PPP/R1BQ1RK1 b - - 0 9"
     val features = PositionAnalyzer.extractFeatures(fen, 17).get
@@ -1889,7 +1923,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
 
     val claims = view.moveMeaningClaims
     assertEquals(claims.map(_.meaningKind), List("PawnBreakTiming"))
-    assertEquals(claims.head.role, "PreservesTension")
+    assertEquals(claims.head.role, "PreparesBreak")
     assertEquals(claims.head.supportLevel, "owned_cause_linked")
     assertEquals(claims.head.visibility, "reason_grade")
     assertEquals(claims.head.surfaceLane, "current_move_owned")
@@ -1897,6 +1931,233 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assert(claims.head.reasonTokens.contains("breakFile:e"))
     assert(claims.head.reasonTokens.contains("tensionSquare:d4"))
     assert(claims.head.reasonTokens.contains("tensionSquare:e3"))
+    assert(claims.head.reasonTokens.contains("contrastOutcome:CandidateStronger"))
+
+  test("move meaning claims do not surface file-only pawn break background as current move function"):
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+      axisKey = Some("PawnBreak:Support:break-file-d"),
+      axisKind = Some(StrategicAxisKind.PawnBreak),
+      axisPolarity = Some(StrategicAxisPolarity.Support),
+      label = Some("break-file-d"),
+      breakFile = Some("d"),
+      tensionPolicy = Some("Ignore"),
+      sourceEvidenceIds = List(s"played-transition:${candidateLine.rootMove}"),
+      objectBindingSignatures = List("target=File:d|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+    )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(detail)
+    )
+
+    assert(!view.moveMeaningClaims.exists(claim => claim.meaningKind == "PawnBreakTiming"), view.moveMeaningClaims)
+
+  test("move meaning claims do not surface non-pawn geometry as current pawn break ownership"):
+    val nonPawnLine = lineRef("non-pawn-created-tension", "d4c6", 4, LineNodeRole.Played)
+    val ownedCause = causeFrame(
+      causeId = "cause-non-pawn-break",
+      axisKeys = List("PawnBreak:Support:break-file-c-created-tension-c6-d7"),
+      objectSignatures = List("target=Square:c6|target=Square:d7|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      causeKind = RelativeCauseKind.PawnBreakOpportunity
+    ).copy(
+      eventLine = nonPawnLine,
+      eventRootMove = nonPawnLine.rootMove,
+      hasOwnedAdmissibleLongTermProof = true,
+      attributionDirectProofEligible = true
+    )
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+      axisKey = Some("PawnBreak:Support:break-file-c-created-tension-c6-d7"),
+      axisKind = Some(StrategicAxisKind.PawnBreak),
+      axisPolarity = Some(StrategicAxisPolarity.Support),
+      label = Some("break-file-c-created-tension-c6-d7"),
+      breakFile = Some("c"),
+      tensionSquares = List("c6", "d7"),
+      tensionEdges = List("c6-d7"),
+      structuralPurposeSubjects = List("created-tension:c6-d7"),
+      candidateEvidenceIds = List("structural-delta:played:d4c6:tension"),
+      sourceEvidenceIds = List("structural-delta:played:d4c6:tension"),
+      causeEvidenceIds = List("cause-non-pawn-break"),
+      objectBindingSignatures =
+        List("actor=Move:d4c6|target=Square:c6|target=Square:d7|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+    )
+    val base = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(ownedCause),
+      details = List(detail)
+    )
+    val view =
+      meaningClaimViewWithClaims(
+        base.copy(
+          verdict = base.verdict.map(_.copy(candidateLine = nonPawnLine)),
+          positionPlanTechniqueFrames =
+            List(meaningClaimPlanTechniqueFrame(List(detail)).copy(line = Some(nonPawnLine), moveUci = Some(nonPawnLine.rootMove)))
+        )
+      )
+
+    assert(!view.moveMeaningClaims.exists(claim => claim.meaningKind == "PawnBreakTiming"), view.moveMeaningClaims)
+
+  test("move meaning claims do not surface pawn-shaped non-pawn moves as current pawn break ownership"):
+    val queenPosition =
+      PositionNodeRef("8/8/8/8/8/8/4Q3/4K3 w - - 0 1", 1, Some(chess.Color.White), Some("queen-root"))
+    val ownedCause = causeFrame(
+      causeId = "cause-queen-shaped-break",
+      axisKeys = List("PawnBreak:Support:break-file-e-created-tension-e3-d4"),
+      objectSignatures = List("actor=Move:e2e3|target=Square:e3|target=Square:d4|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      causeKind = RelativeCauseKind.PawnBreakOpportunity
+    ).copy(
+      hasOwnedAdmissibleLongTermProof = true,
+      attributionDirectProofEligible = true
+    )
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+      axisKey = Some("PawnBreak:Support:break-file-e-created-tension-e3-d4"),
+      axisKind = Some(StrategicAxisKind.PawnBreak),
+      axisPolarity = Some(StrategicAxisPolarity.Support),
+      label = Some("break-file-e-created-tension-e3-d4"),
+      breakFile = Some("e"),
+      tensionSquares = List("e3", "d4"),
+      tensionEdges = List("e3-d4"),
+      structuralPurposeSubjects = List("created-tension:e3-d4"),
+      candidateEvidenceIds = List("structural-delta:played:e2e3:tension"),
+      sourceEvidenceIds = List("structural-delta:played:e2e3:tension"),
+      causeEvidenceIds = List("cause-queen-shaped-break"),
+      objectBindingSignatures =
+        List("actor=Move:e2e3|target=Square:e3|target=Square:d4|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+    )
+    val base = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(ownedCause),
+      details = List(detail)
+    )
+    val view =
+      meaningClaimViewWithClaims(
+        base.copy(
+          positionPlanTechniqueFrames =
+            List(meaningClaimPlanTechniqueFrame(List(detail)).copy(position = queenPosition))
+        )
+      )
+
+    assert(!view.moveMeaningClaims.exists(claim => claim.meaningKind == "PawnBreakTiming"), view.moveMeaningClaims)
+
+  test("move meaning claims classify newly created pawn tension as preparation"):
+    val createdTensionPosition =
+      PositionNodeRef("8/8/8/8/3p4/8/4P3/4K3 w - - 0 1", 1, Some(chess.Color.White), Some("created-tension-root"))
+    def detail(policy: String) =
+      PositionPlanTechniqueSemanticDetail(
+        unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+        axisKey = Some("PawnBreak:Support:break-file-e-created-tension-e3-d4"),
+        axisKind = Some(StrategicAxisKind.PawnBreak),
+        axisPolarity = Some(StrategicAxisPolarity.Support),
+        label = Some("break-file-e-created-tension-e3-d4"),
+        breakFile = Some("e"),
+        tensionPolicy = Some(policy),
+        tensionSquares = List("e3", "d4"),
+        tensionEdges = List("e3-d4"),
+        structuralPurposeSubjects = List("created-tension:e3-d4"),
+        candidateEvidenceIds = List("structural-delta:played:e2e3:tension"),
+        sourceEvidenceIds = List("structural-delta:played:e2e3:tension"),
+        objectBindingSignatures =
+          List("actor=Move:e2e3|target=Square:e3|target=Square:d4|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+        specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+      )
+    val details = List(detail("release"), detail("maintain"))
+    val base = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = details
+    )
+    val view =
+      meaningClaimViewWithClaims(
+        base.copy(
+          positionPlanTechniqueFrames =
+            List(meaningClaimPlanTechniqueFrame(details).copy(position = createdTensionPosition))
+        )
+      )
+    val claims = view.moveMeaningClaims.filter(_.meaningKind == "PawnBreakTiming")
+
+    assert(claims.nonEmpty, view.moveMeaningClaims)
+    assert(claims.forall(_.role == "PreparesBreak"), claims)
+
+  test("move meaning claims classify captured existing pawn tension as release"):
+    val releaseLine = lineRef("played-release", "e2d3", 2, LineNodeRole.Played)
+    val releasePosition =
+      PositionNodeRef("8/8/8/8/8/3p4/4P3/4K3 w - - 0 1", 1, Some(chess.Color.White), Some("release-root"))
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+      axisKey = Some("PawnBreak:Release:break-file-e-resolved-tension-e2-d3"),
+      axisKind = Some(StrategicAxisKind.PawnBreak),
+      axisPolarity = Some(StrategicAxisPolarity.Release),
+      label = Some("break-file-e-resolved-tension-e2-d3"),
+      breakFile = Some("e"),
+      tensionPolicy = Some("release"),
+      tensionSquares = List("e2", "d3"),
+      tensionEdges = List("e2-d3"),
+      structuralPurposeSubjects = List("resolved-tension:e2-d3"),
+      candidateEvidenceIds = List("structural-delta:played:e2d3:tension"),
+      sourceEvidenceIds = List("structural-delta:played:e2d3:tension"),
+      objectBindingSignatures =
+        List("actor=Move:e2d3|target=Square:e2|target=Square:d3|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+    )
+    val base = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(detail)
+    )
+    val view =
+      meaningClaimViewWithClaims(
+        base.copy(
+          verdict = base.verdict.map(_.copy(candidateLine = releaseLine)),
+          positionPlanTechniqueFrames =
+            List(meaningClaimPlanTechniqueFrame(List(detail)).copy(position = releasePosition, line = Some(releaseLine), moveUci = Some(releaseLine.rootMove)))
+        )
+      )
+    val claims = view.moveMeaningClaims.filter(_.meaningKind == "PawnBreakTiming")
+
+    assert(claims.exists(_.role == "ReleasesPawnTension"), claims)
+
+  test("move meaning claims classify pawn advances out of existing tension as release"):
+    val releaseLine = lineRef("played-advance-release", "c4c5", 2, LineNodeRole.Played)
+    val releasePosition =
+      PositionNodeRef("8/8/8/3p4/2P5/8/8/4K3 w - - 0 1", 1, Some(chess.Color.White), Some("advance-release-root"))
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+      axisKey = Some("PawnBreak:Release:break-file-c-resolved-tension-c4-d5"),
+      axisKind = Some(StrategicAxisKind.PawnBreak),
+      axisPolarity = Some(StrategicAxisPolarity.Release),
+      label = Some("break-file-c-resolved-tension-c4-d5"),
+      breakFile = Some("c"),
+      tensionPolicy = Some("release"),
+      tensionSquares = List("c4", "d5"),
+      tensionEdges = List("c4-d5"),
+      structuralPurposeSubjects = List("resolved-tension:c4-d5"),
+      candidateEvidenceIds = List("structural-delta:played:c4c5:tension"),
+      sourceEvidenceIds = List("structural-delta:played:c4c5:tension"),
+      objectBindingSignatures =
+        List("actor=Move:c4c5|target=Square:c4|target=Square:d5|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+    )
+    val base = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(detail)
+    )
+    val view =
+      meaningClaimViewWithClaims(
+        base.copy(
+          verdict = base.verdict.map(_.copy(candidateLine = releaseLine)),
+          positionPlanTechniqueFrames =
+            List(meaningClaimPlanTechniqueFrame(List(detail)).copy(position = releasePosition, line = Some(releaseLine), moveUci = Some(releaseLine.rootMove)))
+        )
+      )
+    val claims = view.moveMeaningClaims.filter(_.meaningKind == "PawnBreakTiming")
+
+    assert(claims.exists(_.role == "ReleasesPawnTension"), claims)
 
   test("move meaning claims preserve compatible pawn break lanes"):
     val eCause = causeFrame(
@@ -1919,21 +2180,21 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       hasOwnedAdmissibleLongTermProof = true,
       attributionDirectProofEligible = true
     )
-    def breakDetail(axisKey: String, causeId: String, file: String, square: String) =
+    def breakDetail(axisKey: String, causeId: String, edgeSquare: String) =
       PositionPlanTechniqueSemanticDetail(
         unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
         axisKey = Some(axisKey),
         axisKind = Some(StrategicAxisKind.PawnBreak),
         axisPolarity = Some(StrategicAxisPolarity.Support),
         contrastOutcome = Some(StrategicAxisComparisonOutcome.CandidateStronger),
-        breakFile = Some(file),
+        breakFile = Some("e"),
         tensionPolicy = Some("prepare"),
-        tensionSquares = List(square),
-        candidateEvidenceIds = List(s"mechanism-$file-break"),
-        sourceEvidenceIds = List(s"mechanism-$file-break"),
+        tensionSquares = List("e3", edgeSquare),
+        candidateEvidenceIds = List(s"structural-delta-e-$edgeSquare-break"),
+        sourceEvidenceIds = List(s"structural-delta-e-$edgeSquare-break"),
         causeEvidenceIds = List(causeId),
         proofRoles = List(RelativeCauseProofRole.DirectProof),
-        objectBindingSignatures = List(s"target=File:$file|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+        objectBindingSignatures = List(s"target=Square:e3|target=Square:$edgeSquare|mechanism=Mechanism:pawn-break|proof=DirectProof"),
         specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
       )
 
@@ -1941,8 +2202,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       verdict = MoveChoiceVerdict.MatchesReference,
       auditCauses = List(eCause, cCause),
       details = List(
-        breakDetail("PawnBreak:Support:e-break", "cause-e-break", "e", "e4"),
-        breakDetail("PawnBreak:Support:c-break", "cause-c-break", "c", "c4")
+        breakDetail("PawnBreak:Support:e-left-break", "cause-e-break", "d4"),
+        breakDetail("PawnBreak:Support:e-right-break", "cause-c-break", "f4")
       )
     )
 
@@ -2389,7 +2650,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     val ownedCause = causeFrame(
       causeId = "cause-break",
       axisKeys = List("PawnBreak:Support:central-break-timing"),
-      objectSignatures = List("target=Square:e4|mechanism=Mechanism:pawn-break|proof=DirectProof")
+      objectSignatures = List("target=Square:e3|mechanism=Mechanism:pawn-break|proof=DirectProof")
     ).copy(
       role = MoveJudgmentCauseFrameRole.ContextCause,
       hasOwnedAdmissibleLongTermProof = true,
@@ -2414,13 +2675,15 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
         axisPolarity = Some(StrategicAxisPolarity.Support),
         contrastOutcome = Some(StrategicAxisComparisonOutcome.CandidateStronger),
         breakFile = Some("e"),
-        tensionSquares = List("d4", "e5"),
+        tensionSquares = List("d4", "e3"),
         candidatePlanIds = Nil,
         planAlignmentScore = None,
         planAlignmentReasonCodes = Nil,
+        candidateEvidenceIds = List("structural-delta:played:e2e3:tension"),
+        sourceEvidenceIds = List("structural-delta:played:e2e3:tension"),
         causeEvidenceIds = List("cause-break"),
         proofRoles = List(RelativeCauseProofRole.DirectProof),
-        objectBindingSignatures = List("target=Square:e4|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+        objectBindingSignatures = List("target=Square:e3|mechanism=Mechanism:pawn-break|proof=DirectProof"),
         specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
       )
     val broadView = meaningClaimView(
@@ -2500,32 +2763,34 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       auditCauses = List(mismatchedReferenceCause),
       details = List(validBreakDetail)
     )
+    val referenceBreakDetail =
+      validBreakDetail.copy(
+        referenceEvidenceIds = List("structural-delta:reference:e2e4:tension"),
+        candidateEvidenceIds = Nil,
+        sourceEvidenceIds = List("structural-delta:reference:e2e4:tension"),
+        tensionSquares = List("d5", "e4"),
+        objectBindingSignatures = List("target=Square:e4|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+        raceReferenceRootMove = Some(referenceLine.rootMove),
+        contrastOutcome = Some(StrategicAxisComparisonOutcome.ReferenceStronger)
+      )
+    val referenceCause =
+      ownedCause.copy(
+        causeSourceSide = RelativeCauseSourceSide.Reference,
+        eventLine = referenceLine,
+        eventRootMove = referenceLine.rootMove,
+        objectBindingSignatures = List("target=Square:e4|mechanism=Mechanism:pawn-break|proof=DirectProof")
+      )
     val referenceLineView =
       meaningClaimViewWithClaims(
         meaningClaimView(
         verdict = MoveChoiceVerdict.MatchesReference,
-        auditCauses = List(ownedCause.copy(causeSourceSide = RelativeCauseSourceSide.Reference)),
-        details = List(
-          validBreakDetail.copy(
-            referenceEvidenceIds = List("reference-mechanism"),
-            candidateEvidenceIds = Nil,
-            raceReferenceRootMove = Some(referenceLine.rootMove),
-            contrastOutcome = Some(StrategicAxisComparisonOutcome.ReferenceStronger)
-          )
-        )
+        auditCauses = List(referenceCause),
+        details = List(referenceBreakDetail)
         ).copy(
         positionPlanTechniqueFrames =
           List(
-            meaningClaimPlanTechniqueFrame(
-              List(
-                validBreakDetail.copy(
-                  referenceEvidenceIds = List("reference-mechanism"),
-                  candidateEvidenceIds = Nil,
-                  raceReferenceRootMove = Some(referenceLine.rootMove),
-                  contrastOutcome = Some(StrategicAxisComparisonOutcome.ReferenceStronger)
-                )
-              )
-            ).copy(line = Some(referenceLine), moveUci = Some(referenceLine.rootMove))
+            meaningClaimPlanTechniqueFrame(List(referenceBreakDetail))
+              .copy(line = Some(referenceLine), moveUci = Some(referenceLine.rootMove))
           )
       )
       )
@@ -2554,8 +2819,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
 
     assertEquals(broadView.moveMeaningClaims.headOption.map(_.supportLevel), Some("contextual"))
     assertEquals(playableView.moveMeaningClaims.headOption.map(_.meaningKind), Some("PawnBreakTiming"))
-    assertEquals(negativeView.moveMeaningClaims.headOption.map(_.role), Some("ReleasesPawnTension"))
-    assertEquals(negativeOutcomeView.moveMeaningClaims.headOption.map(_.role), Some("ReleasesPawnTension"))
+    assertEquals(negativeView.moveMeaningClaims.headOption.map(_.role), Some("PreparesBreak"))
+    assertEquals(negativeOutcomeView.moveMeaningClaims.headOption.map(_.role), Some("PreparesBreak"))
     assertEquals(lineOnlyView.moveMeaningClaims, Nil)
     assertEquals(planCoherenceView.moveMeaningClaims.headOption.map(_.meaningKind), Some("PlanContinuity"))
     assertEquals(planCoherenceView.moveMeaningClaims.headOption.map(_.role), Some("SharedCompatiblePlan"))

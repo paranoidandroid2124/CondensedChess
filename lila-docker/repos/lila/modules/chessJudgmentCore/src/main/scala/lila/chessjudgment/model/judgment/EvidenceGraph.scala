@@ -1691,7 +1691,7 @@ object StrategicMechanismEvidence:
               concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Activity, StrategicAxisPolarity.Loss, "outpost-concession"))
             )
           ),
-          Option.when(payload.hasPawnStructureDelta)(
+          Option.when(payload.hasPawnTensionDelta)(
             StrategicMechanismKind.PawnStructure -> signal(
               StrategicMechanismSignalKind.StructuralDelta,
               structuralPawnBreakLabel(payload),
@@ -3497,6 +3497,8 @@ final case class StructuralDeltaEvidence(
     )
   def hasPawnStructureDelta: Boolean =
     hasConsequenceCategory(TransitionConsequenceCategory.PawnStructureDelta)
+  def hasPawnTensionDelta: Boolean =
+    hasAnyConsequence(Set(PawnTensionGain, PawnTensionResolution))
   def hasStructuralAnchor: Boolean =
     hasConsequenceCategory(TransitionConsequenceCategory.StructuralAnchor)
   def hasStrategicMoveDelta: Boolean =

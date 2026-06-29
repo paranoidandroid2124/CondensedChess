@@ -920,8 +920,7 @@ private[chessjudgment] object RelativeCauseSignalProfile:
 
   private def currentMovePawnBreakAxis(axis: StrategicAxisDetail): Boolean =
     val normalized = axis.label.toLowerCase
-    normalized.contains("break-file") ||
-      normalized.contains("created-tension") ||
+    normalized.contains("created-tension") ||
       normalized.contains("resolved-tension") ||
       normalized.contains("tension")
 
