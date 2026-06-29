@@ -19,7 +19,8 @@ export const reviewStudyCreateGate = (status: PgnDraftStatus): ReviewStudyCreate
       return {
         disabled: false,
         buttonLabel: 'Save as Review Study',
-        message: 'Save the loaded game, lines, and notes as a shareable review study.',
+        message:
+          'Save the loaded game and candidate lines as a review study. Add explanation notes after it opens.',
         tone: 'success',
       };
     case 'ready':

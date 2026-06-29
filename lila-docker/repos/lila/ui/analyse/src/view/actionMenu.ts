@@ -46,10 +46,10 @@ export function boardSettingsView(ctrl: AnalyseCtrl, opts: BoardSettingsOpts = {
   return [
     hl('div.action-menu__tools', [
       hl(
-        'a',
+        'button',
         {
           hook: bind('click', () => flipBoard(ctrl, closeMenu)),
-          attrs: { 'data-icon': licon.ChasingArrows, title: 'Hotkey: f' },
+          attrs: { type: 'button', 'data-icon': licon.ChasingArrows, title: 'Hotkey: f' },
         },
         'Flip board',
       ),
@@ -114,54 +114,57 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
         next => setInlineMoveList(ctrl, closeMenu, next),
       ),
     ]),
-    workspaceSection('Analysis', 'Keep eval, candidate lines, and board cues visible as the position changes.', [
-      workspaceSwitchCard(
-        'Candidate lines',
-        engineUnavailable ? 'Candidate lines are unavailable in this position.' : 'Compare candidate lines beside the moves.',
-        ctrl.showCeval(),
-        next => {
-          ctrl.showCeval(next);
-          closeMenu();
-        },
-        engineUnavailable,
-      ),
-      workspaceSwitchCard(
-        'Eval bar',
-        'Keep the eval bar anchored while you compare the position and candidate lines.',
-        ctrl.showGauge(),
-        next => {
-          ctrl.setShowEvalGauge(next);
-          closeMenu();
-        },
-      ),
-      workspaceSwitchCard(
-        'On-board cues',
-        'Draw arrows, highlights, and review cues directly over the board.',
-        ctrl.possiblyShowMoveAnnotationsOnBoard(),
-        next => {
-          ctrl.togglePossiblyShowMoveAnnotationsOnBoard(next);
-          closeMenu();
-        },
-      ),
-      workspaceSwitchCard(
-        'Line branches',
-        'Show controls to expand or hide side lines.',
-        ctrl.disclosureMode(),
-        next => setVariationControls(ctrl, closeMenu, next),
-      ),
-      workspaceSliderCard(
-        'Line emphasis',
-        'Fade or strengthen variation arrows and branch traces.',
-        renderVariationOpacityRange(ctrl, 'Line emphasis'),
-      ),
-    ]),
+    workspaceSection(
+      'Analysis',
+      'Keep eval, candidate lines, and board cues visible as the position changes.',
+      [
+        workspaceSwitchCard(
+          'Candidate lines',
+          engineUnavailable
+            ? 'Candidate lines are unavailable in this position.'
+            : 'Compare candidate lines beside the moves.',
+          ctrl.showCeval(),
+          next => {
+            ctrl.showCeval(next);
+            closeMenu();
+          },
+          engineUnavailable,
+        ),
+        workspaceSwitchCard(
+          'Eval bar',
+          'Keep the eval bar anchored while you compare the position and candidate lines.',
+          ctrl.showGauge(),
+          next => {
+            ctrl.setShowEvalGauge(next);
+            closeMenu();
+          },
+        ),
+        workspaceSwitchCard(
+          'On-board cues',
+          'Draw arrows, highlights, and review cues directly over the board.',
+          ctrl.possiblyShowMoveAnnotationsOnBoard(),
+          next => {
+            ctrl.togglePossiblyShowMoveAnnotationsOnBoard(next);
+            closeMenu();
+          },
+        ),
+        workspaceSwitchCard(
+          'Line branches',
+          'Show controls to expand or hide side lines.',
+          ctrl.disclosureMode(),
+          next => setVariationControls(ctrl, closeMenu, next),
+        ),
+        workspaceSliderCard(
+          'Line emphasis',
+          'Fade or strengthen variation arrows and branch traces.',
+          renderVariationOpacityRange(ctrl, 'Line emphasis'),
+        ),
+      ],
+    ),
     workspaceSection('Orientation', 'Reset perspective without leaving the board.', [
       workspaceActionRow([
-        workspaceAction(
-          'Flip board',
-          'Swap sides instantly.',
-          licon.ChasingArrows,
-          () => flipBoard(ctrl, closeMenu),
+        workspaceAction('Flip board', 'Swap sides instantly.', licon.ChasingArrows, () =>
+          flipBoard(ctrl, closeMenu),
         ),
         workspaceAction(
           'Return to player side',
@@ -286,7 +289,9 @@ function workspaceAction(
   return hl(
     `button.action-menu__workspace-action${disabled ? '.disabled' : ''}`,
     {
-      attrs: disabled ? { type: 'button', disabled: true, 'data-icon': iconId } : { type: 'button', 'data-icon': iconId },
+      attrs: disabled
+        ? { type: 'button', disabled: true, 'data-icon': iconId }
+        : { type: 'button', 'data-icon': iconId },
       hook: bind('click', () => {
         if (!disabled) run();
       }),

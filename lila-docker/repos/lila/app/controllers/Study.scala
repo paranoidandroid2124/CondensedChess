@@ -136,7 +136,9 @@ final class Study(
                     sc.chapter.setup.orientation
                   )
                 val data = CondensedJsonView(pov, sc.chapter.root, ctx.pref)
-                Ok.page(views.study.ui.chapter(data, sc.study, sc.chapter, canWrite, chapters))
+                Ok.page(views.study.ui.chapter(data, sc.study, sc.chapter, canWrite, chapters)).map: result =>
+                  if canWrite || !sc.study.isPublic then result.hasPersonalData
+                  else result
 
   def anaMove(id: StudyId, chapterId: StudyChapterId) = AuthBody(parse.json) { ctx ?=> me ?=>
     ctx.body.body
@@ -422,5 +424,5 @@ final class Study(
     env.study.pager
       .mine(order, page)
       .flatMap: pag =>
-        Ok.page(views.study.ui.mine(pag, order))
+        Ok.page(views.study.ui.mine(pag, order)).map(_.hasPersonalData)
   }

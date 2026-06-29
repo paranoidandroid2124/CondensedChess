@@ -61,19 +61,13 @@ public/logo/chesstory*.png, public/logo/chesstory.svg, public/favicon.ico, publi
 
 ## External services
 
-Lichess as deployed on https://lichess.org/ also uses these external services:
+Chesstory deployments may use these external services depending on the active
+environment and feature configuration:
 
-- [Cloudflare](https://www.cloudflare.com/) to serve static assets, DNS lookups for email validation
-- [twitch](https://www.twitch.tv/) for featured livestreams
-- [YouTube](https://www.youtube.com) for featured livestreams and the [Video library](https://lichess.org/video)
-- [stripe](https://stripe.com/) and [PayPal](https://www.paypal.com) for [Patron donations](https://lichess.org/patron)
-- [openexchangerates.org](https://openexchangerates.org/) for donations in local currencies
-- [Spreadshirt](https://lichess.myspreadshop.net/) for the [Swag store](https://lichess.org/swag)
-- [mailcheck.p.rapidapi.com](https://rapidapi.com/Top-Rated/api/e-mail-check-invalid-or-disposable-domain)
-- [Amazon SES](https://aws.amazon.com/ses/) for transactional email
-- [check.torproject.org](https://check.torproject.org/torbulkexitlist) for a list or Tor exit nodes
-- [detectlanguage.com](https://detectlanguage.com/)
-- [Google Cloud Messaging](https://developers.google.com/cloud-messaging/) for mobile notifications
-- [hCaptcha](https://hcaptcha.com)
-- [PeerJS](https://peerjs.com/) for voice chat
-- [crowdin](https://crowdin.com/project/lichess) for localization
+- Hosting, CDN, DNS, logging, and monitoring providers for operating the service
+- Email delivery providers for account confirmation, password reset, and support
+- [hCaptcha](https://hcaptcha.com) for signup and abuse-prevention challenges
+- Public Lichess and Chess.com endpoints when a user requests public game imports
+- AI or model providers when a user requests AI-assisted chess explanations
+- Browser-side Stockfish engine assets and related WebAssembly packages listed in
+  `ui/lib/package.json`

@@ -2,7 +2,6 @@ FROM node:24.12.0-trixie-slim
 
 USER root
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-ENV COREPACK_INTEGRITY_KEYS=0
 
 RUN apt update \
     && apt install -y git \

@@ -18,14 +18,18 @@ object HTTPRequest:
 
   def isRedirectable(req: RequestHeader) = isSynchronousHttp(req) && isSafe(req) && !isLichessMobile(req)
 
-  private val appOrigins = List(
+  private val nativeAppOrigins = List(
     "capacitor://localhost", // ios
-    "ionic://localhost", // ios
+    "ionic://localhost" // ios
+  )
+
+  private val devAppOrigins = List(
     "http://localhost" // android/dev/flutter
   )
 
-  def appOrigin(req: RequestHeader): Option[String] =
+  def appOrigin(req: RequestHeader, allowDevOrigin: Boolean = true): Option[String] =
     origin(req).filter: reqOrigin =>
+      val appOrigins = nativeAppOrigins ::: allowDevOrigin.so(devAppOrigins)
       appOrigins.exists: appOrigin =>
         reqOrigin == appOrigin || reqOrigin.startsWith(s"$appOrigin:")
 

@@ -123,7 +123,12 @@ final class StudyBits(helpers: Helpers):
     val collaboratorCount = s.study.members.members.size
 
     frag(
-      a(cls := "overlay", href := routes.Study.show(s.study.id), title := s.study.name),
+      a(
+        cls := "overlay",
+        href := routes.Study.show(s.study.id),
+        title := s.study.name,
+        aria.label := s"Open review study: ${s.study.name.value}"
+      ),
       div(cls := "top")(
         div(cls := "study__cover")(
           coverPreview(

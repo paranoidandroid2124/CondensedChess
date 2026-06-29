@@ -27,7 +27,7 @@ final class Pref(
       value = value,
       maxAge = bgCookieMaxAge.some,
       path = "/",
-      secure = ctx.req.secure,
+      secure = secureCookie,
       httpOnly = false,
       sameSite = Cookie.SameSite.Lax.some
     )
@@ -88,7 +88,9 @@ final class Pref(
                       value = zoom.toString,
                       maxAge = (60 * 60 * 24 * 365 * 5).some,
                       path = "/",
-                      httpOnly = false
+                      secure = secureCookie,
+                      httpOnly = false,
+                      sameSite = Cookie.SameSite.Lax.some
                     )
                   )
                 else Ok.discardingCookies(DiscardingCookie("zoom", path = "/"))

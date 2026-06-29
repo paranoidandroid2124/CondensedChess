@@ -54,10 +54,23 @@ object openSource:
                   "See the COPYING file for full details."
                 )
               ),
+              st.section(cls := "legal-section")(
+                h2("Chess Engine And Analysis Components"),
+                p(
+                  "Chesstory uses browser-side chess engine and analysis components, including Stockfish-related packages and WebAssembly assets listed in the source repository package manifests."
+                ),
+                ul(
+                  li(a(href := "https://stockfishchess.org/", target := "_blank", rel := "noopener")("Stockfish")),
+                  li(a(href := "https://github.com/official-stockfish/Stockfish", target := "_blank", rel := "noopener")("Official Stockfish source")),
+                  li(a(href := "https://github.com/lichess-org/stockfish-web", target := "_blank", rel := "noopener")("stockfish-web package source"))
+                )
+              ),
               footer(cls := "legal-footer")(
                 a(href := routes.Main.privacy.url, cls := "legal-link")("Privacy Policy"),
                 " • ",
                 a(href := routes.Main.terms.url, cls := "legal-link")("Terms of Service"),
+                " • ",
+                a(href := routes.Main.contact.url, cls := "legal-link")("Contact"),
                 " • ",
                 a(href := homeUrl, cls := "legal-link")("Back to Home")
               )

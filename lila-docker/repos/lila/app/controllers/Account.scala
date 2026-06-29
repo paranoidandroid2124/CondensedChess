@@ -85,7 +85,7 @@ final class Account(
           .add("kid" -> false)
           .add("troll" -> me.marks.troll)
           .add("announce" -> env.announceApi.current.map(_.json))
-      ).headerCacheSeconds(15)
+      ).hasPersonalData
   }
 
   def nowPlaying = Auth { _ ?=> _ ?=>

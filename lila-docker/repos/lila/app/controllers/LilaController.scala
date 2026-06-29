@@ -1,13 +1,16 @@
 package controllers
 
+import java.net.URI
+import scala.util.Try
 import play.api.data.{ Form, FormBinding }
 import play.api.http.*
 import play.api.mvc.*
+import play.api.Mode
 
 import lila.app.{ *, given }
+import lila.common.HTTPRequest
 import lila.core.perm.Permission
 import lila.ui.{ Page, Snippet }
-// import play.filters.csrf.CSRF
 
 abstract private[controllers] class LilaController(val env: Env)
     extends BaseController
@@ -41,6 +44,37 @@ abstract private[controllers] class LilaController(val env: Env)
 
   val limit = lila.web.Limiters(using env.executor, env.net.rateLimit)
 
+  protected def secureCookie(using RequestHeader): Boolean =
+    env.mode == Mode.Prod || env.net.baseUrl.value.startsWith("https://") || req.secure
+
+  private lazy val csrfAllowedOrigins: Set[String] =
+    val domain = env.net.domain.value
+    originOf(env.net.baseUrl.value).toSet ++ Set(s"https://$domain", s"http://$domain")
+
+  private def originOf(raw: String): Option[String] =
+    Try(URI.create(raw)).toOption.flatMap: uri =>
+      for
+        scheme <- Option(uri.getScheme)
+        host <- Option(uri.getHost)
+      yield
+        val port = uri.getPort
+        val authority = if port == -1 then host else s"$host:$port"
+        s"$scheme://$authority"
+
+  private def csrfOriginAllowed(origin: String)(using RequestHeader): Boolean =
+    csrfAllowedOrigins(origin) ||
+      HTTPRequest.appOrigin(req, allowDevOrigin = env.mode != Mode.Prod).contains(origin)
+
+  private def hasValidCsrfOrigin(using RequestHeader): Boolean =
+    HTTPRequest.isSafe(req) ||
+      HTTPRequest.origin(req).exists(csrfOriginAllowed) ||
+      HTTPRequest.referer(req).flatMap(originOf).exists(csrfOriginAllowed) ||
+      (env.mode != Mode.Prod && HTTPRequest.origin(req).isEmpty && HTTPRequest.referer(req).isEmpty)
+
+  private def withCsrfCheck(next: => Fu[Result])(using RequestHeader): Fu[Result] =
+    if hasValidCsrfOrigin then next
+    else fuccess(Forbidden("Invalid request origin"))
+
   /* Anonymous requests */
   def Anon(f: Context ?=> Fu[Result]): EssentialAction =
     action(parse.empty)(req ?=> f(using Context.minimal(req)))
@@ -69,12 +103,12 @@ abstract private[controllers] class LilaController(val env: Env)
     action(parser)(handleOpenBody(f))
 
   private def handleOpenBody[A](f: BodyContext[A] ?=> Fu[Result])(using Request[A]): Fu[Result] =
-    // CSRF:
+    withCsrfCheck:
       makeBodyContext.flatMap:
         f(using _)
 
   private def handleOpen(f: Context ?=> Fu[Result])(using RequestHeader): Fu[Result] =
-    // CSRF:
+    withCsrfCheck:
       makeContext.flatMap:
         f(using _)
 
@@ -87,7 +121,7 @@ abstract private[controllers] class LilaController(val env: Env)
     action(parser)(handleAuth(f))
 
   private def handleAuth(f: Context ?=> Me ?=> Fu[Result])(using RequestHeader): Fu[Result] =
-    // CSRF:
+    withCsrfCheck:
       makeContext.flatMap: ctx =>
         ctx.me.fold(authenticationFailed(using ctx))(f(using ctx)(using _))
 
@@ -102,7 +136,7 @@ abstract private[controllers] class LilaController(val env: Env)
     action(parser)(handleAuthBody(f))
 
   private def handleAuthBody[A](f: BodyContext[A] ?=> Me ?=> Fu[Result])(using Request[A]): Fu[Result] =
-    // CSRF:
+    withCsrfCheck:
       makeBodyContext.flatMap: ctx =>
         ctx.me.fold(authenticationFailed(using ctx))(f(using ctx)(using _))
 

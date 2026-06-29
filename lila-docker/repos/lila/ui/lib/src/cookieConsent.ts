@@ -5,9 +5,24 @@ const consentVersion = 'v1';
 const consentMaxAgeSeconds = 60 * 60 * 24 * 180;
 
 const preferenceKeyPrefixes = ['analyse.', 'engine.'];
-const preferenceExactKeys = ['analysis.panel', 'chesstory.evalChart', 'markdown.rtfm', 'log.window'];
+const preferenceExactKeys = [
+  'analysis.panel',
+  'ceval.threads',
+  'chesstory.evalChart',
+  'log.window',
+  'markdown.rtfm',
+  'sound-volume',
+  'speech.enabled',
+  'surl18',
+];
 const preferenceCookies = ['bg', 'zoom'];
-const preferenceIndexedDbNames = ['analyse-collapse', 'big-file', 'ceval-wasm-cache--db', 'lichess', 'log--db'];
+const preferenceIndexedDbNames = [
+  'analyse-collapse',
+  'big-file',
+  'ceval-wasm-cache--db',
+  'lichess',
+  'log--db',
+];
 let lastDialogFocus: HTMLElement | null = null;
 
 function body(): HTMLElement | null {
@@ -51,7 +66,9 @@ function consentFocusable(): HTMLElement[] {
   const panel = consentPanel();
   if (!panel) return [];
   return Array.from(
-    panel.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'),
+    panel.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    ),
   ).filter(element => element.getAttribute('aria-hidden') !== 'true');
 }
 

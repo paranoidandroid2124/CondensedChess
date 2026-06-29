@@ -13,7 +13,9 @@ object ContentSecurityPolicy:
     mediaSrc = Nil,
     scriptSrc = Nil,
     fontSrc = Nil,
-    baseUri = List("'none'")
+    baseUri = List("'none'"),
+    objectSrc = List("'none'"),
+    formAction = List("'self'")
   )
 
   def page(assetDomain: AssetDomain, connectSrcs: List[String]) =
@@ -34,7 +36,9 @@ object ContentSecurityPolicy:
       mediaSrc = List("'self'", "blob:", assetDomain.value),
       scriptSrc = List("'self'", "blob:", assetDomain.value),
       fontSrc = List("'self'", assetDomain.value),
-      baseUri = List("'none'")
+      baseUri = List("'none'"),
+      objectSrc = List("'none'"),
+      formAction = List("'self'")
     )
 
   def embed(assetDomain: AssetDomain) =
@@ -48,7 +52,9 @@ object ContentSecurityPolicy:
       mediaSrc = Nil,
       scriptSrc = List("'self'", assetDomain.value),
       fontSrc = List("'self'", assetDomain.value),
-      baseUri = List("'none'")
+      baseUri = List("'none'"),
+      objectSrc = List("'none'"),
+      formAction = List("'self'")
     )
 
   def render(csp: lila.ui.ContentSecurityPolicy): String =
@@ -63,7 +69,9 @@ object ContentSecurityPolicy:
       "media-src " -> mediaSrc,
       "script-src " -> scriptSrc,
       "font-src " -> fontSrc,
-      "base-uri " -> baseUri
+      "base-uri " -> baseUri,
+      "object-src " -> objectSrc,
+      "form-action " -> formAction
     ).collect {
       case (directive, sources) if sources.nonEmpty =>
         sources.mkString(directive, " ", ";")

@@ -10,7 +10,9 @@ case class ContentSecurityPolicy(
     mediaSrc: List[String],
     scriptSrc: List[String],
     fontSrc: List[String],
-    baseUri: List[String]
+    baseUri: List[String],
+    objectSrc: List[String],
+    formAction: List[String]
 ):
   def withNonce(nonce: Nonce) = copy(scriptSrc = s"'nonce-${nonce}'" :: scriptSrc)
 

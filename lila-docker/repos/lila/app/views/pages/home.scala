@@ -25,7 +25,7 @@ object home:
                 h1("Deep review for one game"),
                 p(cls := "home-hero__summary")(
                   "Continue a recent analysis or bring in a new game, " +
-                    "then keep the board, eval, and explanation notes together."
+                    "then keep the board, eval, explanation, and study notes together."
                 ),
                 renderContinueCard(data.continueCard)
               ),
@@ -180,8 +180,12 @@ object home:
     )
 
   private def renderAccountLookup(account: ImportHistory.Account): Frag =
+    val targetUrl =
+      account.provider match
+        case ImportHistory.providerChessCom => routes.Importer.importFromChessCom(account.username).url
+        case _                              => routes.Importer.importFromLichess(account.username).url
     a(
-      href := routes.Importer.importGame.url,
+      href := targetUrl,
       cls := "home-strip-card"
     )(
       div(cls := "home-strip-card__top")(

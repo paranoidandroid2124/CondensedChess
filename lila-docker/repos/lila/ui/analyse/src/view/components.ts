@@ -556,6 +556,9 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
   const actionMessage = ctrl.studyActionMessageText();
   const syncTone = ctrl.studyWriteError ? 'error' : ctrl.isStudyWriting() ? 'info' : 'success';
   const syncMessage = actionMessage || ctrl.studyStatusText();
+  const privateStudy = study.visibility === 'private';
+  const copyLabel = privateStudy ? ' Copy private Study link' : ' Copy Review Study link';
+  const sharePill = privateStudy ? 'Only collaborators can open the link' : 'Share the exact section link';
 
   return hl('section.copyables__study.copyables__study--current', [
     hl('div.copyables__study-head', [
@@ -583,7 +586,7 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
               void ctrl.copyStudyShareLink();
             }),
           },
-          [renderNotebookGlyph('bookmark', 'copyables__study-button-glyph'), ' Copy Review Study link'],
+          [renderNotebookGlyph('bookmark', 'copyables__study-button-glyph'), copyLabel],
         ),
       ]),
     ]),
@@ -614,7 +617,7 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
     hl('div.copyables__study-pills', [
       studyFeaturePill('page', 'Moments, not move dumps'),
       studyFeaturePill('section', 'Opening to middlegame'),
-      studyFeaturePill('bookmark', 'Share the exact section link'),
+      studyFeaturePill('bookmark', sharePill),
     ]),
   ]);
 }
@@ -666,7 +669,7 @@ function renderStudySetupModal(ctrl: AnalyseCtrl): VNode | null {
               hl('strong', 'Name this review study'),
               hl(
                 'span.copyables__study-subline',
-                'Save the loaded game as a study with playable lines, explanation notes, and a shareable section link.',
+                'Save the loaded game as a study with playable lines and a section link. Add explanation notes after it opens.',
               ),
             ]),
           ]),

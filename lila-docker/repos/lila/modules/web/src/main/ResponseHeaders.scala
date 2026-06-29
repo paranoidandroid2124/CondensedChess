@@ -7,8 +7,8 @@ import lila.common.HTTPRequest
 
 trait ResponseHeaders extends HeaderNames:
 
-  def headersForApiOrApp(using req: RequestHeader) =
-    val appOrigin = HTTPRequest.appOrigin(req)
+  def headersForApiOrApp(allowDevAppOrigin: Boolean)(using req: RequestHeader) =
+    val appOrigin = HTTPRequest.appOrigin(req, allowDevOrigin = allowDevAppOrigin)
     List(
       "Access-Control-Allow-Origin" -> appOrigin.getOrElse("*"),
       "Access-Control-Allow-Methods" -> allowMethods,
@@ -46,6 +46,19 @@ trait ResponseHeaders extends HeaderNames:
       "microphone=(self)",
       "fullscreen=(self)"
     ).mkString(", ")
+
+  def securityHeaders(isHttps: Boolean) =
+    List(
+      "Content-Security-Policy" -> "frame-ancestors 'self'; object-src 'none'; base-uri 'none'; form-action 'self'",
+      "X-Frame-Options" -> "SAMEORIGIN",
+      "X-Content-Type-Options" -> "nosniff",
+      "Referrer-Policy" -> "strict-origin-when-cross-origin",
+      permissionsPolicyHeader
+    ) ::: isHttps.so(
+      List(
+        "Strict-Transport-Security" -> "max-age=31536000; includeSubDomains"
+      )
+    )
 
   def lastModified(date: Instant) = LAST_MODIFIED -> date.atZone(utcZone)
 

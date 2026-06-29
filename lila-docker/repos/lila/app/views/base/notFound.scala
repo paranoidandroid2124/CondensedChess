@@ -25,6 +25,7 @@ def notFound(msg: Option[String]) =
           st.frameborder := 0,
           widthA := 400,
           heightA := 500,
+          attr("sandbox") := "allow-scripts",
           frame.credentialless
         ),
         p(cls := "credits")(

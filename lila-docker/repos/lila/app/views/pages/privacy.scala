@@ -16,7 +16,7 @@ object privacy:
             st.article(cls := "legal-content")(
               header(cls := "legal-header")(
                 h1("Privacy Policy"),
-                p(cls := "legal-meta")("Effective Date: March 10, 2026 • Last Updated: March 19, 2026")
+                p(cls := "legal-meta")("Effective Date: March 10, 2026 • Last Updated: June 29, 2026")
               ),
 
               st.section(cls := "legal-section")(
@@ -33,11 +33,13 @@ object privacy:
                 h2("2. Information We Collect"),
                 ul(
                   li(strong("Account data: "), "email address, username, and password hash or other authentication-related records needed to run your account"),
-                  li(strong("Chess content: "), "games, PGNs, studies, positions, and analysis inputs you submit or save"),
+                  li(strong("Chess content: "), "games, PGNs, studies, positions, candidate lines, comments, notes, and analysis inputs you submit or save"),
+                  li(strong("Study sharing data: "), "review study titles, section names, visibility settings, collaborator records, and shareable links or public listing metadata"),
                   li(strong("Support communications: "), "messages you send through email or the contact page"),
                   li(strong("Beta feedback and waitlist data: "), "payment-intent answers, price-band preferences, optional product notes, and notification email addresses you submit through beta feedback prompts or forms"),
                   li(strong("Technical and security data: "), "IP address, browser and device information, request logs, and abuse-prevention signals"),
-                  li(strong("Public chess data: "), "if you request imports or opponent analysis, Chesstory may fetch public game data from third-party chess platforms")
+                  li(strong("Public chess data: "), "if you request imports or opponent analysis, Chesstory may fetch public game data from third-party chess platforms"),
+                  li(strong("Import history for signed-in users: "), "provider, public username, external game ID, source URL, players, result, date or time controls, opening metadata, and PGN for games you choose to save or reopen")
                 )
               ),
 
@@ -61,8 +63,8 @@ object privacy:
                 ul(
                   li("Hosting and infrastructure providers"),
                   li("Email delivery providers"),
-                  li("AI or model providers when needed to generate analysis features"),
-                  li("Anti-abuse or captcha providers when needed to protect the Service"),
+                  li("AI or model providers when needed to generate analysis features. This may include chess positions, FENs, PGNs, move lists, candidate lines, notes or comments you ask Chesstory to explain, and related metadata needed to return the feature"),
+                  li("Anti-abuse or captcha providers such as hCaptcha when enabled to protect the Service"),
                   li("Authorities or counterparties when required by law or reasonably necessary to protect rights, safety, or the Service")
                 )
               ),
@@ -91,7 +93,7 @@ object privacy:
                 h3("Advertising and tracking"),
                 p("Chesstory does not currently use advertising cookies or cross-site tracking cookies."),
                 p(
-                  "If anti-abuse providers such as captcha or challenge tools are enabled later, those providers may process device or browser signals under their own policies."
+                  "When anti-abuse providers such as captcha or challenge tools are enabled, those providers may process device or browser signals under their own policies."
                 ),
                 div(cls := "legal-actions")(
                   a(href := "#cookie-consent", cls := "button button-empty js-cookie-consent-open")("Manage Cookie Settings")
@@ -102,7 +104,19 @@ object privacy:
               ),
 
               st.section(cls := "legal-section")(
-                h2("6. Retention, Closure, and Deletion"),
+                h2("6. Study Visibility and Sharing"),
+                p(
+                  "Review Studies can be private, link-shareable, or public depending on the visibility you choose. ",
+                  "Private studies are intended for you and invited collaborators. Link-shareable studies can be opened by anyone who receives the link. Public studies may appear in public lists."
+                ),
+                p(
+                  "If you share a study link, people who receive it may forward it to others. ",
+                  "Imported public games may also contain third-party platform usernames and public game metadata."
+                )
+              ),
+
+              st.section(cls := "legal-section")(
+                h2("7. Retention, Closure, and Deletion"),
                 p(
                   "We keep account and service data for as long as needed to operate the Service, secure accounts, and handle legitimate support and operational needs."
                 ),
@@ -117,7 +131,7 @@ object privacy:
               ),
 
               st.section(cls := "legal-section")(
-                h2("7. International Processing"),
+                h2("8. International Processing"),
                 p(
                   "Chesstory is operated from the Republic of Korea, and some service providers may process data in other countries. ",
                   "By using the Service, you understand that data may be processed outside your home jurisdiction."
@@ -125,15 +139,15 @@ object privacy:
               ),
 
               st.section(cls := "legal-section")(
-                h2("8. Children"),
+                h2("9. Children"),
                 p(
-                  "Chesstory is not intended for users under 14 years old. ",
-                  "If you believe a child under 14 has provided personal information to Chesstory, contact us so we can review and respond."
+                  "Chesstory is not directed to children under 13 and is not intended for users under 14 years old. ",
+                  "If you believe a child has provided personal information to Chesstory without appropriate permission, contact us so we can review, restrict, or remove the information as appropriate."
                 )
               ),
 
               st.section(cls := "legal-section")(
-                h2("9. Your Choices and Requests"),
+                h2("10. Your Choices and Requests"),
                 p("You may have rights to request access, correction, or deletion of your information, depending on applicable law."),
                 p(
                   "You can also manage some account information directly inside the Service, including email and password settings when available."
@@ -159,7 +173,7 @@ object privacy:
               ),
 
               st.section(cls := "legal-section")(
-                h2("10. Changes to This Policy"),
+                h2("11. Changes to This Policy"),
                 p(
                   "We may update this Privacy Policy from time to time. We will post the updated version on this page and update the Last Updated date."
                 )

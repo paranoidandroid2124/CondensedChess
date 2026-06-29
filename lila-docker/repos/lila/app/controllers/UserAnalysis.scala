@@ -75,7 +75,9 @@ final class UserAnalysis(
       currentImportId: Option[String] = None
   )(using ctx: Context): Fu[Result] =
     importHistoryJson(currentImportId).flatMap: history =>
-      Ok.page(AnalysePgnPipeline.page(variant = variant, fen = fen, inlinePgn = inlinePgn, importHistory = history))
+      Ok.page(AnalysePgnPipeline.page(variant = variant, fen = fen, inlinePgn = inlinePgn, importHistory = history)).map: result =>
+        if ctx.isAuth || inlinePgn.nonEmpty || currentImportId.nonEmpty then result.hasPersonalData
+        else result
 
   private def importHistoryJson(currentImportId: Option[String])(using ctx: Context): Fu[Option[JsObject]] =
     ctx.me.fold(fuccess(none[JsObject])): me =>

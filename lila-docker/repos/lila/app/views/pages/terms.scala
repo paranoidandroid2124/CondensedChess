@@ -16,7 +16,7 @@ object terms:
             st.article(cls := "legal-content")(
               header(cls := "legal-header")(
                 h1("Terms of Service"),
-                p(cls := "legal-meta")("Effective Date: March 10, 2026 • Last Updated: March 19, 2026")
+                p(cls := "legal-meta")("Effective Date: March 10, 2026 • Last Updated: June 29, 2026")
               ),
 
               st.section(cls := "legal-section")(
@@ -85,6 +85,9 @@ object terms:
                   "You grant Chesstory a limited license to host, process, and display that content as needed to operate the Service for you."
                 ),
                 p(
+                  "Study visibility matters. Public studies may be listed publicly, link-shareable studies can be opened by anyone with the link, and private studies are limited to you or approved collaborators."
+                ),
+                p(
                   "Chesstory includes open-source software licensed under GNU AGPL v3 and other licenses listed in our ",
                   a(href := routes.Main.source.url)("Open Source Notice"),
                   ". Chesstory branding, site design, and non-user content remain protected by applicable intellectual property laws and licenses."
@@ -101,7 +104,8 @@ object terms:
                   li("Analysis may be incomplete, inaccurate, or unavailable"),
                   li("You are responsible for how you use any chess recommendations"),
                   li("Some analysis features may require sign-in and may be subject to rate limits, daily quotas, fair-use controls, or plan/tier limits"),
-                  li("Some features may fetch public chess data from third-party platforms at your request"),
+                  li("Some features may send chess positions, move lists, PGNs, comments, or notes to analysis systems or model providers when needed to return the requested explanation"),
+                  li("Some features may fetch public chess data from third-party platforms at your request; do not use Chesstory to import private, restricted, or non-consensual data"),
                   li("Chesstory is not affiliated with or endorsed by Lichess, Chess.com, or other third-party platforms unless explicitly stated")
                 )
               ),

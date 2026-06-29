@@ -4,7 +4,6 @@ FROM node:24-trixie AS node
 COPY repos/lila /lila
 COPY conf/mono.conf /lila/conf/mono.conf
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-ENV COREPACK_INTEGRITY_KEYS=0
 RUN corepack enable \
     && /lila/ui/build --clean --debug
 

@@ -7,15 +7,7 @@ import { addPointerListeners } from 'lib/pointer';
 import * as control from '../control';
 import type AnalyseCtrl from '../ctrl';
 
-type Action =
-  | 'first'
-  | 'prev'
-  | 'next'
-  | 'last'
-  | 'scrub-help'
-  | 'opening-explorer'
-  | 'menu'
-  | 'analysis';
+type Action = 'first' | 'prev' | 'next' | 'last' | 'scrub-help' | 'opening-explorer' | 'menu' | 'analysis';
 
 export function renderControls(ctrl: AnalyseCtrl) {
   const canJumpPrev = ctrl.path !== '',
@@ -54,6 +46,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
           attrs: {
             title: 'Opening book and tablebase',
             'data-act': 'opening-explorer',
+            'aria-label': 'Open opening book and tablebase',
           },
           class: {
             hidden: !ctrl.explorer.allowed(),
@@ -66,7 +59,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
         'button.fbt',
         {
           class: { active: activeTool === 'action-menu' },
-          attrs: { title: 'Menu', 'data-act': 'menu' },
+          attrs: { title: 'Menu', 'data-act': 'menu', 'aria-label': 'Open analysis menu' },
         },
         [icon(licon.Hamburger as any)],
       ),
@@ -83,6 +76,7 @@ function renderAnalysisToggle(ctrl: AnalyseCtrl, activeTool: string | false, sho
       attrs: {
         title: 'Toggle reference lines',
         'data-act': 'analysis',
+        'aria-label': 'Toggle reference lines',
         'aria-pressed': active ? 'true' : 'false',
       },
       class: { active, latent, computing: ctrl.ceval.isComputing },
@@ -93,7 +87,9 @@ function renderAnalysisToggle(ctrl: AnalyseCtrl, activeTool: string | false, sho
 
 function holdControl(ctrl: AnalyseCtrl, e: PointerEvent) {
   if (!(e.target instanceof HTMLElement)) return;
-  const action = e.target.closest<HTMLElement>('[data-act]')?.dataset.act as Action;
+  const target = e.target.closest<HTMLElement>('[data-act]');
+  if (!target || target.matches('button:disabled,[aria-disabled="true"]')) return;
+  const action = target.dataset.act as Action;
   if (action === 'prev' || action === 'next') {
     repeater(() => {
       control[action](ctrl);
@@ -104,7 +100,9 @@ function holdControl(ctrl: AnalyseCtrl, e: PointerEvent) {
 
 function clickControl(ctrl: AnalyseCtrl, e: PointerEvent) {
   if (!(e.target instanceof HTMLElement)) return;
-  const action = e.target.closest<HTMLElement>('[data-act]')?.dataset.act as Action;
+  const target = e.target.closest<HTMLElement>('[data-act]');
+  if (!target || target.matches('button:disabled,[aria-disabled="true"]')) return;
+  const action = target.dataset.act as Action;
   if (!action) return;
   if (action === 'prev') control.prev(ctrl);
   else if (action === 'next') control.next(ctrl);
@@ -139,8 +137,23 @@ function scrubControl(ctrl: AnalyseCtrl, dx: number | 'pointerup') {
   ctrl.redraw();
 }
 
-const jumpButton = (iconName: string, effect: string, enabled: boolean): VNode =>
-  hl('button.fbt.move', { class: { disabled: !enabled }, attrs: { 'data-act': effect } }, [icon(iconName as any)]);
+const jumpLabels: Record<string, string> = {
+  first: 'Go to the first move',
+  prev: 'Go to the previous move',
+  next: 'Go to the next move',
+  last: 'Go to the last move',
+};
+
+const jumpButton = (iconName: string, effect: string, enabled: boolean): VNode => {
+  const label = jumpLabels[effect] ?? effect;
+  const attrs: Record<string, string | boolean> = {
+    'data-act': effect,
+    title: label,
+    'aria-label': label,
+  };
+  if (!enabled) attrs.disabled = true;
+  return hl('button.fbt.move', { class: { disabled: !enabled }, attrs }, [icon(iconName as any)]);
+};
 
 function scrubHelp(ctrl: AnalyseCtrl) {
   domDialog({

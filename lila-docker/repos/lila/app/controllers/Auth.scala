@@ -72,7 +72,7 @@ final class Auth(env: Env) extends LilaController(env):
       value = value,
       maxAge = remember.option(cookieMaxAgeRemember),
       path = "/",
-      secure = ctx.req.secure,
+      secure = secureCookie,
       httpOnly = true,
       sameSite = Cookie.SameSite.Lax.some
     )
@@ -139,7 +139,8 @@ final class Auth(env: Env) extends LilaController(env):
           .withNewSession
           .discardingCookies(DiscardingCookie(api.sessionIdKey))
 
-  def logoutGet = logout
+  def logoutGet = Open:
+    MethodNotAllowed("Use POST to log out.").toFuccess
 
   def signup = Open:
     Ok.page(signupPage(env.security.forms.signup.website(using ctx.req)))

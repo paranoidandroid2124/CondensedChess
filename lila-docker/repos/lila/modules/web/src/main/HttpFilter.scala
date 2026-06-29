@@ -50,9 +50,13 @@ final class HttpFilter(
   }.option(Results.MovedPermanently(s"http${if req.secure then "s" else ""}://${net.domain}${req.uri}"))
 
   private def addContextualResponseHeaders(req: RequestHeader)(result: Result) =
+    val secured = result.withHeaders(securityHeaders(isHttps(req))*)
     if HTTPRequest.isApiOrApp(req)
-    then result.withHeaders(headersForApiOrApp(using req)*)
-    else result.withHeaders(permissionsPolicyHeader)
+    then secured.withHeaders(headersForApiOrApp(allowDevAppOrigin = !net.baseUrl.value.startsWith("https://"))(using req)*)
+    else secured
+
+  private def isHttps(req: RequestHeader) =
+    req.secure || net.baseUrl.value.startsWith("https://")
 
   private def addEmbedderPolicyHeaders(req: RequestHeader)(result: Result) =
     if !crossOriginPolicy.isSet(result)

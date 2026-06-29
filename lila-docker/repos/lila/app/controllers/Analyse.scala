@@ -51,22 +51,23 @@ final class Analyse(
   }
 
   def moveMeaning = OpenBodyOf(parse.json): (bodyCtx: BodyContext[JsValue]) ?=>
-    bodyCtx.body.body.validate[RawMoveReviewInput].fold(
-      errors => BadRequest(Json.obj("ok" -> false, "error" -> "invalid_move_review_input", "details" -> JsError.toJson(errors))).toFuccess,
-      raw =>
-        MoveReviewJudgmentOrchestrator.build(raw).fold(
-          BadRequest(Json.obj("ok" -> false, "error" -> "move_review_not_buildable")).toFuccess
-        ): result =>
-          JsonOk(
-            Json.obj(
-              "ok" -> true,
-              "valid" -> result.validation.isValid,
-              "qualityClean" -> result.quality.audit.isClean,
-              "moveJudgmentView" -> result.packet.moveJudgmentView.map(moveJudgmentViewMeaningJson),
-              "validationIssues" -> result.validation.issues.map(validationIssueJson)
-            )
-          ).toFuccess
-    )
+    limit.moveMeaning(bodyCtx.ip, rateLimitedJson.toFuccess):
+      bodyCtx.body.body.validate[RawMoveReviewInput].fold(
+        errors => BadRequest(Json.obj("ok" -> false, "error" -> "invalid_move_review_input", "details" -> JsError.toJson(errors))).toFuccess,
+        raw =>
+          MoveReviewJudgmentOrchestrator.build(raw).fold(
+            BadRequest(Json.obj("ok" -> false, "error" -> "move_review_not_buildable")).toFuccess
+          ): result =>
+            JsonOk(
+              Json.obj(
+                "ok" -> true,
+                "valid" -> result.validation.isValid,
+                "qualityClean" -> result.quality.audit.isClean,
+                "moveJudgmentView" -> result.packet.moveJudgmentView.map(moveJudgmentViewMeaningJson),
+                "validationIssues" -> result.validation.issues.map(validationIssueJson)
+              )
+            ).toFuccess
+      )
 
   private def moveJudgmentViewMeaningJson(view: MoveJudgmentView): JsObject =
     Json.obj(

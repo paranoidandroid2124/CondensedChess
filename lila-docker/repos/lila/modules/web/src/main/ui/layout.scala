@@ -82,7 +82,7 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
 
   def dasher(me: User) =
     div(cls := "dasher")(
-      a(id := "user_tag", cls := "toggle link", href := routes.Auth.logoutGet)(me.username),
+      a(id := "user_tag", cls := "toggle link", href := routes.Account.profile)(me.username),
       div(id := "dasher_app", cls := "dropdown")
     )
 
@@ -263,7 +263,10 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
         a(cls := "site-footer__home", href := siteHomeUrl)("Home"),
         div(cls := "site-footer__links")(
           a(href := routes.Main.privacy.url)("Privacy"),
-          a(href := routes.Main.terms.url)("Terms")
+          a(href := routes.Main.terms.url)("Terms"),
+          a(href := routes.Main.contact.url)("Contact"),
+          a(href := routes.Main.source.url)("Open Source"),
+          a(href := "#cookie-consent", cls := "js-cookie-consent-open")("Cookie settings")
         )
       )
     )

@@ -60,7 +60,7 @@ final class Main(
         recentStudies = recentStudies
       )
       result <- Ok.page(views.pages.home(data))
-    yield result
+    yield result.hasPersonalData
   }
 
   def support = Open:

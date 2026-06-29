@@ -70,7 +70,8 @@ object importer:
                         div(cls := "importer-panel__hint")(
                           span("Public games only"),
                           span("Review starts from one game"),
-                          span("Saved study stays optional")
+                          span("Saved study stays optional"),
+                          span("Independent from Lichess and Chess.com")
                         ),
                         button(cls := "auth-submit importer-submit", tpe := "submit")(
                           "Show recent games",

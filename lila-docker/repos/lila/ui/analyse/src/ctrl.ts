@@ -398,7 +398,13 @@ export default class AnalyseCtrl implements CevalHandler {
     if (!url) return;
     try {
       await navigator.clipboard.writeText(new URL(url, location.origin).toString());
-      this.setStudyActionMessage('Review study link copied.', 'success');
+      const privateStudy = this.studyData()?.visibility === 'private';
+      this.setStudyActionMessage(
+        privateStudy
+          ? 'Private study link copied. Only collaborators can open it.'
+          : 'Review study link copied.',
+        'success',
+      );
     } catch (e) {
       console.warn('Study link copy failed', e);
       this.setStudyActionMessage('Copy failed. Open the study link directly instead.', 'error');

@@ -46,8 +46,8 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
         (
           "Your review studies",
           "Create a blank review study or reopen the ones you already use for lines, notes, and reusable sections.",
-          "Analysis carry-over",
-          "Carry over PGN trees and reusable analysis sections."
+          "Start from analysis",
+          "Use the analysis board when you want to carry a loaded game into a review study."
         )
       else
         (
@@ -76,8 +76,8 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
                     bits.newForm(),
                     p(cls := "notebook-index__create-copy")(
                       if active == "mine" then
-                        "Starts a blank review study immediately. Bring lines in from analysis after it opens."
-                      else "Signed in? Start a blank review study here, then add sections from analysis when you need them."
+                        "Starts a blank review study immediately. To carry a loaded game, create it from the analysis board."
+                      else "Signed in? Start a blank review study here, or create one from the analysis board when a game is already loaded."
                     )
                   )
                 )
@@ -105,7 +105,7 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
         strong(if active == "mine" then "No review studies yet" else "No public review studies yet"),
         p(
           if active == "mine" then
-            "Create one from analysis to keep sections and notes together."
+            "Create one from analysis when a loaded game is worth keeping, or start blank for an outline."
           else "Public review studies will appear here once authors choose to share them."
         ),
         bits.newForm("Create your first review study")

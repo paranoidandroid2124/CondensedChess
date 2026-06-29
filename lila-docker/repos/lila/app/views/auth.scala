@@ -99,6 +99,7 @@ object auth:
               tpe := "text",
               name := "username",
               placeholder := "username or email",
+              aria.label := "Username or email",
               value := (formData("username").value | ""),
               autocomplete := "username",
               required,
@@ -111,6 +112,7 @@ object auth:
               tpe := "password",
               name := "password",
               placeholder := "password",
+              aria.label := "Password",
               autocomplete := "current-password",
               required
             ),
@@ -144,6 +146,7 @@ object auth:
               tpe := "email",
               name := "email",
               placeholder := "your@email.com",
+              aria.label := "Email address",
               value := (formData("email").value | ""),
               autocomplete := "email",
               required,
@@ -156,6 +159,7 @@ object auth:
               tpe := "text",
               name := "username",
               placeholder := "username",
+              aria.label := "Username",
               value := (formData("username").value | ""),
               autocomplete := "username",
               required
@@ -167,6 +171,7 @@ object auth:
               tpe := "password",
               name := "password",
               placeholder := "password",
+              aria.label := "Password",
               autocomplete := "new-password",
               required
             ),
@@ -176,6 +181,7 @@ object auth:
             div(cls := "form-group captcha-group")(
               div(
                 cls := "h-captcha",
+                attr("data-size") := "compact",
                 attr("data-sitekey") := (captchaSiteKey | "")
               ),
               fieldError(formData, "h-captcha-response"),
@@ -205,6 +211,7 @@ object auth:
               tpe := "email",
               name := "email",
               placeholder := "your@email.com",
+              aria.label := "Email address",
               autocomplete := "email",
               required,
               autofocus
@@ -233,6 +240,7 @@ object auth:
               tpe := "password",
               name := "password",
               placeholder := "new password",
+              aria.label := "New password",
               autocomplete := "new-password",
               required,
               autofocus
@@ -280,6 +288,7 @@ object auth:
               tpe := "email",
               name := "email",
               placeholder := "wrong email? enter a new one",
+              aria.label := "Email address",
               autocomplete := "email",
               required
             )
@@ -313,6 +322,7 @@ object auth:
               tpe := "email",
               name := "email",
               placeholder := "your@email.com",
+              aria.label := "Email address",
               autocomplete := "email",
               required,
               autofocus
