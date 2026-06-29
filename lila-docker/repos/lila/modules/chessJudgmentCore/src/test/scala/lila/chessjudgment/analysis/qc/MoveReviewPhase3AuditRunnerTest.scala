@@ -1890,7 +1890,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
   test("move meaning claims surface concrete played-move reasons without praise wording"):
     val cause = causeFrame(
       causeId = "cause-break",
-      axisKeys = List("PawnBreak:Support:central-break-timing"),
+      axisKeys = List("PawnBreak:Support:break-file-e-created-tension-e3-d4"),
       objectSignatures = List("target=Square:e3|mechanism=Mechanism:pawn-break|proof=DirectProof"),
       causeKind = RelativeCauseKind.PawnBreakOpportunity
     ).copy(
@@ -1900,16 +1900,19 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     )
     val detail = PositionPlanTechniqueSemanticDetail(
       unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
-      axisKey = Some("PawnBreak:Support:central-break-timing"),
+      axisKey = Some("PawnBreak:Support:break-file-e-created-tension-e3-d4"),
       axisKind = Some(StrategicAxisKind.PawnBreak),
       axisPolarity = Some(StrategicAxisPolarity.Support),
-      label = Some("central-break-timing"),
+      label = Some("break-file-e-created-tension-e3-d4"),
       contrastOutcome = Some(StrategicAxisComparisonOutcome.CandidateStronger),
       breakFile = Some("e"),
       tensionPolicy = Some("maintain"),
       tensionSquares = List("d4", "e3"),
-      candidateEvidenceIds = List("mechanism-break"),
-      sourceEvidenceIds = List("mechanism-break"),
+      tensionEdges = List("e3-d4"),
+      structuralPurposeSubjects = List("created-tension:e3-d4"),
+      structuralPurposeConsequences = List("PawnTensionGain"),
+      candidateEvidenceIds = List("structural-delta:played:e2e3:tension"),
+      sourceEvidenceIds = List("structural-delta:played:e2e3:tension"),
       causeEvidenceIds = List("cause-break"),
       proofRoles = List(RelativeCauseProofRole.DirectProof),
       objectBindingSignatures = List("target=Square:e3|mechanism=Mechanism:pawn-break|proof=DirectProof"),
@@ -2083,6 +2086,151 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assert(claims.nonEmpty, view.moveMeaningClaims)
     assert(claims.forall(_.role == "PreparesBreak"), claims)
 
+  test("move meaning claims do not borrow another file's pawn break as current move timing"):
+    def detail(breakFile: String, axisKey: String) =
+      PositionPlanTechniqueSemanticDetail(
+        unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+        axisKey = Some(axisKey),
+        axisKind = Some(StrategicAxisKind.PawnBreak),
+        axisPolarity = Some(StrategicAxisPolarity.Support),
+        label = Some(axisKey.stripPrefix("PawnBreak:Support:")),
+        breakFile = Some(breakFile),
+        tensionPolicy = Some("prepare"),
+        tensionSquares = List("e3", "d4"),
+        tensionEdges = List("e3-d4"),
+        structuralPurposeSubjects = List("created-tension:e3-d4"),
+        candidateEvidenceIds = List(s"structural-delta:played:e2e3:$breakFile-break"),
+        sourceEvidenceIds = List(s"structural-delta:played:e2e3:$breakFile-break"),
+        objectBindingSignatures =
+          List(s"actor=Move:e2e3|target=File:$breakFile|target=Square:e3|target=Square:d4|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+        specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+      )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(
+        detail("e", "PawnBreak:Support:break-file-e-created-tension-e3-d4"),
+        detail("d", "PawnBreak:Support:break-file-d-maintain-d4-e3")
+      )
+    )
+    val claims = view.moveMeaningClaims.filter(_.meaningKind == "PawnBreakTiming")
+
+    assert(claims.exists(_.reasonTokens.contains("breakFile:e")), claims)
+    assert(!claims.exists(claim => claim.surfaceLane.startsWith("current_move") && claim.reasonTokens.contains("breakFile:d")), claims)
+
+  test("move meaning claims do not surface consequence-only pawn break as current move timing"):
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+      axisKey = Some("PawnBreak:Support:break-file-e"),
+      axisKind = Some(StrategicAxisKind.PawnBreak),
+      axisPolarity = Some(StrategicAxisPolarity.Support),
+      label = Some("break-file-e"),
+      breakFile = Some("e"),
+      structuralPurposeConsequences = List("PawnTensionGain"),
+      candidateEvidenceIds = List("structural-delta:played:e2e3:tension-kind-only"),
+      sourceEvidenceIds = List("structural-delta:played:e2e3:tension-kind-only"),
+      objectBindingSignatures =
+        List("actor=Move:e2e3|target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+    )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(detail)
+    )
+    val claims = view.moveMeaningClaims.filter(_.meaningKind == "PawnBreakTiming")
+
+    assert(!claims.exists(_.surfaceLane.startsWith("current_move")), claims)
+
+  test("move meaning claims do not borrow alternative pawn break detail as current timing"):
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+      axisKey = Some("PawnBreak:Support:break-file-e-release-e2-e3-e3-e2"),
+      axisKind = Some(StrategicAxisKind.PawnBreak),
+      axisPolarity = Some(StrategicAxisPolarity.Support),
+      label = Some("break-file-e-release-e2-e3-e3-e2"),
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.ReferenceOnly),
+      breakFile = Some("e"),
+      tensionSquares = List("e2", "e3"),
+      tensionEdges = List("e2-e3", "e3-e2"),
+      counterBreakFiles = List("d"),
+      candidateEvidenceIds = List("structural-delta:alternative:g1f3"),
+      sourceEvidenceIds = List("pawn-structure:after-alternative:g1f3"),
+      causeEvidenceIds = List("cause-alternative-break"),
+      objectBindingSignatures =
+        List(
+          "target=File:d|target=File:e|target=Square:e2|target=Square:e3|mechanism=Mechanism:pawnbreak|witness=Move:e2e3|proof=DirectProof"
+        ),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+    )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(
+        causeFrame(
+          causeId = "cause-alternative-break",
+          axisKeys = List("PawnBreak:Support:break-file-e-release-e2-e3-e3-e2"),
+          objectSignatures = List("target=File:e|target=Square:e2|target=Square:e3"),
+          causeKind = RelativeCauseKind.PawnBreakOpportunity,
+          rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot
+        ).copy(hasOwnedAdmissibleLongTermProof = true)
+      ),
+      details = List(detail)
+    )
+    val claims = view.moveMeaningClaims.filter(_.meaningKind == "PawnBreakTiming")
+
+    assert(!claims.exists(_.surfaceLane.startsWith("current_move")), claims)
+
+  test("move meaning claims keep pawn break provenance instead of hiding it through object dedupe"):
+    def detail(causeId: String, sourceId: String) =
+      PositionPlanTechniqueSemanticDetail(
+        unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+        axisKey = Some("PawnBreak:Support:break-file-e-created-tension-e3-d4"),
+        axisKind = Some(StrategicAxisKind.PawnBreak),
+        axisPolarity = Some(StrategicAxisPolarity.Support),
+        label = Some("break-file-e-created-tension-e3-d4"),
+        breakFile = Some("e"),
+        tensionSquares = List("e3", "d4"),
+        tensionEdges = List("e3-d4"),
+        structuralPurposeSubjects = List("created-tension:e3-d4"),
+        candidateEvidenceIds = List(sourceId),
+        sourceEvidenceIds = List(sourceId),
+        causeEvidenceIds = List(causeId),
+        objectBindingSignatures =
+          List("actor=Move:e2e3|target=File:e|target=Square:e3|target=Square:d4|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+        specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+      )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(
+        causeFrame(
+          causeId = "cause-pawn-break-a",
+          axisKeys = List("PawnBreak:Support:break-file-e-created-tension-e3-d4"),
+          objectSignatures = List("actor=Move:e2e3|target=Square:e3|target=Square:d4"),
+          causeKind = RelativeCauseKind.PawnBreakOpportunity,
+          rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot
+        ).copy(hasOwnedAdmissibleLongTermProof = true),
+        causeFrame(
+          causeId = "cause-pawn-break-b",
+          axisKeys = List("PawnBreak:Support:break-file-e-created-tension-e3-d4"),
+          objectSignatures = List("actor=Move:e2e3|target=Square:e3|target=Square:d4"),
+          causeKind = RelativeCauseKind.PawnBreakOpportunity,
+          rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot
+        ).copy(hasOwnedAdmissibleLongTermProof = true)
+      ),
+      details = List(
+        detail("cause-pawn-break-a", "structural-delta:played:e2e3:tension-a"),
+        detail("cause-pawn-break-b", "structural-delta:played:e2e3:tension-b")
+      )
+    )
+    val claims = view.moveMeaningClaims.filter(_.meaningKind == "PawnBreakTiming")
+
+    assertEquals(claims.size, 1)
+    assertEquals(claims.head.causeEvidenceIds.toSet, Set("cause-pawn-break-a", "cause-pawn-break-b"))
+    assertEquals(
+      claims.head.sourceEvidenceIds.toSet,
+      Set("structural-delta:played:e2e3:tension-a", "structural-delta:played:e2e3:tension-b")
+    )
+
   test("move meaning claims classify captured existing pawn tension as release"):
     val releaseLine = lineRef("played-release", "e2d3", 2, LineNodeRole.Played)
     val releasePosition =
@@ -2180,21 +2328,26 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       hasOwnedAdmissibleLongTermProof = true,
       attributionDirectProofEligible = true
     )
-    def breakDetail(axisKey: String, causeId: String, edgeSquare: String) =
+    def breakDetail(causeId: String, edgeSquare: String) =
+      val axisKey = s"PawnBreak:Support:break-file-e-created-tension-e3-$edgeSquare"
       PositionPlanTechniqueSemanticDetail(
         unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
         axisKey = Some(axisKey),
         axisKind = Some(StrategicAxisKind.PawnBreak),
         axisPolarity = Some(StrategicAxisPolarity.Support),
+        label = Some(axisKey.stripPrefix("PawnBreak:Support:")),
         contrastOutcome = Some(StrategicAxisComparisonOutcome.CandidateStronger),
         breakFile = Some("e"),
         tensionPolicy = Some("prepare"),
         tensionSquares = List("e3", edgeSquare),
-        candidateEvidenceIds = List(s"structural-delta-e-$edgeSquare-break"),
-        sourceEvidenceIds = List(s"structural-delta-e-$edgeSquare-break"),
+        tensionEdges = List(s"e3-$edgeSquare"),
+        structuralPurposeSubjects = List(s"created-tension:e3-$edgeSquare"),
+        structuralPurposeConsequences = List("PawnTensionGain"),
+        candidateEvidenceIds = List(s"structural-delta:played:e2e3:$edgeSquare-break"),
+        sourceEvidenceIds = List(s"structural-delta:played:e2e3:$edgeSquare-break"),
         causeEvidenceIds = List(causeId),
         proofRoles = List(RelativeCauseProofRole.DirectProof),
-        objectBindingSignatures = List(s"target=Square:e3|target=Square:$edgeSquare|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+        objectBindingSignatures = List(s"actor=Move:e2e3|target=Square:e3|target=Square:$edgeSquare|mechanism=Mechanism:pawn-break|proof=DirectProof"),
         specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
       )
 
@@ -2202,8 +2355,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       verdict = MoveChoiceVerdict.MatchesReference,
       auditCauses = List(eCause, cCause),
       details = List(
-        breakDetail("PawnBreak:Support:e-left-break", "cause-e-break", "d4"),
-        breakDetail("PawnBreak:Support:e-right-break", "cause-c-break", "f4")
+        breakDetail("cause-e-break", "d4"),
+        breakDetail("cause-c-break", "f4")
       )
     )
 

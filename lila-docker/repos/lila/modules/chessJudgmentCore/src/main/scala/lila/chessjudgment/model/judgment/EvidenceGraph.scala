@@ -1691,18 +1691,6 @@ object StrategicMechanismEvidence:
               concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Activity, StrategicAxisPolarity.Loss, "outpost-concession"))
             )
           ),
-          Option.when(payload.hasPawnTensionDelta)(
-            StrategicMechanismKind.PawnStructure -> signal(
-              StrategicMechanismSignalKind.StructuralDelta,
-              structuralPawnBreakLabel(payload),
-              record.ref,
-              2,
-              concreteAxis(
-                record,
-                structuralPawnBreakAxis(payload)
-              )
-            )
-          ),
           Option.when(payload.hasPassedPawnProgress)(
             StrategicMechanismKind.PawnStructure -> signal(StrategicMechanismSignalKind.StructuralDelta, "passed-pawn-progress", record.ref, 3)
           ),
@@ -1723,7 +1711,7 @@ object StrategicMechanismEvidence:
               3
             )
           )
-        ).flatten
+        ).flatten ++ structuralPawnBreakSignals(record, payload)
       case PlanPressureEvidence(scoring, activePlans) if planPressureHasDirectEvidence(scoring, activePlans) =>
         val plans = activePlans.primary :: activePlans.secondary.toList
         List(
@@ -1980,22 +1968,46 @@ object StrategicMechanismEvidence:
       Option.when(edges.nonEmpty || squares.nonEmpty)((if edges.nonEmpty then edges else squares).mkString("-"))
     List(Some(base), policy, tension).flatten.filter(_.nonEmpty).mkString("-")
 
-  private def structuralPawnBreakLabel(payload: StructuralDeltaEvidence): String =
-    val tensionSubjects =
-      (
-        payload.consequencesOf(TransitionConsequenceKind.PawnTensionGain).flatMap(_.subjects) ++
-          payload.consequencesOf(TransitionConsequenceKind.PawnTensionResolution).flatMap(_.subjects)
-      ).map(axisLabelToken).filter(_.nonEmpty).distinct.sorted
-    if tensionSubjects.nonEmpty then tensionSubjects.mkString("-")
-    else "pawn-structure-delta"
+  private def structuralPawnBreakSignals(
+      record: EvidenceRecord,
+      payload: StructuralDeltaEvidence
+  ): List[(StrategicMechanismKind, StrategicMechanismSignal)] =
+    List(
+      structuralPawnBreakSignal(
+        record,
+        payload,
+        TransitionConsequenceKind.PawnTensionGain,
+        StrategicAxisPolarity.Support
+      ),
+      structuralPawnBreakSignal(
+        record,
+        payload,
+        TransitionConsequenceKind.PawnTensionResolution,
+        StrategicAxisPolarity.Release
+      )
+    ).flatten
 
-  private def structuralPawnBreakAxis(payload: StructuralDeltaEvidence): Option[StrategicAxisDetail] =
-    val polarity =
-      if payload.consequencesOf(TransitionConsequenceKind.PawnTensionResolution).nonEmpty &&
-        payload.consequencesOf(TransitionConsequenceKind.PawnTensionGain).isEmpty
-      then StrategicAxisPolarity.Release
-      else StrategicAxisPolarity.Support
-    structuralDeltaAxis(StrategicAxisKind.PawnBreak, polarity, structuralPawnBreakLabel(payload))
+  private def structuralPawnBreakSignal(
+      record: EvidenceRecord,
+      payload: StructuralDeltaEvidence,
+      consequenceKind: TransitionConsequenceKind,
+      polarity: StrategicAxisPolarity
+  ): Option[(StrategicMechanismKind, StrategicMechanismSignal)] =
+    val consequences = payload.consequencesOf(consequenceKind)
+    structuralPawnBreakLabel(consequences).map(label =>
+      StrategicMechanismKind.PawnStructure -> signal(
+        StrategicMechanismSignalKind.StructuralDelta,
+        label,
+        record.ref,
+        2,
+        concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.PawnBreak, polarity, label))
+      )
+    )
+
+  private def structuralPawnBreakLabel(consequences: List[TransitionConsequence]): Option[String] =
+    val tensionSubjects =
+      consequences.flatMap(_.subjects).map(axisLabelToken).filter(_.nonEmpty).distinct.sorted
+    Option.when(tensionSubjects.nonEmpty)(tensionSubjects.mkString("-"))
 
   private def axisLabelToken(raw: String): String =
     raw.trim.toLowerCase.replaceAll("[^a-z0-9]+", "-").stripPrefix("-").stripSuffix("-")

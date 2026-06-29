@@ -1657,11 +1657,52 @@ object MoveMeaningClaim:
             )
           )
       )
-      .groupBy(claim => (claim.laneKey, claim.role, claim.lineRole))
+      .groupBy(claim => (claim.laneKey, claim.role, claim.lineRole, claim.moveUci, provenanceKey(claim)))
       .values
-      .flatMap(_.sortBy(sortKey).lastOption)
+      .flatMap(mergeMeaningClaims)
+      .toList
+      .groupBy(claim => duplicateMeaningKey(claim))
+      .values
+      .flatMap(mergeMeaningClaims)
       .toList
       .sortBy(claim => (claim.meaningKind, claim.role, claim.lineRole, claim.laneKey, claim.frameId))
+
+  private def mergeMeaningClaims(claims: Iterable[MoveMeaningClaim]): Option[MoveMeaningClaim] =
+    val list = claims.toList
+    list.sortBy(sortKey).lastOption.map(best =>
+      best.copy(
+        causeKinds = list.flatMap(_.causeKinds).distinct.sortBy(_.toString),
+        causeSourceSides = list.flatMap(_.causeSourceSides).distinct.sortBy(_.toString),
+        causeEvidenceIds = list.flatMap(_.causeEvidenceIds).distinct.sorted,
+        sourceEvidenceIds = list.flatMap(_.sourceEvidenceIds).distinct.sorted,
+        objectBindingSignatures = list.flatMap(_.objectBindingSignatures).distinct.sorted,
+        reasonTokens = list.flatMap(_.reasonTokens).distinct.sorted
+      )
+    )
+
+  private def duplicateMeaningKey(claim: MoveMeaningClaim): (String, String, String, String, String) =
+    val objectKey =
+      if claim.meaningKind == "PawnBreakTiming" then
+        claim.reasonTokens
+          .filter(token =>
+            token.startsWith("breakFile:") ||
+              token.startsWith("tensionEdge:") ||
+              token.startsWith("tensionSquare:") ||
+              token.startsWith("counterBreakFile:")
+          )
+          .sorted
+          .mkString("|")
+      else claim.laneKey
+    (claim.meaningKind, claim.role, claim.surfaceLane, claim.moveUci, objectKey)
+
+  private def provenanceKey(claim: MoveMeaningClaim): String =
+    if claim.meaningKind == "PawnBreakTiming" then
+      (
+        claim.axisKey.toList ++
+          claim.causeEvidenceIds.map(id => s"cause=$id") ++
+          claim.sourceEvidenceIds.map(id => s"source=$id")
+      ).sorted.mkString("|")
+    else ""
 
   private def causeFrameMatches(
       frame: MoveJudgmentCauseFrame,
@@ -1855,6 +1896,7 @@ object MoveMeaningClaim:
           )
       case PositionPlanTechniqueUnit.TensionBreakPolicyRoute =>
         moveOwnedSource &&
+          pawnBreakEvidenceOwnsClaimMove(detail, objectSignatures, claimMove) &&
           pawnMoveFromPawn(positionFen, claimMove) &&
           pawnBreakOwnsClaimMove(detail, objectSignatures, claimMove) &&
           pawnBreakCurrentMoveFunctionalCarrier(detail)
@@ -2030,13 +2072,25 @@ object MoveMeaningClaim:
       moveTouchesSquares(claimMove, detail.tensionSquares) ||
         moveTouchesSquares(claimMove, detail.tensionEdges) ||
         moveTouchesSquares(claimMove, detail.structuralPurposeSubjects.filter(pawnBreakTensionSubject))
-    if hasTensionCarrier then tensionTouchesMove
+    if hasTensionCarrier then tensionTouchesMove && pawnBreakFileOwnsClaimMove(detail, claimMove)
     else
       detail.breakFile match
         case Some(_) =>
           moveTouchesBreakFile(detail, claimMove)
         case None =>
           targetTokensTouchMove(objectSignatures, claimMove)
+
+  private def pawnBreakFileOwnsClaimMove(
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String
+  ): Boolean =
+    detail.breakFile.forall(file =>
+      moveEndpoints(claimMove).exists { case (from, to) =>
+        val normalizedFile = file.trim.toLowerCase
+        from.take(1).toLowerCase == normalizedFile ||
+          to.take(1).toLowerCase == normalizedFile
+      }
+    )
 
   private def pawnBreakOwnedCauseReady(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -2055,13 +2109,37 @@ object MoveMeaningClaim:
       detail.structuralPurposeSubjects.exists(pawnBreakTensionSubject)
 
   private def pawnBreakCurrentMoveFunctionalCarrier(detail: PositionPlanTechniqueSemanticDetail): Boolean =
-    pawnBreakTensionCarrier(detail) ||
-      detail.structuralPurposeConsequences.exists(pawnBreakTensionConsequence)
+    pawnBreakConcreteTransitionCarrier(detail)
 
-  private def pawnBreakTensionConsequence(consequence: String): Boolean =
-    val normalized = consequence.toLowerCase
-    normalized == "pawntensiongain" ||
-      normalized == "pawntensionresolution"
+  private def pawnBreakTransitionCarrier(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    pawnBreakConcreteTransitionCarrier(detail)
+
+  private def pawnBreakConcreteTransitionCarrier(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detail.structuralPurposeSubjects.exists(pawnBreakTensionSubject) ||
+      detail.tensionSquares.nonEmpty ||
+      detail.tensionEdges.nonEmpty ||
+      (detail.axisKey.toList ++ detail.label.toList).exists(text =>
+        val normalized = text.toLowerCase
+        normalized.contains("created-tension") || normalized.contains("resolved-tension")
+      )
+
+  private def pawnBreakEvidenceOwnsClaimMove(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String
+  ): Boolean =
+    val normalizedMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
+    val sourceOwnsMove =
+      detail.sourceEvidenceIds.exists(id =>
+        val normalized = id.toLowerCase
+        normalized.contains(s":played:$normalizedMove") ||
+          normalized.contains(s":reference:$normalizedMove") ||
+          normalized.contains(s":$normalizedMove:played-transition") ||
+          normalized.contains(s":$normalizedMove:reference-transition")
+      )
+    sourceOwnsMove ||
+      moveTokens(objectSignatures).contains(normalizedMove) ||
+      detail.structuralRouteMove.exists(move => sameMove(move, claimMove))
 
   private def pawnMoveFromPawn(positionFen: String, claimMove: String): Boolean =
     moveEndpoints(claimMove).exists { case (from, to) =>
@@ -2799,11 +2877,17 @@ object MoveMeaningClaim:
       detail.referenceEvidenceIds.nonEmpty &&
         detail.candidateEvidenceIds.isEmpty &&
         !currentMove
+    val currentMoveSurfaceReady =
+      detail.unit != PositionPlanTechniqueUnit.TensionBreakPolicyRoute ||
+        (
+          pawnBreakTransitionCarrier(detail) &&
+            pawnBreakEvidenceOwnsClaimMove(detail, detail.objectBindingSignatures, claimMove)
+        )
     if referenceMoveOnly || (referenceOwnedCause && !candidateOwnedCause) || referenceDetailOnly then
       "reference_or_opponent_resource"
-    else if supportLevel == "owned_cause_linked" && currentMove && claimLineRole == "candidate" && candidateOwnedCause then
+    else if supportLevel == "owned_cause_linked" && currentMove && claimLineRole == "candidate" && candidateOwnedCause && currentMoveSurfaceReady then
       "current_move_owned"
-    else if supportLevel == "view_surfaced" && currentMove then
+    else if supportLevel == "view_surfaced" && currentMove && currentMoveSurfaceReady then
       "current_move_function"
     else if supportLevel == "contextual" || contextualMeaningDetail(detail) then
       "inherited_context"

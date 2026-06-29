@@ -573,6 +573,7 @@ object PositionPlanTechniqueProjection:
       routePerspective: Option[String],
       routeFromPly: Option[Int],
       routeToPly: Option[Int],
+      consequenceKinds: List[TransitionConsequenceKind],
       consequences: List[String],
       subjects: List[String],
       categories: List[String],
@@ -1389,6 +1390,7 @@ object PositionPlanTechniqueProjection:
       routePerspective = Some(positionPlanTechniqueColorKey(payload.transition.perspective)),
       routeFromPly = Some(payload.transition.from.ply),
       routeToPly = Some(payload.transition.to.ply),
+      consequenceKinds = consequences.map(_.kind).distinct,
       consequences = consequences.map(_.kind.toString).distinct.sorted,
       subjects = consequences.flatMap(_.subjects).distinct.sorted,
       categories = consequences.flatMap(consequence => positionPlanTechniqueStructuralPurposeCategories(consequence.kind)).distinct.sorted,
@@ -1400,12 +1402,43 @@ object PositionPlanTechniqueProjection:
       detail: PositionPlanTechniqueSemanticDetail,
       purpose: PositionPlanTechniqueStructuralPurpose
   ): Boolean =
-    detail.axisPolarity match
-      case Some(polarity) =>
-        val acceptedPolarities = positionPlanTechniqueStructuralPolaritiesForAxis(polarity)
-        purpose.polarities.isEmpty || purpose.polarities.exists(acceptedPolarities)
-      case None =>
-        true
+    val kindMatches =
+      detail.axisKind match
+        case Some(StrategicAxisKind.PawnBreak) =>
+          if positionPlanTechniquePawnTensionDetail(detail) ||
+            purpose.consequenceKinds.exists(positionPlanTechniquePawnTensionConsequence)
+          then
+            val acceptedKinds =
+              detail.axisPolarity match
+                case Some(StrategicAxisPolarity.Release) =>
+                  Set(TransitionConsequenceKind.PawnTensionResolution)
+                case Some(StrategicAxisPolarity.Support | StrategicAxisPolarity.Preserve | StrategicAxisPolarity.Gain) =>
+                  Set(TransitionConsequenceKind.PawnTensionGain)
+                case _ =>
+                  Set(TransitionConsequenceKind.PawnTensionGain, TransitionConsequenceKind.PawnTensionResolution)
+            purpose.consequenceKinds.exists(acceptedKinds)
+          else true
+        case _ =>
+          true
+    val polarityMatches =
+      detail.axisPolarity match
+        case Some(polarity) =>
+          val acceptedPolarities = positionPlanTechniqueStructuralPolaritiesForAxis(polarity)
+          purpose.polarities.isEmpty || purpose.polarities.exists(acceptedPolarities)
+        case None =>
+          true
+    kindMatches && polarityMatches
+
+  private def positionPlanTechniquePawnTensionDetail(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    val axisText = (detail.axisKey.toList ++ detail.label.toList).mkString(" ").toLowerCase
+    axisText.contains("created-tension") ||
+      axisText.contains("resolved-tension") ||
+      detail.tensionEdges.nonEmpty ||
+      detail.tensionSquares.nonEmpty
+
+  private def positionPlanTechniquePawnTensionConsequence(kind: TransitionConsequenceKind): Boolean =
+    kind == TransitionConsequenceKind.PawnTensionGain ||
+      kind == TransitionConsequenceKind.PawnTensionResolution
 
   private def positionPlanTechniqueStructuralPolaritiesForAxis(polarity: StrategicAxisPolarity): Set[String] =
     polarity match
@@ -1425,6 +1458,7 @@ object PositionPlanTechniqueProjection:
         routePerspective = positionPlanTechniqueSingleValue(purposes.flatMap(_.routePerspective)),
         routeFromPly = positionPlanTechniqueSingleInt(purposes.flatMap(_.routeFromPly)),
         routeToPly = positionPlanTechniqueSingleInt(purposes.flatMap(_.routeToPly)),
+        consequenceKinds = purposes.flatMap(_.consequenceKinds).distinct,
         consequences = purposes.flatMap(_.consequences).distinct.sorted,
         subjects = purposes.flatMap(_.subjects).distinct.sorted,
         categories = purposes.flatMap(_.categories).distinct.sorted,

@@ -71,6 +71,55 @@ class RelativeCauseSignalProfileTest extends munit.FunSuite:
       consequences
     )
 
+  test("structural pawn break axes keep created and resolved tension separate"):
+    val root = PositionNodeRef("8/8/4p3/3p4/2P5/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val after = PositionNodeRef("8/8/4p3/3P4/8/8/8/8 b - - 0 1", 2, Some(Color.Black), Some("after"))
+    val playedLine = LineNodeRef("played-line", "c4d5", 1, LineNodeRole.Played)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:played:c4d5:mixed-tension",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val structural = StructuralDeltaEvidence(
+      transition = StructuralTransitionBinding(
+        moveUci = "c4d5",
+        role = TransitionEdgeRole.Played,
+        from = root,
+        to = after,
+        line = Some(playedLine),
+        perspective = Color.White
+      ),
+      signals = Nil,
+      consequences = List(
+        TransitionConsequence(
+          TransitionConsequenceKind.PawnTensionResolution,
+          StructuralSignalPolarity.Neutral,
+          strength = 1,
+          subjects = List("break-file:c", "resolved-tension:c4-d5")
+        ),
+        TransitionConsequence(
+          TransitionConsequenceKind.PawnTensionGain,
+          StructuralSignalPolarity.Gain,
+          strength = 1,
+          subjects = List("break-file:d", "created-tension:d5-e6")
+        )
+      )
+    )
+    val record = EvidenceRecord(structuralRef, structural)
+    val axes =
+      StrategicMechanismEvidence
+        .sourceMechanisms(record)
+        .collect { case (StrategicMechanismKind.PawnStructure, signal) => signal.axis.map(_.stableKey) }
+        .flatten
+
+    assert(axes.contains("PawnBreak:Release:break-file-c-resolved-tension-c4-d5"), axes)
+    assert(axes.contains("PawnBreak:Support:break-file-d-created-tension-d5-e6"), axes)
+    assert(!axes.exists(axis => axis.contains("created-tension") && axis.contains("resolved-tension")), axes)
+
   private def relativeCauseWithLongTermProof(kind: RelativeCauseKind): RelativeCauseFact =
     val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
     val after = PositionNodeRef("8/8/8/8/8/8/8/8 b - - 1 1", 2, Some(Color.Black), Some("after"))
