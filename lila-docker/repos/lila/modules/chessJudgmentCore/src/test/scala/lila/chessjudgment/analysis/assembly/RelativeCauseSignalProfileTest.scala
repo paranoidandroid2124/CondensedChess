@@ -549,6 +549,269 @@ class RelativeCauseSignalProfileTest extends munit.FunSuite:
     assert(signatures.exists(_.contains("target=Side:black")))
     assert(signatures.exists(_.contains("mechanism=Mechanism:opponentlowmobility")))
 
+  test("drafts current move target pressure from structural strategic support without eval gap"):
+    val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val playedLine = LineNodeRef("played-line", "d1b3", 1, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "d1b3", 1, LineNodeRole.BestReference)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:played:d1b3:target-b7",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val mechanismRecord = EvidenceRecord(
+      ref = EvidenceRef(
+        id = "strategic-mechanism:target-pressure:d1b3",
+        producer = EvidenceProducer.StrategicMechanismProducer,
+        layer = EvidenceLayer.StrategicMechanism,
+        position = root,
+        line = Some(playedLine),
+        scope = EvidenceScope.PlayedTransition,
+        confidence = EvidenceConfidence.EngineBacked
+      ),
+      payload = StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.TargetPressure,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "target-pressure-gain",
+            source = structuralRef,
+            strength = 3,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.Target, StrategicAxisPolarity.Gain, "target-pressure-gain"))
+          )
+        ),
+        semanticAnchors = Nil
+      )
+    )
+    val profile = exactPlayedProfile(referenceLine, playedLine, List(mechanismRecord))
+
+    val drafts = RelativeCauseDraftPlanner.drafts(profile)
+    assertEquals(drafts.map(_.kind), List(RelativeCauseKind.TargetPressureGain))
+    assertEquals(drafts.map(_.sourceSide), List(Some(RelativeCauseSourceSide.Candidate)))
+    assertEquals(drafts.map(_.attributionKind), List(CauseAttributionKind.CandidateCreatesValue))
+
+  test("does not draft current move support from a reference line mechanism"):
+    val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val playedLine = LineNodeRef("played-line", "g1f3", 1, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "d1b3", 1, LineNodeRole.BestReference)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:reference:d1b3:target-b7",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(referenceLine),
+      scope = EvidenceScope.ReferenceTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val mechanismRecord = EvidenceRecord(
+      ref = EvidenceRef(
+        id = "strategic-mechanism:target-pressure:d1b3",
+        producer = EvidenceProducer.StrategicMechanismProducer,
+        layer = EvidenceLayer.StrategicMechanism,
+        position = root,
+        line = Some(referenceLine),
+        scope = EvidenceScope.ReferenceTransition,
+        confidence = EvidenceConfidence.EngineBacked
+      ),
+      payload = StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.TargetPressure,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "target-pressure-gain",
+            source = structuralRef,
+            strength = 3,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.Target, StrategicAxisPolarity.Gain, "target-pressure-gain"))
+          )
+        ),
+        semanticAnchors = Nil
+      )
+    )
+    val profile = exactPlayedProfile(referenceLine, playedLine, List(mechanismRecord))
+
+    assertEquals(RelativeCauseDraftPlanner.drafts(profile), Nil)
+
+  test("does not draft current move support from a payload-wide gain on another signal"):
+    val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val playedLine = LineNodeRef("played-line", "d1b3", 1, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "d1b3", 1, LineNodeRole.BestReference)
+    val playedStructuralRef = EvidenceRef(
+      id = "structural-delta:played:d1b3:release-b7",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val referenceStructuralRef = EvidenceRef(
+      id = "structural-delta:reference:d1b3:gain-b7",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(referenceLine),
+      scope = EvidenceScope.ReferenceTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val mechanismRecord = EvidenceRecord(
+      ref = EvidenceRef(
+        id = "strategic-mechanism:mixed-target-pressure:d1b3",
+        producer = EvidenceProducer.StrategicMechanismProducer,
+        layer = EvidenceLayer.StrategicMechanism,
+        position = root,
+        line = Some(playedLine),
+        scope = EvidenceScope.PlayedTransition,
+        confidence = EvidenceConfidence.EngineBacked
+      ),
+      payload = StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.TargetPressure,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "target-pressure-release",
+            source = playedStructuralRef,
+            strength = 2,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.Target, StrategicAxisPolarity.Release, "target-pressure-release"))
+          ),
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "target-pressure-gain",
+            source = referenceStructuralRef,
+            strength = 3,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.Target, StrategicAxisPolarity.Gain, "target-pressure-gain"))
+          )
+        ),
+        semanticAnchors = Nil
+      )
+    )
+    val profile = exactPlayedProfile(referenceLine, playedLine, List(mechanismRecord))
+
+    assertEquals(RelativeCauseDraftPlanner.drafts(profile), Nil)
+
+  test("strategic proof signals keep only the selected current structural source"):
+    val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val playedLine = LineNodeRef("played-line", "d1b3", 1, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "d1b3", 1, LineNodeRole.BestReference)
+    val after = PositionNodeRef("8/8/8/8/8/1Q6/1p6/8 b - - 1 1", 2, Some(Color.Black), Some("after"))
+    val playedStructuralRef = EvidenceRef(
+      id = "structural-delta:played:d1b3:gain-b7",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val referenceStructuralRef = EvidenceRef(
+      id = "structural-delta:reference:d1b3:gain-h7",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(referenceLine),
+      scope = EvidenceScope.ReferenceTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    def structural(line: LineNodeRef, target: String) =
+      StructuralDeltaEvidence(
+        transition = StructuralTransitionBinding(
+          moveUci = "d1b3",
+          role = TransitionEdgeRole.Played,
+          from = root,
+          to = after,
+          line = Some(line),
+          perspective = Color.White
+        ),
+        signals = Nil,
+        consequences = List(
+          TransitionConsequence(
+            TransitionConsequenceKind.TargetPressureGain,
+            StructuralSignalPolarity.Gain,
+            strength = 3,
+            subjects = List(target)
+          )
+        )
+      )
+    val playedSignal = StrategicMechanismSignal(
+      kind = StrategicMechanismSignalKind.StructuralDelta,
+      label = "target-pressure-gain-b7",
+      source = playedStructuralRef,
+      strength = 3,
+      axis = Some(StrategicAxisDetail(StrategicAxisKind.Target, StrategicAxisPolarity.Gain, "target-pressure-gain-b7"))
+    )
+    val referenceSignal = StrategicMechanismSignal(
+      kind = StrategicMechanismSignalKind.StructuralDelta,
+      label = "target-pressure-gain-h7",
+      source = referenceStructuralRef,
+      strength = 3,
+      axis = Some(StrategicAxisDetail(StrategicAxisKind.Target, StrategicAxisPolarity.Gain, "target-pressure-gain-h7"))
+    )
+    val payload = StrategicMechanismEvidence(
+      kind = StrategicMechanismKind.TargetPressure,
+      signals = List(playedSignal, referenceSignal),
+      semanticAnchors = Nil
+    )
+    val graph = TypedEvidenceGraph(
+      List(
+        EvidenceRecord(playedStructuralRef, structural(playedLine, "b7")),
+        EvidenceRecord(referenceStructuralRef, structural(referenceLine, "h7"))
+      )
+    )
+
+    val signals = RelativeAssessmentAssembler.strategicMechanismProofSignals(
+      graph,
+      RelativeCauseKind.TargetPressureGain,
+      payload,
+      RelativeCauseSourceSide.Candidate,
+      selectedStructuralSourceIds = Set(playedStructuralRef.id)
+    )
+
+    assertEquals(signals.map(_.source.id), List(playedStructuralRef.id))
+    assertEquals(signals.map(_.label), List("target-pressure-gain-b7"))
+
+  test("does not duplicate current move support across played-vs-alternative comparisons"):
+    val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val alternativeLine = LineNodeRef("alternative-line", "g1f3", 1, LineNodeRole.Alternative)
+    val playedLine = LineNodeRef("played-line", "d1b3", 1, LineNodeRole.Played)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:played:d1b3:target-b7",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val mechanismRecord = EvidenceRecord(
+      ref = EvidenceRef(
+        id = "strategic-mechanism:target-pressure:d1b3",
+        producer = EvidenceProducer.StrategicMechanismProducer,
+        layer = EvidenceLayer.StrategicMechanism,
+        position = root,
+        line = Some(playedLine),
+        scope = EvidenceScope.PlayedTransition,
+        confidence = EvidenceConfidence.EngineBacked
+      ),
+      payload = StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.TargetPressure,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "target-pressure-gain",
+            source = structuralRef,
+            strength = 3,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.Target, StrategicAxisPolarity.Gain, "target-pressure-gain"))
+          )
+        ),
+        semanticAnchors = Nil
+      )
+    )
+    val profile = candidateBetterProfile(alternativeLine, playedLine, List(mechanismRecord))
+
+    assertEquals(RelativeCauseDraftPlanner.drafts(profile), Nil)
+
   test("prefers opponent restriction root over plan contradiction when counterplay restraint axis is concrete"):
     val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
     val referenceLine = LineNodeRef("reference-line", "h2h3", 1, LineNodeRole.BestReference)
@@ -959,6 +1222,32 @@ class RelativeCauseSignalProfileTest extends munit.FunSuite:
       ),
       referenceRecords = Nil,
       candidateRecords = records,
+      sharedRecords = Nil
+    )
+
+  private def exactPlayedProfile(
+      referenceLine: LineNodeRef,
+      playedLine: LineNodeRef,
+      candidateRecords: List[EvidenceRecord]
+  ): RelativeCauseSignalProfile =
+    RelativeCauseSignalProfile.from(
+      fact = CandidateComparisonFact(
+        kind = CandidateComparisonKind.PlayedVsBest,
+        referenceLine = referenceLine,
+        candidateLine = playedLine,
+        comparison = EvalComparison(
+          mover = Color.White,
+          referenceLine = referenceLine,
+          candidateLine = playedLine,
+          rawCandidateDeltaCpForDiagnostics = 0,
+          candidateWinPercentDeltaForMover = 0.0,
+          rawCpLossForDiagnostics = 0,
+          winPercentLossForMover = 0.0,
+          verdict = MoveChoiceVerdict.MatchesReference
+        )
+      ),
+      referenceRecords = Nil,
+      candidateRecords = candidateRecords,
       sharedRecords = Nil
     )
 

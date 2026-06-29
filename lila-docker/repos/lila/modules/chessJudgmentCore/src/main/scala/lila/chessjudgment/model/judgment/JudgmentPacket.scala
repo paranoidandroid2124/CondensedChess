@@ -1865,7 +1865,8 @@ object MoveMeaningClaim:
       claimRole: String
   ): Boolean =
     causeFrameLineOwnsClaimMove(frame, verdict, claimLineRole, claimMove) &&
-    detailOwnsClaimMove(detail, objectSignatures, claimMove) &&
+      causeFrameMatchesMeaningDetail(frame, detail, objectSignatures) &&
+      detailOwnsClaimMove(detail, objectSignatures, claimMove) &&
       causeFramePolarityCompatibleWithMeaning(frame, detail, claimRole)
 
   private def causeFrameLineOwnsClaimMove(
@@ -1879,7 +1880,24 @@ object MoveMeaningClaim:
     val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove)
     val frameRootMatches = sameMove(frame.eventRootMove, claimMove)
     val exactSameMove = candidateMove == referenceMove && normalizedClaimMove == candidateMove
-    if exactSameMove then frameRootMatches
+    if exactSameMove then
+      claimLineRole match
+        case "candidate" =>
+          frame.causeSourceSide == RelativeCauseSourceSide.Candidate &&
+            frame.eventLine == verdict.candidateLine &&
+            frameRootMatches
+        case "reference" =>
+          frame.causeSourceSide == RelativeCauseSourceSide.Reference &&
+            frame.eventLine == verdict.referenceLine &&
+            frameRootMatches
+        case "contrast" =>
+          frameRootMatches &&
+            (
+              (frame.causeSourceSide == RelativeCauseSourceSide.Candidate && frame.eventLine == verdict.candidateLine) ||
+                (frame.causeSourceSide == RelativeCauseSourceSide.Reference && frame.eventLine == verdict.referenceLine)
+            )
+        case _ =>
+          false
     else
       claimLineRole match
         case "candidate" =>
@@ -1898,6 +1916,59 @@ object MoveMeaningClaim:
             )
         case _ =>
           false
+
+  private def causeFrameMatchesMeaningDetail(
+      frame: MoveJudgmentCauseFrame,
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String]
+  ): Boolean =
+    detail.causeEvidenceIds.exists(frame.causeEvidenceIds.contains) &&
+      sameComparisonCauseMatchesDetail(frame.causeKind, detail) &&
+      causeFrameObjectOverlapsDetail(frame, objectSignatures)
+
+  private def sameComparisonCauseMatchesDetail(
+      kind: RelativeCauseKind,
+      detail: PositionPlanTechniqueSemanticDetail
+  ): Boolean =
+    kind match
+      case RelativeCauseKind.ActivityGain | RelativeCauseKind.ActivityLoss =>
+        detail.axisKind.contains(StrategicAxisKind.Activity) &&
+          detail.unit == PositionPlanTechniqueUnit.PieceRerouteRoute
+      case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.TargetPressureRelease | RelativeCauseKind.PawnWeaknessTarget =>
+        detail.axisKind.contains(StrategicAxisKind.Target) &&
+          (
+            detail.unit == PositionPlanTechniqueUnit.PieceRerouteRoute ||
+              detail.unit == PositionPlanTechniqueUnit.StructuralTransformation ||
+              detail.unit == PositionPlanTechniqueUnit.CompensationSource
+          )
+      case RelativeCauseKind.CenterControlGain =>
+        detail.axisKind.contains(StrategicAxisKind.SpaceCenter) &&
+          (
+            detail.unit == PositionPlanTechniqueUnit.TensionBreakPolicyRoute ||
+              detail.unit == PositionPlanTechniqueUnit.PieceRerouteRoute ||
+              detail.unit == PositionPlanTechniqueUnit.StructuralTransformation
+          )
+      case RelativeCauseKind.PawnBreakOpportunity =>
+        detail.axisKind.contains(StrategicAxisKind.PawnBreak) &&
+          (
+            detail.unit == PositionPlanTechniqueUnit.TensionBreakPolicyRoute ||
+              detail.unit == PositionPlanTechniqueUnit.StructuralTransformation
+          )
+      case RelativeCauseKind.OpponentRestriction =>
+        detail.axisKind.contains(StrategicAxisKind.Counterplay) &&
+          (
+            detail.unit == PositionPlanTechniqueUnit.SpacePreventionResourceDenial ||
+              detail.unit == PositionPlanTechniqueUnit.CounterplayRace
+          )
+      case RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
+        detail.axisKind.contains(StrategicAxisKind.PlanCoherence) ||
+          detail.unit == PositionPlanTechniqueUnit.PlanOptionSet
+      case RelativeCauseKind.StructuralImprovement | RelativeCauseKind.MissedStrategicImprovement |
+          RelativeCauseKind.StrategicConcession =>
+        detail.unit == PositionPlanTechniqueUnit.StructuralTransformation ||
+          detail.unit == PositionPlanTechniqueUnit.CompensationSource
+      case _ =>
+        ClaimEventCluster.kindForCause(kind).nonEmpty
 
   private def detailOwnsClaimMove(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -2776,13 +2847,14 @@ object MoveJudgmentView:
   private[judgment] def causeAuditBuckets(
       frames: List[MoveJudgmentCauseFrame]
   ): MoveJudgmentCauseAudit =
+    val visibleFrames = frames.filterNot(exactCurrentMoveStrategicSupportFrame)
     val concretePeerKeys =
-      frames
+      visibleFrames
         .filter(causeAuditConcretePeer)
         .map(moveJudgmentCauseComparisonKey)
         .toSet
-    val primaryCandidates = frames.filter(_.role == MoveJudgmentCauseFrameRole.PrimaryCause)
-    val secondaryCandidates = frames.filter(_.role == MoveJudgmentCauseFrameRole.SecondaryCause)
+    val primaryCandidates = visibleFrames.filter(_.role == MoveJudgmentCauseFrameRole.PrimaryCause)
+    val secondaryCandidates = visibleFrames.filter(_.role == MoveJudgmentCauseFrameRole.SecondaryCause)
     val weakDemoted =
       (primaryCandidates ++ secondaryCandidates)
         .filter(frame => moveJudgmentCauseDemoteWeakFrame(frame, concretePeerKeys))
@@ -2798,7 +2870,7 @@ object MoveJudgmentView:
       secondary = compacted.secondary,
       context =
         (
-          frames.filter(_.role == MoveJudgmentCauseFrameRole.ContextCause) ++ weakDemoted ++ compacted.context
+          visibleFrames.filter(_.role == MoveJudgmentCauseFrameRole.ContextCause) ++ weakDemoted ++ compacted.context
         ).distinctBy(moveJudgmentCauseFrameIdentity)
     )
 
@@ -3234,6 +3306,7 @@ object MoveJudgmentView:
   private def unframedCauseEligible(cause: RelativeCauseFact): Boolean =
     ClaimEventCluster.kindForCause(cause.kind).nonEmpty ||
       primaryLongTermRelativeCause(cause) ||
+      exactCurrentMoveStrategicSupport(cause) ||
       playedAlternativeLongTermContext(cause)
 
   private def primaryLongTermRelativeCause(cause: RelativeCauseFact): Boolean =
@@ -3252,6 +3325,36 @@ object MoveJudgmentView:
       cause.role == RelativeCauseRole.PlayedAlternativeContext &&
       cause.importance == RelativeCauseImportance.Context &&
       cause.eventLine == cause.candidateLine
+
+  private def exactCurrentMoveStrategicSupport(cause: RelativeCauseFact): Boolean =
+    ClaimEventCluster.kindForCause(cause.kind).isEmpty &&
+      exactCurrentMoveStrategicSupportKind(cause.kind) &&
+      cause.hasOwnedAdmissibleLongTermProof &&
+      cause.attribution.directProofEligible &&
+      cause.attribution.rootMoveMatched &&
+      cause.comparisonKind == CandidateComparisonKind.PlayedVsBest &&
+      cause.verdict == MoveChoiceVerdict.MatchesReference &&
+      cause.role == RelativeCauseRole.PrimaryPlayedCause &&
+      cause.sourceSide == RelativeCauseSourceSide.Candidate &&
+      cause.importance == RelativeCauseImportance.Primary &&
+      cause.eventLine == cause.candidateLine
+
+  private def exactCurrentMoveStrategicSupportKind(kind: RelativeCauseKind): Boolean =
+    kind == RelativeCauseKind.ActivityGain ||
+      kind == RelativeCauseKind.TargetPressureGain
+
+  private def exactCurrentMoveStrategicSupportFrame(frame: MoveJudgmentCauseFrame): Boolean =
+    ClaimEventCluster.kindForCause(frame.causeKind).isEmpty &&
+      exactCurrentMoveStrategicSupportKind(frame.causeKind) &&
+      frame.hasOwnedAdmissibleLongTermProof &&
+      frame.attributionDirectProofEligible &&
+      frame.attributionRootMoveMatched &&
+      frame.comparisonKind == CandidateComparisonKind.PlayedVsBest &&
+      frame.causeRole == RelativeCauseRole.PrimaryPlayedCause &&
+      frame.causeSourceSide == RelativeCauseSourceSide.Candidate &&
+      frame.causeImportance == RelativeCauseImportance.Primary &&
+      frame.eventLine == frame.candidateLine &&
+      JudgmentSubjectBinding.normalizeMove(frame.eventRootMove) == JudgmentSubjectBinding.normalizeMove(frame.candidateLine.rootMove)
 
   private def lossVerdict(verdict: MoveChoiceVerdict): Boolean =
     verdict match

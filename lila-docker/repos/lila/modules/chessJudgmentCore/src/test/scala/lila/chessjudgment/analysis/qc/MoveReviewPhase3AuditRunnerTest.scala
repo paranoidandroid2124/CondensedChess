@@ -1857,7 +1857,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     val cause = causeFrame(
       causeId = "cause-break",
       axisKeys = List("PawnBreak:Support:central-break-timing"),
-      objectSignatures = List("target=Square:e4|mechanism=Mechanism:pawn-break|proof=DirectProof")
+      objectSignatures = List("target=Square:e4|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      causeKind = RelativeCauseKind.PawnBreakOpportunity
     ).copy(
       role = MoveJudgmentCauseFrameRole.ContextCause,
       hasOwnedAdmissibleLongTermProof = true,
@@ -1900,7 +1901,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     val eCause = causeFrame(
       causeId = "cause-e-break",
       axisKeys = List("PawnBreak:Support:e-break"),
-      objectSignatures = List("target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof")
+      objectSignatures = List("target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      causeKind = RelativeCauseKind.PawnBreakOpportunity
     ).copy(
       role = MoveJudgmentCauseFrameRole.ContextCause,
       hasOwnedAdmissibleLongTermProof = true,
@@ -1909,7 +1911,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     val cCause = causeFrame(
       causeId = "cause-c-break",
       axisKeys = List("PawnBreak:Support:c-break"),
-      objectSignatures = List("target=File:c|mechanism=Mechanism:pawn-break|proof=DirectProof")
+      objectSignatures = List("target=File:c|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      causeKind = RelativeCauseKind.PawnBreakOpportunity
     ).copy(
       role = MoveJudgmentCauseFrameRole.ContextCause,
       hasOwnedAdmissibleLongTermProof = true,
@@ -2576,7 +2579,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     val referenceCause = causeFrame(
       causeId = "cause-reference-break",
       axisKeys = List("PawnBreak:Support:reference-break"),
-      objectSignatures = List("target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof")
+      objectSignatures = List("target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      causeKind = RelativeCauseKind.PawnBreakOpportunity
     ).copy(
       role = MoveJudgmentCauseFrameRole.ContextCause,
       causeSourceSide = RelativeCauseSourceSide.Reference,
@@ -2623,7 +2627,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     val candidateSetCause = causeFrame(
       causeId = "cause-candidate-set-break",
       axisKeys = List("PawnBreak:Support:candidate-set-break"),
-      objectSignatures = List("target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof")
+      objectSignatures = List("target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      causeKind = RelativeCauseKind.PawnBreakOpportunity
     ).copy(
       comparisonKind = CandidateComparisonKind.BestVsSecond,
       causeRole = RelativeCauseRole.CandidateSetConstraint,
@@ -2663,7 +2668,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     val referenceAlternativeCause = causeFrame(
       causeId = "cause-reference-alternative-break",
       axisKeys = List("PawnBreak:Support:reference-alternative-break"),
-      objectSignatures = List("target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof")
+      objectSignatures = List("target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      causeKind = RelativeCauseKind.PawnBreakOpportunity
     ).copy(
       comparisonKind = CandidateComparisonKind.ReferenceVsAlternative,
       causeRole = RelativeCauseRole.AlternativeDiagnostic,

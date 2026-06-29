@@ -533,7 +533,9 @@ object RelativeAssessmentAssembler:
                 contextSupport = (rawProofRecords.directProof ++ rawProofRecords.contextSupport).distinctBy(_.ref.id)
               )
           val proof = relativeCauseProof(
+            context.evidenceGraph,
             kind,
+            binding.sourceSide,
             proofRecords.directProof,
             proofRecords.contrastProof,
             proofRecords.contextSupport
@@ -582,7 +584,7 @@ object RelativeAssessmentAssembler:
     val directSeed =
       support.filter(record => directProofSource(graph, fact, kind, binding, record)).distinctBy(_.ref.id)
     val directRecords =
-      proofSectionRecords(graph, directSeed)
+      proofSectionRecords(graph, directSeed, Some(kind), Some(binding))
         .filter(record => directProofSource(graph, fact, kind, binding, record))
         .distinctBy(_.ref.id)
     val supportIds = supportClosureRecordIds(graph, support)
@@ -591,7 +593,7 @@ object RelativeAssessmentAssembler:
       comparisonProof
         .filterNot(record => directIds.contains(record.ref.id) || supportIds.contains(record.ref.id))
         .distinctBy(_.ref.id)
-    val contrastIds = proofSectionRecords(graph, contrastRecords).map(_.ref.id).toSet
+    val contrastIds = proofSectionRecords(graph, contrastRecords, Some(kind), Some(binding)).map(_.ref.id).toSet
     val proofIds = directIds ++ contrastIds
     val contextSupportCandidates =
       support.filterNot(record => directIds.contains(record.ref.id))
@@ -678,7 +680,9 @@ object RelativeAssessmentAssembler:
           CauseAttributionKind.SharedContext
 
   private def relativeCauseProof(
+      graph: TypedEvidenceGraph,
       kind: RelativeCauseKind,
+      sourceSide: RelativeCauseSourceSide,
       directRecords: List[EvidenceRecord],
       contrastRecords: List[EvidenceRecord],
       contextRecords: List[EvidenceRecord]
@@ -688,6 +692,8 @@ object RelativeAssessmentAssembler:
         role = RelativeCauseProofRole.DirectProof,
         strength = RelativeCauseProofStrength.Primary,
         kind = kind,
+        sourceSide = sourceSide,
+        graph = graph,
         records = directRecords,
         includeContextLayers = false
       ),
@@ -695,6 +701,8 @@ object RelativeAssessmentAssembler:
         role = RelativeCauseProofRole.ContrastProof,
         strength = RelativeCauseProofStrength.Supporting,
         kind = kind,
+        sourceSide = sourceSide,
+        graph = graph,
         records = contrastRecords,
         includeContextLayers = false
       ),
@@ -702,6 +710,8 @@ object RelativeAssessmentAssembler:
         role = RelativeCauseProofRole.ContextSupport,
         strength = RelativeCauseProofStrength.WeakHint,
         kind = kind,
+        sourceSide = sourceSide,
+        graph = graph,
         records = contextRecords,
         includeContextLayers = true
       )
@@ -711,10 +721,19 @@ object RelativeAssessmentAssembler:
       role: RelativeCauseProofRole,
       strength: RelativeCauseProofStrength,
       kind: RelativeCauseKind,
+      sourceSide: RelativeCauseSourceSide,
+      graph: TypedEvidenceGraph,
       records: List[EvidenceRecord],
       includeContextLayers: Boolean
   ): RelativeCauseProofSection =
     val proofRecords = records.distinctBy(_.ref.id)
+    val structuralProofSourceIds =
+      proofRecords.collect {
+        case EvidenceRecord(ref, structural: StructuralDeltaEvidence, _)
+            if structuralConsequencesForCause(kind, structural).nonEmpty &&
+              strategicStructuralProofReady(kind, structural) =>
+          ref.id
+      }.toSet
     RelativeCauseProofSection(
       role = role,
       strength = strength,
@@ -762,12 +781,13 @@ object RelativeAssessmentAssembler:
       }.distinct,
       strategicMechanisms = proofRecords.collect {
         case EvidenceRecord(ref, payload: StrategicMechanismEvidence, _) if payload.canSupportStrategicCause =>
+          val signals = strategicMechanismProofSignals(graph, kind, payload, sourceSide, structuralProofSourceIds)
           StrategicMechanismProof(
             source = ref,
             kind = payload.kind,
-            signals = payload.signals
+            signals = signals
           )
-      }.distinct,
+      }.filter(_.signals.nonEmpty).distinct,
       strategicMechanismContrasts = proofRecords.collect {
         case EvidenceRecord(ref, payload: StrategicMechanismContrastEvidence, _) if payload.hasActionableContrast =>
           StrategicMechanismContrastProof(
@@ -849,13 +869,32 @@ object RelativeAssessmentAssembler:
       case _ =>
         false
 
-  private def proofSectionRecords(graph: TypedEvidenceGraph, records: List[EvidenceRecord]): List[EvidenceRecord] =
+  private def proofSectionRecords(
+      graph: TypedEvidenceGraph,
+      records: List[EvidenceRecord],
+      kind: Option[RelativeCauseKind] = None,
+      binding: Option[RelativeCauseBinding] = None
+  ): List[EvidenceRecord] =
     val mechanismParents =
       records.collect {
         case record @ EvidenceRecord(_, payload: TacticalMechanismEvidence, _) if payload.hasConcreteProof =>
           parentClosure(graph, record).filter(record => proofSourceLayer(record.ref.layer))
       }.flatten
-    (records ++ mechanismParents).distinctBy(_.ref.id)
+    val strategicStructuralParents =
+      records.collect {
+        case EvidenceRecord(_, payload: StrategicMechanismEvidence, _) if payload.canSupportStrategicCause =>
+          payload.signals
+            .filter(signal =>
+              (kind, binding) match
+                case (Some(causeKind), Some(causeBinding)) =>
+                  strategicSignalDirectlyOwnsCause(graph, signal, causeKind, causeBinding.eventLine.rootMove, causeBinding.sourceSide, Some(causeBinding.eventLine))
+                case _ =>
+                  signal.kind == StrategicMechanismSignalKind.StructuralDelta
+            )
+            .flatMap(signal => graph.byId.get(signal.source.id))
+            .collect { case record @ EvidenceRecord(_, _: StructuralDeltaEvidence, _) => record }
+      }.flatten
+    (records ++ mechanismParents ++ strategicStructuralParents).distinctBy(_.ref.id)
 
   private def proofSectionRecordIds(graph: TypedEvidenceGraph, records: List[EvidenceRecord]): Set[String] =
     proofSectionRecords(graph, records).map(_.ref.id).toSet
@@ -915,12 +954,14 @@ object RelativeAssessmentAssembler:
               payload.onlyDefense.exists(move => normalizeMove(move) == normalizeMove(rootMove))
           )
       case payload: StructuralDeltaEvidence =>
-        payload.moveUci == rootMove &&
+        record.referencesLine(binding.eventLine) &&
+          payload.line.contains(binding.eventLine) &&
+          normalizeMove(payload.moveUci) == normalizeMove(rootMove) &&
           structuralConsequencesForCause(kind, payload).nonEmpty
-      case payload: StrategicMechanismEvidence =>
+      case _: StrategicMechanismEvidence =>
         strategicCause(kind) &&
           record.referencesLine(binding.eventLine) &&
-          payload.canSupportStrategicCause
+          strategicMechanismDirectlyOwnsCause(graph, record, kind, binding.eventLine.rootMove, binding.sourceSide)
       case payload: StrategicMechanismContrastEvidence =>
         strategicCause(kind) &&
           payload.comparisonKind == fact.kind &&
@@ -1023,6 +1064,83 @@ object RelativeAssessmentAssembler:
       case _ =>
         false
 
+  private def strategicMechanismDirectlyOwnsCause(
+      graph: TypedEvidenceGraph,
+      record: EvidenceRecord,
+      kind: RelativeCauseKind,
+      rootMove: String,
+      sourceSide: RelativeCauseSourceSide
+  ): Boolean =
+    record.payload match
+      case payload: StrategicMechanismEvidence if payload.canSupportStrategicCause =>
+        payload.signals.exists(signal =>
+          strategicSignalDirectlyOwnsCause(graph, signal, kind, rootMove, sourceSide, record.ref.line)
+        )
+      case _ =>
+        false
+
+  private def strategicSignalDirectlyOwnsCause(
+      graph: TypedEvidenceGraph,
+      signal: StrategicMechanismSignal,
+      kind: RelativeCauseKind,
+      rootMove: String,
+      sourceSide: RelativeCauseSourceSide,
+      eventLine: Option[LineNodeRef]
+  ): Boolean =
+    val normalizedRoot = normalizeMove(rootMove)
+    signal.kind == StrategicMechanismSignalKind.StructuralDelta &&
+      signal.axis.exists(axis => strategicAxisCanProveCause(kind, axis, sourceSide)) &&
+      graph.byId.get(signal.source.id).exists {
+        case EvidenceRecord(sourceRef, structural: StructuralDeltaEvidence, _) =>
+          eventLine.forall(line => sourceRef.line.contains(line) && structural.line.contains(line)) &&
+            normalizeMove(structural.moveUci) == normalizedRoot &&
+            structuralConsequencesForCause(kind, structural).nonEmpty &&
+            strategicStructuralProofReady(kind, structural)
+        case _ =>
+          false
+      }
+
+  private[chessjudgment] def strategicMechanismProofSignals(
+      graph: TypedEvidenceGraph,
+      kind: RelativeCauseKind,
+      payload: StrategicMechanismEvidence,
+      sourceSide: RelativeCauseSourceSide,
+      selectedStructuralSourceIds: Set[String] = Set.empty
+  ): List[StrategicMechanismSignal] =
+    val axisMatched =
+      payload.signals.filter(signal =>
+        signal.axis.exists(axis => strategicAxisCanProveCause(kind, axis, sourceSide))
+      )
+    val structuralMatched =
+      axisMatched.filter(signal =>
+        signal.kind == StrategicMechanismSignalKind.StructuralDelta &&
+          (selectedStructuralSourceIds.isEmpty || selectedStructuralSourceIds.contains(signal.source.id)) &&
+          graph.byId.get(signal.source.id).exists {
+            case EvidenceRecord(_, structural: StructuralDeltaEvidence, _) =>
+              structuralConsequencesForCause(kind, structural).nonEmpty &&
+                strategicStructuralProofReady(kind, structural)
+            case _ =>
+              false
+          }
+      )
+    if structuralMatched.nonEmpty then structuralMatched.distinct else axisMatched.distinct
+
+  private def strategicStructuralProofReady(
+      kind: RelativeCauseKind,
+      structural: StructuralDeltaEvidence
+  ): Boolean =
+    val provingConsequences = structuralConsequencesForCause(kind, structural)
+    provingConsequences.exists(consequenceHasConcreteStrategicTarget) ||
+      (kind == RelativeCauseKind.ActivityGain && structural.developmentChoices.nonEmpty)
+
+  private def consequenceHasConcreteStrategicTarget(consequence: TransitionConsequence): Boolean =
+    consequence.subjects.exists(subject =>
+      val normalized = Option(subject).getOrElse("").trim.toLowerCase
+      normalized.matches(".*[a-h][1-8].*") ||
+        normalized.matches(".*\\b[a-h]\\b.*") ||
+        normalized.startsWith("file:")
+    )
+
   private def strategicContrastCanDirectlyProveCause(
       kind: RelativeCauseKind,
       payload: StrategicMechanismContrastEvidence,
@@ -1042,7 +1160,7 @@ object RelativeAssessmentAssembler:
       case RelativeCauseKind.PlanImprovement | RelativeCauseKind.PlanContradiction =>
         axis.kind == StrategicAxisKind.PlanCoherence
       case RelativeCauseKind.TargetPressureGain | RelativeCauseKind.PawnWeaknessTarget =>
-        axis.kind == StrategicAxisKind.Target && axis.polarity != StrategicAxisPolarity.Release
+        axis.kind == StrategicAxisKind.Target && axis.polarity == StrategicAxisPolarity.Gain
       case RelativeCauseKind.TargetPressureRelease =>
         axis.kind == StrategicAxisKind.Target && axis.polarity == StrategicAxisPolarity.Release
       case RelativeCauseKind.PawnBreakOpportunity =>
@@ -1051,6 +1169,7 @@ object RelativeAssessmentAssembler:
         axis.kind == StrategicAxisKind.SpaceCenter
       case RelativeCauseKind.ActivityGain =>
         axis.kind == StrategicAxisKind.Activity &&
+          axis.polarity == StrategicAxisPolarity.Gain &&
           (sourceSide == RelativeCauseSourceSide.Reference || sourceSide == RelativeCauseSourceSide.Candidate)
       case RelativeCauseKind.ActivityLoss =>
         axis.kind == StrategicAxisKind.Activity && sourceSide == RelativeCauseSourceSide.Candidate
@@ -1131,9 +1250,11 @@ object RelativeAssessmentAssembler:
           payload.consequencesOf(DevelopmentMobilityGain) ++
           payload.consequencesOf(DevelopmentCenterControlGain) ++
           payload.consequencesOf(DevelopmentSafePlacement) ++
+          payload.consequencesOf(FileOccupationGain) ++
           payload.consequencesOf(MobilityGain) ++
           payload.consequencesOf(LineUnlockGain) ++
           payload.consequencesOf(FileAccessGain) ++
+          payload.consequencesOf(BatteryPressureGain) ++
           payload.consequencesOf(OutpostGain)
       case RelativeCauseKind.ActivityLoss =>
         payload.consequencesOf(DevelopmentLagIncreased) ++

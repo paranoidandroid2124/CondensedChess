@@ -111,6 +111,8 @@ private[chessjudgment] final case class RelativeCauseSignalProfile(
     RelativeCauseSignalProfile.sacrificeCompensationSupportRecords(candidateRecords)
   val strategicContrasts: List[EvidenceRecord] =
     RelativeCauseSignalProfile.strategicContrastRecords(fact, allRecords)
+  val candidateCurrentMoveStrategicSupport: List[EvidenceRecord] =
+    RelativeCauseSignalProfile.currentMoveStrategicSupportRecords(fact, candidateRecords)
 
 private[chessjudgment] object RelativeCauseDraftPlanner:
   def drafts(profile: RelativeCauseSignalProfile): List[RelativeCauseDraft] =
@@ -245,7 +247,7 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
         (primaryPlayedPositive || candidateBetter) &&
           sacrificeCompensationSupport.nonEmpty
       )
-    ).flatten ++ strategicContrastDrafts(profile) ++ mechanismDrafts(profile)
+    ).flatten ++ strategicContrastDrafts(profile) ++ currentMoveStrategicSupportDrafts(profile) ++ mechanismDrafts(profile)
 
   private def causeDraft(
       kind: RelativeCauseKind,
@@ -330,6 +332,32 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
       case _ =>
         Nil
     }.distinctBy(draft => (draft.kind, draft.sourceSide, draft.support.map(_.ref.id).sorted.mkString("|")))
+
+  private def currentMoveStrategicSupportDrafts(profile: RelativeCauseSignalProfile): List[RelativeCauseDraft] =
+    if profile.fact.kind != CandidateComparisonKind.PlayedVsBest || profile.fact.comparison.verdict != MoveChoiceVerdict.MatchesReference then Nil
+    else
+      profile.candidateCurrentMoveStrategicSupport.flatMap {
+        case record @ EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
+          currentMoveStrategicSupportCauseKinds(payload, profile.fact.candidateLine.rootMove).map(kind =>
+            RelativeCauseDraft(
+              kind,
+              List(record),
+              Some(RelativeCauseSourceSide.Candidate),
+              defaultAttributionKind(kind, Some(RelativeCauseSourceSide.Candidate))
+            )
+          )
+        case _ =>
+          Nil
+      }.distinctBy(draft => (draft.kind, draft.support.map(_.ref.id).sorted.mkString("|")))
+
+  private def currentMoveStrategicSupportCauseKinds(
+      payload: StrategicMechanismEvidence,
+      rootMove: String
+  ): List[RelativeCauseKind] =
+    payload.signals
+      .filter(RelativeCauseSignalProfile.currentMoveStrategicSupportSignal(_, rootMove))
+      .flatMap(signal => signal.axis.toList.flatMap(RelativeCauseSignalProfile.currentMoveStrategicSupportCauseKindsForAxis))
+      .distinct
 
   private def strategicContrastCauseKinds(
       payload: StrategicMechanismContrastEvidence,
@@ -846,6 +874,37 @@ private[chessjudgment] object RelativeCauseSignalProfile:
       case record @ EvidenceRecord(_, payload: StrategicMechanismEvidence, _) if mechanismPredicate(payload) =>
         record
     }.distinctBy(_.ref.id)
+
+  private[chessjudgment] def currentMoveStrategicSupportRecords(
+      fact: CandidateComparisonFact,
+      records: List[EvidenceRecord]
+  ): List[EvidenceRecord] =
+    val rootMove = normalizeMove(fact.candidateLine.rootMove)
+    records.collect {
+      case record @ EvidenceRecord(_, payload: StrategicMechanismEvidence, _)
+          if record.referencesLine(fact.candidateLine) &&
+            payload.canSupportStrategicCause &&
+            payload.signals.exists(currentMoveStrategicSupportSignal(_, rootMove)) =>
+        record
+    }.distinctBy(_.ref.id)
+
+  private[chessjudgment] def currentMoveStrategicSupportSignal(
+      signal: StrategicMechanismSignal,
+      rootMove: String
+  ): Boolean =
+    signal.kind == StrategicMechanismSignalKind.StructuralDelta &&
+      signal.source.scope == EvidenceScope.PlayedTransition &&
+      normalizeMove(signal.source.line.map(_.rootMove).getOrElse("")) == normalizeMove(rootMove) &&
+      signal.axis.exists(axis => currentMoveStrategicSupportCauseKindsForAxis(axis).nonEmpty)
+
+  private[chessjudgment] def currentMoveStrategicSupportCauseKindsForAxis(axis: StrategicAxisDetail): List[RelativeCauseKind] =
+    axis.kind match
+      case StrategicAxisKind.Target if axis.polarity == StrategicAxisPolarity.Gain =>
+        List(RelativeCauseKind.TargetPressureGain)
+      case StrategicAxisKind.Activity if axis.polarity == StrategicAxisPolarity.Gain =>
+        List(RelativeCauseKind.ActivityGain)
+      case _ =>
+        Nil
 
   private[chessjudgment] def referenceOnlyDefenseFunctionRecords(
       fact: CandidateComparisonFact,
