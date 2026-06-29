@@ -3146,6 +3146,49 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(view.moveMeaningClaims.map(_.surfaceLane), List("reference_or_opponent_resource"))
     assert(!view.moveMeaningClaims.exists(claim => claim.moveUci == candidateLine.rootMove && claim.supportLevel == "owned_cause_linked"))
 
+    val surface = MoveMeaningSurface.from(view)
+    assertEquals(surface.map(_.subject), List("reference_move"))
+    assertEquals(surface.map(_.moveQuality), List("not_applicable"))
+    assertEquals(surface.map(_.priority), List("alternative"))
+    assertEquals(surface.flatMap(_.failureFamily), Nil)
+    assertEquals(surface.flatMap(_.problem), Nil)
+    assertEquals(surface.flatMap(_.target.files), List("e"))
+
+  test("move meaning public surface normalizes pawn target signatures"):
+    val cause = causeFrame(
+      causeId = "cause-pawn-target",
+      axisKeys = List("Target:Gain:pawn-target"),
+      objectSignatures = List("target=Pawn:weak-pawn:d4|mechanism=Mechanism:target|proof=DirectProof"),
+      causeKind = RelativeCauseKind.PawnWeaknessTarget
+    ).copy(
+      hasOwnedAdmissibleLongTermProof = true,
+      attributionDirectProofEligible = true,
+      rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot
+    )
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.StructuralTransformation,
+      axisKey = Some("Target:Gain:pawn-target"),
+      axisKind = Some(StrategicAxisKind.Target),
+      axisPolarity = Some(StrategicAxisPolarity.Gain),
+      candidateEvidenceIds = List("played-transition"),
+      sourceEvidenceIds = List("played-transition"),
+      causeEvidenceIds = List("cause-pawn-target"),
+      proofRoles = List(RelativeCauseProofRole.DirectProof),
+      objectBindingSignatures = List("target=Pawn:weak-pawn:d4|mechanism=Mechanism:target|proof=DirectProof"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis,
+      structuralRouteMove = Some(candidateLine.rootMove),
+      structuralPurposeSubjects = List("weak-pawn:d4")
+    )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(cause),
+      details = List(detail)
+    )
+
+    val surface = MoveMeaningSurface.from(view)
+    assertEquals(surface.flatMap(_.target.squares), List("d4"))
+    assertEquals(surface.flatMap(_.target.pieces), List("pawn"))
+
   test("move meaning claims do not call engine candidate comparisons current move lanes"):
     val candidateSetCause = causeFrame(
       causeId = "cause-candidate-set-break",

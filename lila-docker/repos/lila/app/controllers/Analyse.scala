@@ -1,13 +1,9 @@
 package controllers
 
-import play.api.libs.json.{ JsArray, JsError, JsObject, JsValue, Json }
+import play.api.libs.json.{ JsArray, JsObject, JsValue, Json }
 
 import lila.app.*
-import lila.chessjudgment.analysis.assembly.{
-  JudgmentPacketValidationIssue,
-  MoveReviewJudgmentOrchestrator,
-  RawMoveReviewInput
-}
+import lila.chessjudgment.analysis.assembly.{ MoveReviewJudgmentOrchestrator, RawMoveReviewInput }
 import lila.chessjudgment.model.judgment.*
 
 final class Analyse(
@@ -53,7 +49,7 @@ final class Analyse(
   def moveMeaning = OpenBodyOf(parse.json): (bodyCtx: BodyContext[JsValue]) ?=>
     limit.moveMeaning(bodyCtx.ip, rateLimitedJson.toFuccess):
       bodyCtx.body.body.validate[RawMoveReviewInput].fold(
-        errors => BadRequest(Json.obj("ok" -> false, "error" -> "invalid_move_review_input", "details" -> JsError.toJson(errors))).toFuccess,
+        _ => BadRequest(Json.obj("ok" -> false, "error" -> "invalid_move_review_input")).toFuccess,
         raw =>
           MoveReviewJudgmentOrchestrator.build(raw).fold(
             BadRequest(Json.obj("ok" -> false, "error" -> "move_review_not_buildable")).toFuccess
@@ -61,68 +57,45 @@ final class Analyse(
             JsonOk(
               Json.obj(
                 "ok" -> true,
-                "valid" -> result.validation.isValid,
-                "qualityClean" -> result.quality.audit.isClean,
-                "moveJudgmentView" -> result.packet.moveJudgmentView.map(moveJudgmentViewMeaningJson),
-                "validationIssues" -> result.validation.issues.map(validationIssueJson)
+                "status" -> publicReviewStatus(result.validation.isValid, result.quality.audit.isClean),
+                "move_review" -> result.packet.moveJudgmentView.map(moveJudgmentViewMeaningJson)
               )
             ).toFuccess
       )
 
   private def moveJudgmentViewMeaningJson(view: MoveJudgmentView): JsObject =
     Json.obj(
-      "verdict" -> view.verdict.map(verdictJson),
-      "moveMeaningClaims" -> view.moveMeaningClaims.map(moveMeaningClaimJson),
-      "positionPlanTechniqueFrameCount" -> view.positionPlanTechniqueFrames.size
+      "verdict" -> view.verdict.map(frame => publicVerdictJson(MoveMeaningSurface.verdict(frame))),
+      "move_semantics" -> MoveMeaningSurface.from(view).take(12).map(publicMoveSemanticJson)
     )
 
-  private def verdictJson(frame: MoveJudgmentVerdictFrame): JsObject =
+  private def publicReviewStatus(valid: Boolean, qualityClean: Boolean): String =
+    if valid && qualityClean then "ready" else "needs_review"
+
+  private def publicVerdictJson(verdict: MoveMeaningSurfaceVerdict): JsObject =
     Json.obj(
-      "verdict" -> frame.verdict.toString,
-      "comparisonKind" -> frame.comparisonKind.toString,
-      "referenceLine" -> lineRefJson(frame.referenceLine),
-      "candidateLine" -> lineRefJson(frame.candidateLine),
-      "winPercentLossForMover" -> frame.winPercentLossForMover,
-      "candidateWinPercentDeltaForMover" -> frame.candidateWinPercentDeltaForMover
+      "verdict_code" -> verdict.verdictCode,
+      "move_quality" -> verdict.moveQuality,
+      "played_move" -> verdict.playedMove,
+      "reference_move" -> verdict.referenceMove
     )
 
-  private def lineRefJson(ref: LineNodeRef): JsObject =
+  private def publicMoveSemanticJson(surface: MoveMeaningSurface): JsObject =
     Json.obj(
-      "id" -> ref.id,
-      "rootMove" -> ref.rootMove,
-      "rank" -> ref.rank,
-      "role" -> ref.role.toString
+      "move_uci" -> surface.moveUci,
+      "subject" -> surface.subject,
+      "move_quality" -> surface.moveQuality,
+      "idea_type" -> surface.ideaType,
+      "idea_quality" -> surface.ideaQuality,
+      "failure_family" -> surface.failureFamily,
+      "problem" -> surface.problem,
+      "target" -> publicTargetJson(surface.target),
+      "priority" -> surface.priority
     )
 
-  private def moveMeaningClaimJson(claim: MoveMeaningClaim): JsObject =
+  private def publicTargetJson(target: MoveMeaningSurfaceTarget): JsObject =
     Json.obj(
-      "meaningKind" -> claim.meaningKind,
-      "role" -> claim.role,
-      "laneKey" -> claim.laneKey,
-      "conflictKey" -> claim.conflictKey,
-      "supportLevel" -> claim.supportLevel,
-      "visibility" -> claim.visibility,
-      "surfaceLane" -> claim.surfaceLane,
-      "lineRole" -> claim.lineRole,
-      "moveUci" -> claim.moveUci,
-      "frameId" -> claim.frameId,
-      "unit" -> claim.unit.toString,
-      "axisKey" -> claim.axisKey,
-      "axisKind" -> claim.axisKind.map(_.toString),
-      "axisPolarity" -> claim.axisPolarity.map(_.toString),
-      "label" -> claim.label,
-      "causeKinds" -> claim.causeKinds.map(_.toString),
-      "causeSourceSides" -> claim.causeSourceSides.map(_.toString),
-      "causeEvidenceIds" -> claim.causeEvidenceIds,
-      "sourceEvidenceIds" -> claim.sourceEvidenceIds,
-      "reasonTokens" -> claim.reasonTokens,
-      "objectBindingSignatureCount" -> claim.objectBindingSignatures.size,
-      "objectBindingSignaturesSample" -> claim.objectBindingSignatures.take(5)
-    )
-
-  private def validationIssueJson(issue: JudgmentPacketValidationIssue): JsObject =
-    Json.obj(
-      "kind" -> issue.kind.toString,
-      "subjectId" -> issue.subjectId,
-      "evidenceId" -> issue.evidence.map(_.id)
+      "squares" -> target.squares,
+      "files" -> target.files,
+      "pieces" -> target.pieces
     )

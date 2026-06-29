@@ -1634,8 +1634,287 @@ case class MoveMeaningClaim(
     causeEvidenceIds: List[String],
     sourceEvidenceIds: List[String],
     objectBindingSignatures: List[String],
-    reasonTokens: List[String]
+    reasonTokens: List[String],
+    targetSquares: List[String] = Nil,
+    targetFiles: List[String] = Nil,
+    targetPieces: List[String] = Nil
 )
+
+case class MoveMeaningSurfaceTarget(
+    squares: List[String] = Nil,
+    files: List[String] = Nil,
+    pieces: List[String] = Nil
+)
+
+object MoveMeaningSurfaceTarget:
+  def fromClaim(claim: MoveMeaningClaim): MoveMeaningSurfaceTarget =
+    MoveMeaningSurfaceTarget(
+      squares = claim.targetSquares.distinct.sorted,
+      files = claim.targetFiles.distinct.sorted,
+      pieces = claim.targetPieces.distinct.sorted
+    )
+
+  private[judgment] def fromDetail(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String]
+  ): MoveMeaningSurfaceTarget =
+    val pawnTargets = signatureValues(objectSignatures, "target", "Pawn")
+    MoveMeaningSurfaceTarget(
+      squares =
+        (
+          signatureValues(objectSignatures, "target", "Square") ++
+            pawnTargets.flatMap(squareFromText) ++
+            detail.tensionSquares ++
+            detail.resourceContestSquares ++
+            detail.requiredSquares ++
+            detail.maintainedSquares ++
+            detail.brokenSquares
+        ).flatMap(cleanSquare).distinct.sorted,
+      files =
+        (
+          signatureValues(objectSignatures, "target", "File") ++
+            detail.breakFile.toList ++
+            detail.counterBreakFiles ++
+            detail.resourceContestFiles
+        ).flatMap(cleanFile).distinct.sorted,
+      pieces =
+        (
+          signatureValues(objectSignatures, "target", "Piece").flatMap(cleanPiece) ++
+            Option.when(pawnTargets.nonEmpty)("pawn").toList
+        ).distinct.sorted
+    )
+
+  private def signatureValues(signatures: List[String], key: String, kind: String): List[String] =
+    signatures.flatMap(signature =>
+      signature.split("\\|").toList.collect {
+        case part if part.startsWith(s"$key=$kind:") =>
+          part.stripPrefix(s"$key=$kind:")
+      }
+    )
+
+  private def cleanSquare(value: String): Option[String] =
+    val cleaned = cleanTheme(value)
+    Option.when(cleaned.matches("[a-h][1-8]"))(cleaned)
+
+  private def cleanFile(value: String): Option[String] =
+    val cleaned = cleanTheme(value)
+    Option.when(cleaned.matches("[a-h]"))(cleaned)
+
+  private def cleanPiece(value: String): Option[String] =
+    val cleaned = cleanTheme(value).split("_").headOption.getOrElse("")
+    Option.when(
+      cleaned == "king" ||
+        cleaned == "queen" ||
+        cleaned == "rook" ||
+        cleaned == "bishop" ||
+        cleaned == "knight" ||
+        cleaned == "pawn"
+    )(cleaned)
+
+  private def squareFromText(value: String): List[String] =
+    "[a-h][1-8]".r.findAllIn(cleanTheme(value)).toList.distinct
+
+  private def cleanTheme(value: String): String =
+    value.trim
+      .replaceAll("([a-z])([A-Z])", "$1_$2")
+      .replaceAll("[^A-Za-z0-9]+", "_")
+      .replaceAll("_+", "_")
+      .stripPrefix("_")
+      .stripSuffix("_")
+      .toLowerCase
+
+case class MoveMeaningSurfaceVerdict(
+    verdictCode: String,
+    moveQuality: String,
+    playedMove: String,
+    referenceMove: String
+)
+
+case class MoveMeaningSurface(
+    moveUci: String,
+    subject: String,
+    moveQuality: String,
+    ideaType: String,
+    ideaQuality: String,
+    failureFamily: Option[String],
+    problem: Option[String],
+    target: MoveMeaningSurfaceTarget,
+    priority: String
+)
+
+object MoveMeaningSurface:
+  def verdict(frame: MoveJudgmentVerdictFrame): MoveMeaningSurfaceVerdict =
+    MoveMeaningSurfaceVerdict(
+      verdictCode = verdictCode(frame.verdict),
+      moveQuality = moveQuality(frame.verdict),
+      playedMove = frame.candidateLine.rootMove,
+      referenceMove = frame.referenceLine.rootMove
+    )
+
+  def from(view: MoveJudgmentView): List[MoveMeaningSurface] =
+    view.moveMeaningClaims
+      .map(claim => fromClaim(view.verdict, claim))
+      .sortBy(surfaceSortKey)
+
+  private def fromClaim(verdict: Option[MoveJudgmentVerdictFrame], claim: MoveMeaningClaim): MoveMeaningSurface =
+    val claimSubject = subject(claim)
+    val played = claimSubject == "played_move"
+    val badPlayedMove = played && verdict.exists(frame => badVerdict(frame.verdict))
+    MoveMeaningSurface(
+      moveUci = claim.moveUci,
+      subject = claimSubject,
+      moveQuality = if played then verdict.map(frame => moveQuality(frame.verdict)).getOrElse("unknown") else "not_applicable",
+      ideaType = ideaType(claim),
+      ideaQuality = ideaQuality(claim, claimSubject, badPlayedMove),
+      failureFamily = Option.when(badPlayedMove)(failureFamily(claim)).flatten,
+      problem = Option.when(badPlayedMove)(problem(claim)).flatten,
+      target = MoveMeaningSurfaceTarget.fromClaim(claim),
+      priority = priority(claim, claimSubject)
+    )
+
+  private def subject(claim: MoveMeaningClaim): String =
+    claim.surfaceLane match
+      case "current_move_owned" | "current_move_function" => "played_move"
+      case "reference_or_opponent_resource" =>
+        if claim.lineRole == "reference" then "reference_move" else "opponent_resource"
+      case "inherited_context" => "background"
+      case _                   => "line_variation"
+
+  private def verdictCode(verdict: MoveChoiceVerdict): String =
+    verdict match
+      case MoveChoiceVerdict.ImprovesOnReference => "improves_on_reference"
+      case MoveChoiceVerdict.MatchesReference    => "matches_reference"
+      case MoveChoiceVerdict.PlayableLoss        => "playable_loss"
+      case MoveChoiceVerdict.Inaccuracy          => "inaccuracy"
+      case MoveChoiceVerdict.Mistake             => "mistake"
+      case MoveChoiceVerdict.Blunder             => "blunder"
+
+  private def moveQuality(verdict: MoveChoiceVerdict): String =
+    verdict match
+      case MoveChoiceVerdict.ImprovesOnReference | MoveChoiceVerdict.MatchesReference => "good"
+      case MoveChoiceVerdict.PlayableLoss                                             => "playable"
+      case MoveChoiceVerdict.Inaccuracy | MoveChoiceVerdict.Mistake | MoveChoiceVerdict.Blunder =>
+        "bad"
+
+  private def badVerdict(verdict: MoveChoiceVerdict): Boolean =
+    verdict == MoveChoiceVerdict.Inaccuracy ||
+      verdict == MoveChoiceVerdict.Mistake ||
+      verdict == MoveChoiceVerdict.Blunder
+
+  private def ideaType(claim: MoveMeaningClaim): String =
+    claim.unit match
+      case PositionPlanTechniqueUnit.TensionBreakPolicyRoute =>
+        "pawn_break_timing"
+      case PositionPlanTechniqueUnit.CounterplayRace =>
+        "counterplay_race"
+      case PositionPlanTechniqueUnit.SpacePreventionResourceDenial =>
+        "counterplay_control"
+      case PositionPlanTechniqueUnit.PieceRerouteRoute if hasPublicDetailSignal(claim, "outpost") =>
+        "outpost_attempt"
+      case PositionPlanTechniqueUnit.PieceRerouteRoute if hasPublicDetailSignal(claim, "BatteryLine") =>
+        "long_diagonal_pressure"
+      case PositionPlanTechniqueUnit.PieceRerouteRoute =>
+        "piece_route"
+      case PositionPlanTechniqueUnit.EndgameTechniqueRecipe =>
+        "endgame_technique"
+      case PositionPlanTechniqueUnit.CompensationSource =>
+        "compensation"
+      case PositionPlanTechniqueUnit.StructuralTransformation =>
+        axisIdeaType(claim).getOrElse("structure_shift")
+      case PositionPlanTechniqueUnit.PlanOptionSet =>
+        "plan_continuity"
+
+  private def axisIdeaType(claim: MoveMeaningClaim): Option[String] =
+    claim.axisKind.map {
+      case StrategicAxisKind.Target        => "target_pressure"
+      case StrategicAxisKind.SpaceCenter   => "center_control"
+      case StrategicAxisKind.PawnBreak     => "pawn_break_timing"
+      case StrategicAxisKind.Counterplay   => "counterplay_control"
+      case StrategicAxisKind.Activity      => "piece_activity"
+      case StrategicAxisKind.PlanCoherence => "plan_continuity"
+    }
+
+  private def ideaQuality(claim: MoveMeaningClaim, claimSubject: String, badPlayedMove: Boolean): String =
+    if claimSubject == "background" || claim.supportLevel == "contextual" then "background"
+    else if badPlayedMove && (claim.surfaceLane == "current_move_owned" || claim.surfaceLane == "current_move_function") then "failed"
+    else if claim.surfaceLane == "current_move_owned" || claim.surfaceLane == "current_move_function" then "real"
+    else if claim.supportLevel == "owned_cause_linked" then "real"
+    else "weak"
+
+  private def priority(claim: MoveMeaningClaim, claimSubject: String): String =
+    if claimSubject == "played_move" && claim.surfaceLane == "current_move_owned" then "primary"
+    else if claimSubject == "played_move" && claim.surfaceLane == "current_move_function" then "secondary"
+    else if claimSubject == "reference_move" then "alternative"
+    else if claimSubject == "opponent_resource" then "context"
+    else if claimSubject == "background" then "context"
+    else "line"
+
+  private def failureFamily(claim: MoveMeaningClaim): Option[String] =
+    claim.causeKinds.flatMap(causeEventFamily).headOption
+      .orElse {
+        if claim.causeKinds.contains(RelativeCauseKind.PawnBreakOpportunity) || claim.unit == PositionPlanTechniqueUnit.TensionBreakPolicyRoute
+        then Some("pawn_break_timing")
+        else if claim.causeKinds.contains(RelativeCauseKind.OpponentRestriction) || claim.unit == PositionPlanTechniqueUnit.CounterplayRace
+        then Some("counterplay")
+        else if claim.causeKinds.exists(strategicCause) then Some("strategic")
+        else if claim.causeKinds.contains(RelativeCauseKind.ActivityLoss) then Some("piece_activity")
+        else if claim.causeKinds.contains(RelativeCauseKind.TargetPressureRelease) then Some("target_pressure")
+        else if claim.causeKinds.contains(RelativeCauseKind.KingSafetyConcession) then Some("king_safety")
+        else None
+      }
+
+  private def causeEventFamily(kind: RelativeCauseKind): Option[String] =
+    ClaimEventCluster.kindForCause(kind).map {
+      case ClaimEventClusterKind.TacticalEvent   => "tactical"
+      case ClaimEventClusterKind.DefensiveEvent  => "defense"
+      case ClaimEventClusterKind.ConversionEvent => "conversion"
+      case ClaimEventClusterKind.MaterialEvent   => "material"
+    }
+
+  private def strategicCause(kind: RelativeCauseKind): Boolean =
+    kind == RelativeCauseKind.StrategicConcession ||
+      kind == RelativeCauseKind.MissedStrategicImprovement ||
+      kind == RelativeCauseKind.PlanContradiction ||
+      kind == RelativeCauseKind.PlanImprovement
+
+  private def problem(claim: MoveMeaningClaim): Option[String] =
+    if claim.causeKinds.contains(RelativeCauseKind.TacticalRefutationOfPlayed) ||
+      claim.causeKinds.contains(RelativeCauseKind.CandidateTacticalLiability)
+    then Some("tactical_flaw")
+    else if claim.causeKinds.contains(RelativeCauseKind.MissedTacticalResource) then Some("missed_tactical_resource")
+    else if claim.causeKinds.contains(RelativeCauseKind.WrongMoveOrder) then Some("wrong_move_order")
+    else if claim.causeKinds.contains(RelativeCauseKind.WrongRecapturer) then Some("wrong_recapturer")
+    else if claim.causeKinds.contains(RelativeCauseKind.OnlyDefenseNecessity) ||
+      claim.causeKinds.contains(RelativeCauseKind.DefensiveResource)
+    then Some("missed_defense")
+    else if claim.causeKinds.contains(RelativeCauseKind.OnlyMoveNecessity) then Some("missed_only_move")
+    else if claim.causeKinds.contains(RelativeCauseKind.TempoLoss) then Some("too_slow")
+    else if claim.unit == PositionPlanTechniqueUnit.CounterplayRace && claim.targetFiles.nonEmpty then Some("loses_race")
+    else if claim.role == "ReleasesPawnTension" then Some("tension_released_early")
+    else if claim.unit == PositionPlanTechniqueUnit.TensionBreakPolicyRoute then Some("break_timing")
+    else if claim.causeKinds.contains(RelativeCauseKind.PlanContradiction) then Some("plan_conflict")
+    else if claim.causeKinds.contains(RelativeCauseKind.StrategicConcession) then Some("strategic_concession")
+    else if claim.causeKinds.contains(RelativeCauseKind.TargetPressureRelease) then Some("pressure_released")
+    else if claim.causeKinds.contains(RelativeCauseKind.KingSafetyConcession) then Some("king_safety")
+    else if claim.causeKinds.contains(RelativeCauseKind.ConversionMiss) then Some("missed_conversion")
+    else None
+
+  private def hasPublicDetailSignal(claim: MoveMeaningClaim, value: String): Boolean =
+    val needle = value.toLowerCase
+    (claim.reasonTokens ++ claim.label.toList ++ claim.axisKey.toList)
+      .exists(_.toLowerCase.contains(needle))
+
+  private def surfaceSortKey(surface: MoveMeaningSurface): (Int, String, String) =
+    (
+      surface.priority match
+        case "primary"     => 0
+        case "secondary"   => 1
+        case "alternative" => 2
+        case "context"     => 3
+        case _             => 4,
+      surface.ideaType,
+      surface.moveUci
+    )
 
 object MoveMeaningClaim:
   def from(
@@ -1676,7 +1955,10 @@ object MoveMeaningClaim:
         causeEvidenceIds = list.flatMap(_.causeEvidenceIds).distinct.sorted,
         sourceEvidenceIds = list.flatMap(_.sourceEvidenceIds).distinct.sorted,
         objectBindingSignatures = list.flatMap(_.objectBindingSignatures).distinct.sorted,
-        reasonTokens = list.flatMap(_.reasonTokens).distinct.sorted
+        reasonTokens = list.flatMap(_.reasonTokens).distinct.sorted,
+        targetSquares = list.flatMap(_.targetSquares).distinct.sorted,
+        targetFiles = list.flatMap(_.targetFiles).distinct.sorted,
+        targetPieces = list.flatMap(_.targetPieces).distinct.sorted
       )
     )
 
@@ -1810,6 +2092,7 @@ object MoveMeaningClaim:
       )
     yield
       val surfaceObjectSignatures = surfaceObjectBindingSignatures(detail, objectSignatures, claimMove)
+      val surfaceTarget = MoveMeaningSurfaceTarget.fromDetail(detail, surfaceObjectSignatures)
       val surfaceMeaningKind =
         if meaningKind == "PieceRoute" && !pieceRouteQualifiedCarrier(detail, surfaceObjectSignatures) then
           "PieceActivity"
@@ -1844,7 +2127,10 @@ object MoveMeaningClaim:
         causeEvidenceIds = linkedCauseIds,
         sourceEvidenceIds = detail.sourceEvidenceIds.distinct.sorted,
         objectBindingSignatures = surfaceObjectSignatures,
-        reasonTokens = reasonTokens(detail, surfaceObjectSignatures, linkedCauseIds)
+        reasonTokens = reasonTokens(detail, surfaceObjectSignatures, linkedCauseIds),
+        targetSquares = surfaceTarget.squares,
+        targetFiles = surfaceTarget.files,
+        targetPieces = surfaceTarget.pieces
       )
 
   private def supportLevel(
