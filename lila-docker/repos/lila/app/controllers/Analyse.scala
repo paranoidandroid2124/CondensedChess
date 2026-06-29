@@ -101,6 +101,7 @@ final class Analyse(
       "conflictKey" -> claim.conflictKey,
       "supportLevel" -> claim.supportLevel,
       "visibility" -> claim.visibility,
+      "surfaceLane" -> claim.surfaceLane,
       "lineRole" -> claim.lineRole,
       "moveUci" -> claim.moveUci,
       "frameId" -> claim.frameId,

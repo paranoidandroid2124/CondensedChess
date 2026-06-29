@@ -2920,6 +2920,7 @@ class MoveJudgmentViewTest extends munit.FunSuite:
     assertEquals(claim.role, "PreparesBreak")
     assertEquals(claim.supportLevel, "owned_cause_linked")
     assertEquals(claim.visibility, "reason_grade")
+    assertEquals(claim.surfaceLane, "reference_or_opponent_resource")
     assert(claim.laneKey.contains("target=File:e"), claim.laneKey)
     assertEquals(claim.lineRole, "reference")
     assertEquals(claim.moveUci, "e2e4")

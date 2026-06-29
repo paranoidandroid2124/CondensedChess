@@ -1845,6 +1845,7 @@ object MoveReviewPhase3AuditRunner:
       "moveMeaningClaimRoles" -> diagnostic.moveMeaningClaimRoles,
       "moveMeaningClaimSupportLevels" -> diagnostic.moveMeaningClaimSupportLevels,
       "moveMeaningClaimVisibility" -> diagnostic.moveMeaningClaimVisibility,
+      "moveMeaningClaimSurfaceLanes" -> diagnostic.moveMeaningClaimSurfaceLanes,
       "moveMeaningClaimLaneKeys" -> diagnostic.moveMeaningClaimLaneKeys
     )
 
@@ -3632,6 +3633,7 @@ object MoveReviewPhase3AuditRunner:
       "conflictKey" -> claim.conflictKey,
       "supportLevel" -> claim.supportLevel,
       "visibility" -> claim.visibility,
+      "surfaceLane" -> claim.surfaceLane,
       "lineRole" -> claim.lineRole,
       "moveUci" -> claim.moveUci,
       "frameId" -> claim.frameId,

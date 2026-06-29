@@ -786,6 +786,7 @@ final case class ComparisonMoveJudgmentViewDiagnostics(
     moveMeaningClaimRoles: List[String] = Nil,
     moveMeaningClaimSupportLevels: List[String] = Nil,
     moveMeaningClaimVisibility: List[String] = Nil,
+    moveMeaningClaimSurfaceLanes: List[String] = Nil,
     moveMeaningClaimLaneKeys: List[String] = Nil
 ):
   val hasPrimaryCause: Boolean = primaryCauseKinds.nonEmpty
@@ -1561,6 +1562,7 @@ object CandidateComparisonDiagnostic:
       moveMeaningClaimRoles = moveMeaningClaims.map(_.role).distinct.sorted,
       moveMeaningClaimSupportLevels = moveMeaningClaims.map(_.supportLevel).distinct.sorted,
       moveMeaningClaimVisibility = moveMeaningClaims.map(_.visibility).distinct.sorted,
+      moveMeaningClaimSurfaceLanes = moveMeaningClaims.map(_.surfaceLane).distinct.sorted,
       moveMeaningClaimLaneKeys = moveMeaningClaims.map(_.laneKey).distinct.sorted
     )
 

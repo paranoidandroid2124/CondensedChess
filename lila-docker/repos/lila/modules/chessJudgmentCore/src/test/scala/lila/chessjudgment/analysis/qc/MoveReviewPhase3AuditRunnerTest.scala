@@ -1891,6 +1891,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(claims.head.role, "PreservesTension")
     assertEquals(claims.head.supportLevel, "owned_cause_linked")
     assertEquals(claims.head.visibility, "reason_grade")
+    assertEquals(claims.head.surfaceLane, "current_move_owned")
     assert(claims.head.laneKey.contains("breakFile=e"), claims.head.laneKey)
     assert(claims.head.reasonTokens.contains("breakFile:e"))
     assert(claims.head.reasonTokens.contains("tensionSquare:d4"))
@@ -2031,6 +2032,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(view.moveMeaningClaims.map(_.meaningKind), List("PieceRoute"))
     assertEquals(view.moveMeaningClaims.head.supportLevel, "view_surfaced")
     assertEquals(view.moveMeaningClaims.head.visibility, "functional_explanation")
+    assertEquals(view.moveMeaningClaims.head.surfaceLane, "current_move_function")
     assertEquals(view.moveMeaningClaims.head.causeEvidenceIds, Nil)
     assert(view.moveMeaningClaims.head.reasonTokens.contains("structuralSubject:knight:e2-e3"))
     assert(view.moveMeaningClaims.head.reasonTokens.exists(_.startsWith("objectBinding:actor=Move:e2e3")))
@@ -2567,7 +2569,137 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     )
     assertEquals(referenceLineView.moveMeaningClaims.headOption.map(_.lineRole), Some("reference"))
     assertEquals(referenceLineView.moveMeaningClaims.headOption.map(_.moveUci), Some(referenceLine.rootMove))
+    assertEquals(referenceLineView.moveMeaningClaims.headOption.map(_.surfaceLane), Some("reference_or_opponent_resource"))
     assertEquals(frameBorrowedObjectView.moveMeaningClaims, Nil)
+
+  test("move meaning claims keep reference resources out of current move reason lane"):
+    val referenceCause = causeFrame(
+      causeId = "cause-reference-break",
+      axisKeys = List("PawnBreak:Support:reference-break"),
+      objectSignatures = List("target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof")
+    ).copy(
+      role = MoveJudgmentCauseFrameRole.ContextCause,
+      causeSourceSide = RelativeCauseSourceSide.Reference,
+      eventLine = referenceLine,
+      eventRootMove = referenceLine.rootMove,
+      hasOwnedAdmissibleLongTermProof = true,
+      attributionDirectProofEligible = true,
+      rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot
+    )
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+      axisKey = Some("PawnBreak:Support:reference-break"),
+      axisKind = Some(StrategicAxisKind.PawnBreak),
+      axisPolarity = Some(StrategicAxisPolarity.Support),
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.ReferenceStronger),
+      breakFile = Some("e"),
+      tensionPolicy = Some("prepare"),
+      tensionSquares = List("e4", "d5"),
+      candidateEvidenceIds = List("played-transition"),
+      referenceEvidenceIds = List("reference-transition"),
+      sourceEvidenceIds = List("played-transition", "reference-transition"),
+      causeEvidenceIds = List("cause-reference-break"),
+      proofRoles = List(RelativeCauseProofRole.DirectProof, RelativeCauseProofRole.ContrastProof),
+      objectBindingSignatures =
+        List(
+          "actor=Move:e2e3|target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof",
+          "actor=Move:e2e4|target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof"
+        ),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+    )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.Mistake,
+      auditCauses = List(referenceCause),
+      details = List(detail)
+    )
+
+    assertEquals(view.moveMeaningClaims.map(_.lineRole), List("reference"))
+    assertEquals(view.moveMeaningClaims.map(_.moveUci), List(referenceLine.rootMove))
+    assertEquals(view.moveMeaningClaims.map(_.supportLevel), List("owned_cause_linked"))
+    assertEquals(view.moveMeaningClaims.map(_.surfaceLane), List("reference_or_opponent_resource"))
+    assert(!view.moveMeaningClaims.exists(claim => claim.moveUci == candidateLine.rootMove && claim.supportLevel == "owned_cause_linked"))
+
+  test("move meaning claims do not call engine candidate comparisons current move lanes"):
+    val candidateSetCause = causeFrame(
+      causeId = "cause-candidate-set-break",
+      axisKeys = List("PawnBreak:Support:candidate-set-break"),
+      objectSignatures = List("target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof")
+    ).copy(
+      comparisonKind = CandidateComparisonKind.BestVsSecond,
+      causeRole = RelativeCauseRole.CandidateSetConstraint,
+      causeSourceSide = RelativeCauseSourceSide.Candidate,
+      eventLine = candidateLine,
+      eventRootMove = candidateLine.rootMove,
+      hasOwnedAdmissibleLongTermProof = true,
+      attributionDirectProofEligible = true,
+      rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot
+    )
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+      axisKey = Some("PawnBreak:Support:candidate-set-break"),
+      axisKind = Some(StrategicAxisKind.PawnBreak),
+      axisPolarity = Some(StrategicAxisPolarity.Support),
+      breakFile = Some("e"),
+      tensionSquares = List("e4", "d5"),
+      candidateEvidenceIds = List("candidate-set-transition"),
+      sourceEvidenceIds = List("candidate-set-transition"),
+      causeEvidenceIds = List("cause-candidate-set-break"),
+      proofRoles = List(RelativeCauseProofRole.DirectProof),
+      objectBindingSignatures = List("target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+    )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      comparisonKind = CandidateComparisonKind.BestVsSecond,
+      auditCauses = List(candidateSetCause),
+      details = List(detail)
+    )
+
+    assertEquals(view.moveMeaningClaims.map(_.supportLevel), List("owned_cause_linked"))
+    assertEquals(view.moveMeaningClaims.map(_.surfaceLane), List("pv_or_line_witness"))
+    assert(!view.moveMeaningClaims.exists(_.surfaceLane.startsWith("current_move")))
+
+  test("move meaning claims keep reference-vs-alternative resources out of current move lanes"):
+    val referenceAlternativeCause = causeFrame(
+      causeId = "cause-reference-alternative-break",
+      axisKeys = List("PawnBreak:Support:reference-alternative-break"),
+      objectSignatures = List("target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof")
+    ).copy(
+      comparisonKind = CandidateComparisonKind.ReferenceVsAlternative,
+      causeRole = RelativeCauseRole.AlternativeDiagnostic,
+      causeSourceSide = RelativeCauseSourceSide.Reference,
+      eventLine = referenceLine,
+      eventRootMove = referenceLine.rootMove,
+      hasOwnedAdmissibleLongTermProof = true,
+      attributionDirectProofEligible = true,
+      rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot
+    )
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+      axisKey = Some("PawnBreak:Support:reference-alternative-break"),
+      axisKind = Some(StrategicAxisKind.PawnBreak),
+      axisPolarity = Some(StrategicAxisPolarity.Support),
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.ReferenceStronger),
+      breakFile = Some("e"),
+      tensionSquares = List("e4", "d5"),
+      referenceEvidenceIds = List("reference-alternative-transition"),
+      sourceEvidenceIds = List("reference-alternative-transition"),
+      causeEvidenceIds = List("cause-reference-alternative-break"),
+      proofRoles = List(RelativeCauseProofRole.DirectProof, RelativeCauseProofRole.ContrastProof),
+      objectBindingSignatures = List("target=File:e|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+    )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      comparisonKind = CandidateComparisonKind.ReferenceVsAlternative,
+      auditCauses = List(referenceAlternativeCause),
+      details = List(detail)
+    )
+
+    assertEquals(view.moveMeaningClaims.map(_.lineRole), List("reference"))
+    assertEquals(view.moveMeaningClaims.map(_.supportLevel), List("owned_cause_linked"))
+    assertEquals(view.moveMeaningClaims.map(_.surfaceLane), List("reference_or_opponent_resource"))
+    assert(!view.moveMeaningClaims.exists(_.surfaceLane.startsWith("current_move")))
 
   test("axisless structural anchor inventory reports structural signals that cannot enter axis lineage"):
     val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(chess.Color.White), Some("root"))
@@ -2783,6 +2915,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
 
   private def meaningClaimView(
       verdict: MoveChoiceVerdict,
+      comparisonKind: CandidateComparisonKind = CandidateComparisonKind.PlayedVsBest,
       auditCauses: List[MoveJudgmentCauseFrame],
       details: List[PositionPlanTechniqueSemanticDetail]
   ): MoveJudgmentView =
@@ -2795,7 +2928,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
           candidateWinPercentDeltaForMover = 0.0,
           relativeAssessmentEvidenceId = "relative-assessment",
           verdictCertificationEvidenceId = None,
-          comparisonKind = CandidateComparisonKind.PlayedVsBest,
+          comparisonKind = comparisonKind,
           referenceLine = referenceLine,
           candidateLine = candidateLine
         )

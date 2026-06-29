@@ -1618,6 +1618,7 @@ case class MoveMeaningClaim(
     conflictKey: Option[String],
     supportLevel: String,
     visibility: String,
+    surfaceLane: String,
     lineRole: String,
     moveUci: String,
     frameId: String,
@@ -1720,13 +1721,29 @@ object MoveMeaningClaim:
           val optionMove = moveUci(verdict, optionLineRole)
           val optionLinkedCauseFrames =
             linkedCauseFrames.filter(linkedFrame =>
-              causeFrameOwnsMeaningClaim(linkedFrame, detail, objectSignatures, optionMove, baseClaimRole)
+              causeFrameOwnsMeaningClaim(
+                linkedFrame,
+                verdict,
+                detail,
+                objectSignatures,
+                optionLineRole,
+                optionMove,
+                baseClaimRole
+              )
             )
           val optionMeaningKind = kind(detail).getOrElse(baseMeaningKind)
           val optionClaimRole = role(optionMeaningKind, detail)
           val optionRoleCompatibleCauseFrames =
             optionLinkedCauseFrames.filter(linkedFrame =>
-              causeFrameOwnsMeaningClaim(linkedFrame, detail, objectSignatures, optionMove, optionClaimRole)
+              causeFrameOwnsMeaningClaim(
+                linkedFrame,
+                verdict,
+                detail,
+                objectSignatures,
+                optionLineRole,
+                optionMove,
+                optionClaimRole
+              )
             )
           (optionLineRole, optionMove, optionMeaningKind, optionClaimRole, optionRoleCompatibleCauseFrames)
         }
@@ -1752,6 +1769,7 @@ object MoveMeaningClaim:
         conflictKey = conflictKey(meaningKind, detail, surfaceObjectSignatures),
         supportLevel = support,
         visibility = visibility(support),
+        surfaceLane = surfaceLane(detail, verdict, claimLineRole, claimMove, support, roleCompatibleCauseFrames),
         lineRole = claimLineRole,
         moveUci = moveUci(verdict, claimLineRole),
         frameId = frame.id,
@@ -1839,13 +1857,47 @@ object MoveMeaningClaim:
 
   private def causeFrameOwnsMeaningClaim(
       frame: MoveJudgmentCauseFrame,
+      verdict: MoveJudgmentVerdictFrame,
       detail: PositionPlanTechniqueSemanticDetail,
       objectSignatures: List[String],
+      claimLineRole: String,
       claimMove: String,
       claimRole: String
   ): Boolean =
+    causeFrameLineOwnsClaimMove(frame, verdict, claimLineRole, claimMove) &&
     detailOwnsClaimMove(detail, objectSignatures, claimMove) &&
       causeFramePolarityCompatibleWithMeaning(frame, detail, claimRole)
+
+  private def causeFrameLineOwnsClaimMove(
+      frame: MoveJudgmentCauseFrame,
+      verdict: MoveJudgmentVerdictFrame,
+      claimLineRole: String,
+      claimMove: String
+  ): Boolean =
+    val candidateMove = JudgmentSubjectBinding.normalizeMove(verdict.candidateLine.rootMove)
+    val referenceMove = JudgmentSubjectBinding.normalizeMove(verdict.referenceLine.rootMove)
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove)
+    val frameRootMatches = sameMove(frame.eventRootMove, claimMove)
+    val exactSameMove = candidateMove == referenceMove && normalizedClaimMove == candidateMove
+    if exactSameMove then frameRootMatches
+    else
+      claimLineRole match
+        case "candidate" =>
+          frame.causeSourceSide == RelativeCauseSourceSide.Candidate &&
+            frame.eventLine == verdict.candidateLine &&
+            frameRootMatches
+        case "reference" =>
+          frame.causeSourceSide == RelativeCauseSourceSide.Reference &&
+            frame.eventLine == verdict.referenceLine &&
+            frameRootMatches
+        case "contrast" =>
+          frameRootMatches &&
+            (
+              (frame.causeSourceSide == RelativeCauseSourceSide.Candidate && frame.eventLine == verdict.candidateLine) ||
+                (frame.causeSourceSide == RelativeCauseSourceSide.Reference && frame.eventLine == verdict.referenceLine)
+            )
+        case _ =>
+          false
 
   private def detailOwnsClaimMove(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -2516,6 +2568,43 @@ object MoveMeaningClaim:
       case "owned_cause_linked" => "reason_grade"
       case "view_surfaced"      => "functional_explanation"
       case _                    => "soft_context"
+
+  private def surfaceLane(
+      detail: PositionPlanTechniqueSemanticDetail,
+      verdict: MoveJudgmentVerdictFrame,
+      claimLineRole: String,
+      claimMove: String,
+      supportLevel: String,
+      linkedCauseFrames: List[MoveJudgmentCauseFrame]
+  ): String =
+    val candidateMove = JudgmentSubjectBinding.normalizeMove(verdict.candidateLine.rootMove)
+    val referenceMove = JudgmentSubjectBinding.normalizeMove(verdict.referenceLine.rootMove)
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove)
+    val playedCandidateComparison =
+      verdict.comparisonKind == CandidateComparisonKind.PlayedVsBest ||
+        verdict.comparisonKind == CandidateComparisonKind.PlayedVsAlternative
+    val currentMove = playedCandidateComparison && normalizedClaimMove == candidateMove
+    val referenceMoveOnly = normalizedClaimMove == referenceMove && candidateMove != referenceMove
+    val referenceOwnedCause =
+      linkedCauseFrames.exists(frame => frame.causeSourceSide == RelativeCauseSourceSide.Reference)
+    val candidateOwnedCause =
+      linkedCauseFrames.exists(frame => frame.causeSourceSide == RelativeCauseSourceSide.Candidate)
+    val referenceDetailOnly =
+      detail.referenceEvidenceIds.nonEmpty &&
+        detail.candidateEvidenceIds.isEmpty &&
+        !currentMove
+    if referenceMoveOnly || (referenceOwnedCause && !candidateOwnedCause) || referenceDetailOnly then
+      "reference_or_opponent_resource"
+    else if supportLevel == "owned_cause_linked" && currentMove && candidateOwnedCause then
+      "current_move_owned"
+    else if supportLevel == "view_surfaced" && currentMove then
+      "current_move_function"
+    else if supportLevel == "contextual" || contextualMeaningDetail(detail) then
+      "inherited_context"
+    else if claimLineRole == "contrast" || detail.contrastOutcome.nonEmpty then
+      "pv_or_line_witness"
+    else
+      "pv_or_line_witness"
 
   private def reasonTokens(
       detail: PositionPlanTechniqueSemanticDetail,
