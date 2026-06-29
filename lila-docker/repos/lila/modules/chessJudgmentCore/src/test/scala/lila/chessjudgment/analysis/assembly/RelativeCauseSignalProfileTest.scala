@@ -593,6 +593,187 @@ class RelativeCauseSignalProfileTest extends munit.FunSuite:
     assertEquals(drafts.map(_.sourceSide), List(Some(RelativeCauseSourceSide.Candidate)))
     assertEquals(drafts.map(_.attributionKind), List(CauseAttributionKind.CandidateCreatesValue))
 
+  test("drafts current move pawn break from structural tension gain without eval gap"):
+    val root = PositionNodeRef("8/8/8/3p4/8/8/4P3/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val playedLine = LineNodeRef("played-line", "e2e4", 1, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "e2e4", 1, LineNodeRole.BestReference)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:played:e2e4:tension",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val mechanismRecord = EvidenceRecord(
+      ref = EvidenceRef(
+        id = "strategic-mechanism:pawn-break:e2e4",
+        producer = EvidenceProducer.StrategicMechanismProducer,
+        layer = EvidenceLayer.StrategicMechanism,
+        position = root,
+        line = Some(playedLine),
+        scope = EvidenceScope.PlayedTransition,
+        confidence = EvidenceConfidence.EngineBacked
+      ),
+      payload = StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.PawnStructure,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "break-file-e-created-tension-e4-d5",
+            source = structuralRef,
+            strength = 3,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.PawnBreak, StrategicAxisPolarity.Support, "break-file-e-created-tension-e4-d5"))
+          )
+        ),
+        semanticAnchors = Nil
+      )
+    )
+    val profile = exactPlayedProfile(referenceLine, playedLine, List(mechanismRecord))
+
+    val drafts = RelativeCauseDraftPlanner.drafts(profile)
+    assertEquals(drafts.map(_.kind), List(RelativeCauseKind.PawnBreakOpportunity))
+    assertEquals(drafts.map(_.sourceSide), List(Some(RelativeCauseSourceSide.Candidate)))
+    assertEquals(drafts.map(_.attributionKind), List(CauseAttributionKind.CandidateCreatesValue))
+
+  test("does not draft current move pawn break from broad pawn structure delta"):
+    val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val playedLine = LineNodeRef("played-line", "e2e4", 1, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "e2e4", 1, LineNodeRole.BestReference)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:played:e2e4:broad-structure",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val mechanismRecord = EvidenceRecord(
+      ref = EvidenceRef(
+        id = "strategic-mechanism:pawn-structure:e2e4",
+        producer = EvidenceProducer.StrategicMechanismProducer,
+        layer = EvidenceLayer.StrategicMechanism,
+        position = root,
+        line = Some(playedLine),
+        scope = EvidenceScope.PlayedTransition,
+        confidence = EvidenceConfidence.EngineBacked
+      ),
+      payload = StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.PawnStructure,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "pawn-structure-delta",
+            source = structuralRef,
+            strength = 2,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.PawnBreak, StrategicAxisPolarity.Support, "pawn-structure-delta"))
+          )
+        ),
+        semanticAnchors = Nil
+      )
+    )
+    val profile = exactPlayedProfile(referenceLine, playedLine, List(mechanismRecord))
+
+    assertEquals(RelativeCauseDraftPlanner.drafts(profile), Nil)
+
+  test("does not draft current move pawn break preparation from a mixed release axis"):
+    val root = PositionNodeRef("8/8/8/3p4/2P5/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val playedLine = LineNodeRef("played-line", "c4d5", 1, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "c4d5", 1, LineNodeRole.BestReference)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:played:c4d5:mixed-release",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val mechanismRecord = EvidenceRecord(
+      ref = EvidenceRef(
+        id = "strategic-mechanism:pawn-break:c4d5:mixed-release",
+        producer = EvidenceProducer.StrategicMechanismProducer,
+        layer = EvidenceLayer.StrategicMechanism,
+        position = root,
+        line = Some(playedLine),
+        scope = EvidenceScope.PlayedTransition,
+        confidence = EvidenceConfidence.EngineBacked
+      ),
+      payload = StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.PawnStructure,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "break-file-c-break-file-d-created-tension-d5-e6-resolved-tension-c4-d5",
+            source = structuralRef,
+            strength = 3,
+            axis = Some(
+              StrategicAxisDetail(
+                StrategicAxisKind.PawnBreak,
+                StrategicAxisPolarity.Support,
+                "break-file-c-break-file-d-created-tension-d5-e6-resolved-tension-c4-d5"
+              )
+            )
+          ),
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "break-file-c-release-c4-d5",
+            source = structuralRef,
+            strength = 3,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.PawnBreak, StrategicAxisPolarity.Support, "break-file-c-release-c4-d5"))
+          )
+        ),
+        semanticAnchors = Nil
+      )
+    )
+    val profile = exactPlayedProfile(referenceLine, playedLine, List(mechanismRecord))
+
+    assertEquals(RelativeCauseDraftPlanner.drafts(profile), Nil)
+
+  test("does not draft current move pawn break from another played line with the same root move"):
+    val root = PositionNodeRef("8/8/8/3p4/8/8/4P3/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val playedLine = LineNodeRef("played-line", "e2e4", 1, LineNodeRole.Played)
+    val otherPlayedLine = LineNodeRef("other-played-line", "e2e4", 2, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "e2e4", 1, LineNodeRole.BestReference)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:other-played:e2e4:tension",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(otherPlayedLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val mechanismRecord = EvidenceRecord(
+      ref = EvidenceRef(
+        id = "strategic-mechanism:pawn-break:e2e4:mismatched-line",
+        producer = EvidenceProducer.StrategicMechanismProducer,
+        layer = EvidenceLayer.StrategicMechanism,
+        position = root,
+        line = Some(playedLine),
+        scope = EvidenceScope.PlayedTransition,
+        confidence = EvidenceConfidence.EngineBacked
+      ),
+      payload = StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.PawnStructure,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "break-file-e-created-tension-e4-d5",
+            source = structuralRef,
+            strength = 3,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.PawnBreak, StrategicAxisPolarity.Support, "break-file-e-created-tension-e4-d5"))
+          )
+        ),
+        semanticAnchors = Nil
+      )
+    )
+    val profile = exactPlayedProfile(referenceLine, playedLine, List(mechanismRecord))
+
+    assertEquals(RelativeCauseDraftPlanner.drafts(profile), Nil)
+
   test("does not draft current move support from a reference line mechanism"):
     val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
     val playedLine = LineNodeRef("played-line", "g1f3", 1, LineNodeRole.Played)
@@ -770,6 +951,85 @@ class RelativeCauseSignalProfileTest extends munit.FunSuite:
 
     assertEquals(signals.map(_.source.id), List(playedStructuralRef.id))
     assertEquals(signals.map(_.label), List("target-pressure-gain-b7"))
+
+  test("pawn break proof signals keep tension gain and resolution polarities separate"):
+    val root = PositionNodeRef("8/8/8/3p4/4P3/8/8/8 b - - 0 1", 1, Some(Color.Black), Some("root"))
+    val after = PositionNodeRef("8/8/8/8/8/8/8/8 b - - 0 1", 2, Some(Color.Black), Some("after"))
+    val playedLine = LineNodeRef("played-line", "e4d5", 1, LineNodeRole.Played)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:played:e4d5:resolved-tension",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val structural = StructuralDeltaEvidence(
+      transition = StructuralTransitionBinding(
+        moveUci = "e4d5",
+        role = TransitionEdgeRole.Played,
+        from = root,
+        to = after,
+        line = Some(playedLine),
+        perspective = Color.White
+      ),
+      signals = Nil,
+      consequences = List(
+        TransitionConsequence(
+          TransitionConsequenceKind.PawnTensionResolution,
+          StructuralSignalPolarity.Neutral,
+          strength = 2,
+          subjects = List("break-file:e", "resolved-tension:e4-d5")
+        )
+      )
+    )
+    def payload(axis: StrategicAxisDetail) =
+      StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.PawnStructure,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = axis.label,
+            source = structuralRef,
+            strength = 2,
+            axis = Some(axis)
+          )
+        ),
+        semanticAnchors = Nil
+      )
+    val graph = TypedEvidenceGraph(List(EvidenceRecord(structuralRef, structural)))
+    val supportSignals = RelativeAssessmentAssembler.strategicMechanismProofSignals(
+      graph,
+      RelativeCauseKind.PawnBreakOpportunity,
+      payload(StrategicAxisDetail(StrategicAxisKind.PawnBreak, StrategicAxisPolarity.Support, "break-file-e-created-tension-e4-d5")),
+      RelativeCauseSourceSide.Candidate,
+      selectedStructuralSourceIds = Set(structuralRef.id)
+    )
+    val mixedReleaseSignals = RelativeAssessmentAssembler.strategicMechanismProofSignals(
+      graph,
+      RelativeCauseKind.PawnBreakOpportunity,
+      payload(
+        StrategicAxisDetail(
+          StrategicAxisKind.PawnBreak,
+          StrategicAxisPolarity.Support,
+          "break-file-e-break-file-d-created-tension-d5-e6-resolved-tension-e4-d5"
+        )
+      ),
+      RelativeCauseSourceSide.Candidate,
+      selectedStructuralSourceIds = Set(structuralRef.id)
+    )
+    val releaseSignals = RelativeAssessmentAssembler.strategicMechanismProofSignals(
+      graph,
+      RelativeCauseKind.PawnBreakOpportunity,
+      payload(StrategicAxisDetail(StrategicAxisKind.PawnBreak, StrategicAxisPolarity.Release, "break-file-e-resolved-tension-e4-d5")),
+      RelativeCauseSourceSide.Candidate,
+      selectedStructuralSourceIds = Set(structuralRef.id)
+    )
+
+    assertEquals(supportSignals, Nil)
+    assertEquals(mixedReleaseSignals, Nil)
+    assertEquals(releaseSignals.map(_.source.id), List(structuralRef.id))
 
   test("does not duplicate current move support across played-vs-alternative comparisons"):
     val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))

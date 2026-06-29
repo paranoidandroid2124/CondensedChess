@@ -1857,7 +1857,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     val cause = causeFrame(
       causeId = "cause-break",
       axisKeys = List("PawnBreak:Support:central-break-timing"),
-      objectSignatures = List("target=Square:e4|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      objectSignatures = List("target=Square:e3|mechanism=Mechanism:pawn-break|proof=DirectProof"),
       causeKind = RelativeCauseKind.PawnBreakOpportunity
     ).copy(
       role = MoveJudgmentCauseFrameRole.ContextCause,
@@ -1873,12 +1873,12 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       contrastOutcome = Some(StrategicAxisComparisonOutcome.CandidateStronger),
       breakFile = Some("e"),
       tensionPolicy = Some("maintain"),
-      tensionSquares = List("d4", "e5"),
+      tensionSquares = List("d4", "e3"),
       candidateEvidenceIds = List("mechanism-break"),
       sourceEvidenceIds = List("mechanism-break"),
       causeEvidenceIds = List("cause-break"),
       proofRoles = List(RelativeCauseProofRole.DirectProof),
-      objectBindingSignatures = List("target=Square:e4|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      objectBindingSignatures = List("target=Square:e3|mechanism=Mechanism:pawn-break|proof=DirectProof"),
       specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
     )
     val view = meaningClaimView(
@@ -1896,6 +1896,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assert(claims.head.laneKey.contains("breakFile=e"), claims.head.laneKey)
     assert(claims.head.reasonTokens.contains("breakFile:e"))
     assert(claims.head.reasonTokens.contains("tensionSquare:d4"))
+    assert(claims.head.reasonTokens.contains("tensionSquare:e3"))
 
   test("move meaning claims preserve compatible pawn break lanes"):
     val eCause = causeFrame(
@@ -2645,7 +2646,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       axisKind = Some(StrategicAxisKind.PawnBreak),
       axisPolarity = Some(StrategicAxisPolarity.Support),
       breakFile = Some("e"),
-      tensionSquares = List("e4", "d5"),
+      tensionSquares = List("e3", "d4"),
       candidateEvidenceIds = List("candidate-set-transition"),
       sourceEvidenceIds = List("candidate-set-transition"),
       causeEvidenceIds = List("cause-candidate-set-break"),

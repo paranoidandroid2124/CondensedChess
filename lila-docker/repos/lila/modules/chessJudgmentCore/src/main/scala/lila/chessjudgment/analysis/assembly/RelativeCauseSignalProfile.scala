@@ -338,7 +338,7 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
     else
       profile.candidateCurrentMoveStrategicSupport.flatMap {
         case record @ EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
-          currentMoveStrategicSupportCauseKinds(payload, profile.fact.candidateLine.rootMove).map(kind =>
+          currentMoveStrategicSupportCauseKinds(payload, profile.fact.candidateLine).map(kind =>
             RelativeCauseDraft(
               kind,
               List(record),
@@ -352,10 +352,10 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
 
   private def currentMoveStrategicSupportCauseKinds(
       payload: StrategicMechanismEvidence,
-      rootMove: String
+      candidateLine: LineNodeRef
   ): List[RelativeCauseKind] =
     payload.signals
-      .filter(RelativeCauseSignalProfile.currentMoveStrategicSupportSignal(_, rootMove))
+      .filter(RelativeCauseSignalProfile.currentMoveStrategicSupportSignal(_, candidateLine))
       .flatMap(signal => signal.axis.toList.flatMap(RelativeCauseSignalProfile.currentMoveStrategicSupportCauseKindsForAxis))
       .distinct
 
@@ -879,22 +879,21 @@ private[chessjudgment] object RelativeCauseSignalProfile:
       fact: CandidateComparisonFact,
       records: List[EvidenceRecord]
   ): List[EvidenceRecord] =
-    val rootMove = normalizeMove(fact.candidateLine.rootMove)
     records.collect {
       case record @ EvidenceRecord(_, payload: StrategicMechanismEvidence, _)
           if record.referencesLine(fact.candidateLine) &&
             payload.canSupportStrategicCause &&
-            payload.signals.exists(currentMoveStrategicSupportSignal(_, rootMove)) =>
+            payload.signals.exists(currentMoveStrategicSupportSignal(_, fact.candidateLine)) =>
         record
     }.distinctBy(_.ref.id)
 
   private[chessjudgment] def currentMoveStrategicSupportSignal(
       signal: StrategicMechanismSignal,
-      rootMove: String
+      candidateLine: LineNodeRef
   ): Boolean =
     signal.kind == StrategicMechanismSignalKind.StructuralDelta &&
       signal.source.scope == EvidenceScope.PlayedTransition &&
-      normalizeMove(signal.source.line.map(_.rootMove).getOrElse("")) == normalizeMove(rootMove) &&
+      signal.source.line.contains(candidateLine) &&
       signal.axis.exists(axis => currentMoveStrategicSupportCauseKindsForAxis(axis).nonEmpty)
 
   private[chessjudgment] def currentMoveStrategicSupportCauseKindsForAxis(axis: StrategicAxisDetail): List[RelativeCauseKind] =
@@ -903,8 +902,33 @@ private[chessjudgment] object RelativeCauseSignalProfile:
         List(RelativeCauseKind.TargetPressureGain)
       case StrategicAxisKind.Activity if axis.polarity == StrategicAxisPolarity.Gain =>
         List(RelativeCauseKind.ActivityGain)
+      case StrategicAxisKind.PawnBreak
+          if currentMovePawnBreakAxis(axis) &&
+            (
+              axis.polarity == StrategicAxisPolarity.Release ||
+                (
+                  !currentMovePawnBreakResolutionAxis(axis) &&
+                    (
+                      axis.polarity == StrategicAxisPolarity.Support ||
+                        axis.polarity == StrategicAxisPolarity.Preserve
+                    )
+                )
+            ) =>
+        List(RelativeCauseKind.PawnBreakOpportunity)
       case _ =>
         Nil
+
+  private def currentMovePawnBreakAxis(axis: StrategicAxisDetail): Boolean =
+    val normalized = axis.label.toLowerCase
+    normalized.contains("break-file") ||
+      normalized.contains("created-tension") ||
+      normalized.contains("resolved-tension") ||
+      normalized.contains("tension")
+
+  private def currentMovePawnBreakResolutionAxis(axis: StrategicAxisDetail): Boolean =
+    val normalized = axis.label.toLowerCase
+    normalized.contains("resolved-tension") ||
+      normalized.contains("-release-")
 
   private[chessjudgment] def referenceOnlyDefenseFunctionRecords(
       fact: CandidateComparisonFact,

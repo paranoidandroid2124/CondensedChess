@@ -1747,7 +1747,10 @@ object MoveMeaningClaim:
             )
           (optionLineRole, optionMove, optionMeaningKind, optionClaimRole, optionRoleCompatibleCauseFrames)
         }
-      claimSelection = claimOptions.find(_._5.nonEmpty).getOrElse(claimOptions.head)
+      claimSelection =
+        claimOptions.find(option => option._5.nonEmpty && option._1 != "contrast")
+          .orElse(claimOptions.find(_._5.nonEmpty))
+          .getOrElse(claimOptions.head)
       claimLineRole = claimSelection._1
       claimMove = claimSelection._2
       meaningKind = claimSelection._3
@@ -1800,7 +1803,10 @@ object MoveMeaningClaim:
     val ownedCause =
       linkedCauseFrames.exists(frame => frame.concreteObjectReady && frame.hasOwnedAdmissibleLongTermProof) ||
         linkedCauseFrames.exists(frame => frame.concreteObjectReady && frame.attributionDirectProofEligible)
-    if linkedCauseFrames.nonEmpty && ownedCause && hasConcreteObject && specificObjectAxis && direct then
+    val ownedMeaningReady =
+      detail.unit != PositionPlanTechniqueUnit.TensionBreakPolicyRoute ||
+        pawnBreakOwnedCauseReady(detail, objectSignatures, claimMove)
+    if linkedCauseFrames.nonEmpty && ownedCause && hasConcreteObject && specificObjectAxis && direct && ownedMeaningReady then
       Some("owned_cause_linked")
     else if hasConcreteObject && (specificObjectAxis || currentMoveFunctionalProof) && hasDetailEvidence && (anyProof(detail) || currentMoveFunctionalProof) then
       Some("view_surfaced")
@@ -2015,15 +2021,57 @@ object MoveMeaningClaim:
       objectSignatures: List[String],
       claimMove: String
   ): Boolean =
+    val hasTensionCarrier = pawnBreakTensionCarrier(detail)
     val tensionTouchesMove =
       moveTouchesSquares(claimMove, detail.tensionSquares) ||
         moveTouchesSquares(claimMove, detail.tensionEdges) ||
-        moveTouchesStructuralPurpose(detail, claimMove)
-    detail.breakFile match
-      case Some(_) =>
-        moveTouchesBreakFile(detail, claimMove) || tensionTouchesMove
-      case None =>
-        tensionTouchesMove || targetTokensTouchMove(objectSignatures, claimMove)
+        moveTouchesSquares(claimMove, detail.structuralPurposeSubjects.filter(pawnBreakTensionSubject))
+    if hasTensionCarrier then tensionTouchesMove
+    else
+      detail.breakFile match
+        case Some(_) =>
+          moveTouchesBreakFile(detail, claimMove)
+        case None =>
+          targetTokensTouchMove(objectSignatures, claimMove)
+
+  private def pawnBreakOwnedCauseReady(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String
+  ): Boolean =
+    pawnBreakTensionCarrier(detail) &&
+      pawnBreakOwnsClaimMove(detail, objectSignatures, claimMove) &&
+      pawnBreakTensionPolicyOwnsMove(detail, claimMove)
+
+  private def pawnBreakTensionCarrier(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detail.tensionSquares.nonEmpty ||
+      detail.tensionEdges.nonEmpty ||
+      detail.structuralPurposeSubjects.exists(pawnBreakTensionSubject)
+
+  private def pawnBreakTensionSubject(subject: String): Boolean =
+    val normalized = subject.toLowerCase
+    normalized.contains("created-tension:") ||
+      normalized.contains("resolved-tension:")
+
+  private def pawnBreakTensionPolicyOwnsMove(
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String
+  ): Boolean =
+    val policy = detail.tensionPolicy.map(_.toLowerCase).getOrElse("")
+    if !(policy.contains("maintain") || policy.contains("preserve")) then true
+    else
+      moveEndpoints(claimMove).exists { case (from, to) =>
+        val edges = detail.tensionEdges.map(_.toLowerCase)
+        val squares = detail.tensionSquares.map(_.toLowerCase)
+        val destinationStillTense =
+          edges.exists(_.contains(to)) ||
+            squares.contains(to)
+        val movedThroughSameEdge =
+          edges.exists(edge => edge.contains(from) && edge.contains(to))
+        val movedAwayFromTrackedSquare =
+          squares.contains(from) && !squares.contains(to)
+        destinationStillTense && !movedThroughSameEdge && !movedAwayFromTrackedSquare
+      }
 
   private def resourceDetailOwnsClaimMove(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -2090,17 +2138,6 @@ object MoveMeaningClaim:
       val moveFiles = Set(from.take(1), to.take(1))
       files.map(_.toLowerCase.trim).exists(file => moveFiles.contains(file.take(1)))
     }
-
-  private def moveTouchesStructuralPurpose(
-      detail: PositionPlanTechniqueSemanticDetail,
-      claimMove: String
-  ): Boolean =
-    moveTouchesSquares(claimMove, detail.structuralPurposeSubjects) ||
-      detail.structuralPurposeSubjects.exists { subject =>
-        val normalized = subject.toLowerCase.trim
-        normalized.startsWith("break-file:") &&
-          moveTouchesFiles(claimMove, List(normalized.stripPrefix("break-file:")))
-      }
 
   private def targetTokensTouchMove(
       objectSignatures: List[String],
@@ -2559,7 +2596,7 @@ object MoveMeaningClaim:
           case _ =>
             "SupportsCurrentPlan"
       case "PawnBreakTiming" =>
-        if detail.axisPolarity.exists(negativePolarity) || detail.contrastOutcome.contains(StrategicAxisComparisonOutcome.CandidateConcession)
+        if pawnBreakResolutionDetail(detail)
         then "ReleasesPawnTension"
         else if detail.tensionPolicy.exists(policy => policy.toLowerCase.contains("maintain") || policy.toLowerCase.contains("preserve"))
         then "PreservesTension"
@@ -2578,6 +2615,14 @@ object MoveMeaningClaim:
         "MaintainsTechnique"
       case _ =>
         "ExplainsMoveFunction"
+
+  private def pawnBreakResolutionDetail(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detail.axisPolarity.exists(negativePolarity) ||
+      detail.contrastOutcome.contains(StrategicAxisComparisonOutcome.CandidateConcession) ||
+      detail.tensionPolicy.exists(_.toLowerCase.contains("release")) ||
+      detail.label.exists(_.toLowerCase.contains("resolved-tension")) ||
+      detail.axisKey.exists(_.toLowerCase.contains("resolved-tension")) ||
+      detail.structuralPurposeSubjects.exists(_.toLowerCase.contains("resolved-tension"))
 
   private def laneKey(
       meaningKind: String,
@@ -2666,7 +2711,7 @@ object MoveMeaningClaim:
         !currentMove
     if referenceMoveOnly || (referenceOwnedCause && !candidateOwnedCause) || referenceDetailOnly then
       "reference_or_opponent_resource"
-    else if supportLevel == "owned_cause_linked" && currentMove && candidateOwnedCause then
+    else if supportLevel == "owned_cause_linked" && currentMove && claimLineRole == "candidate" && candidateOwnedCause then
       "current_move_owned"
     else if supportLevel == "view_surfaced" && currentMove then
       "current_move_function"
@@ -3341,11 +3386,13 @@ object MoveJudgmentView:
 
   private def exactCurrentMoveStrategicSupportKind(kind: RelativeCauseKind): Boolean =
     kind == RelativeCauseKind.ActivityGain ||
-      kind == RelativeCauseKind.TargetPressureGain
+      kind == RelativeCauseKind.TargetPressureGain ||
+      kind == RelativeCauseKind.PawnBreakOpportunity
 
   private def exactCurrentMoveStrategicSupportFrame(frame: MoveJudgmentCauseFrame): Boolean =
     ClaimEventCluster.kindForCause(frame.causeKind).isEmpty &&
       exactCurrentMoveStrategicSupportKind(frame.causeKind) &&
+      frame.concreteObjectReady &&
       frame.hasOwnedAdmissibleLongTermProof &&
       frame.attributionDirectProofEligible &&
       frame.attributionRootMoveMatched &&

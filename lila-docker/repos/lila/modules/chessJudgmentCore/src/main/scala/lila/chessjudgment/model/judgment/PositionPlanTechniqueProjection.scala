@@ -1139,7 +1139,9 @@ object PositionPlanTechniqueProjection:
             structuralPurposeSubjects = structural.subjects,
             structuralPurposeCategories = structural.categories,
             structuralPurposePolarities = structural.polarities,
-            structuralPurposeStrength = structural.strength
+            structuralPurposeStrength = structural.strength,
+            breakFile = detail.breakFile.orElse(positionPlanTechniqueStructuralBreakFile(structural.subjects)),
+            tensionEdges = (detail.tensionEdges ++ positionPlanTechniqueStructuralTensionEdges(structural.subjects)).distinct.sorted
           )
         )
       else detail
@@ -1297,6 +1299,21 @@ object PositionPlanTechniqueProjection:
         .flatMap(id => structuralPurposeBySourceId.getOrElse(id, Nil))
         .filter(positionPlanTechniqueStructuralPurposeMatchesDetail(detail, _))
     )
+
+  private def positionPlanTechniqueStructuralBreakFile(subjects: List[String]): Option[String] =
+    subjects.collectFirst {
+      case subject if subject.toLowerCase.startsWith("break-file:") =>
+        subject.drop("break-file:".length).trim.toLowerCase
+    }.filter(_.nonEmpty)
+
+  private def positionPlanTechniqueStructuralTensionEdges(subjects: List[String]): List[String] =
+    subjects.flatMap { subject =>
+      val normalized = subject.toLowerCase.trim
+      List("created-tension:", "resolved-tension:").collect {
+        case prefix if normalized.startsWith(prefix) =>
+          normalized.drop(prefix.length)
+      }
+    }.filter(_.nonEmpty).distinct.sorted
 
   private def positionPlanTechniqueThreatBySourceId(
       graph: TypedEvidenceGraph,

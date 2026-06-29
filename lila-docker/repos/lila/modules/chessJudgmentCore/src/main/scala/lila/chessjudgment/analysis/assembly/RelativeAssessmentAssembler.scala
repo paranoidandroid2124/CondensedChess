@@ -1092,10 +1092,11 @@ object RelativeAssessmentAssembler:
       signal.axis.exists(axis => strategicAxisCanProveCause(kind, axis, sourceSide)) &&
       graph.byId.get(signal.source.id).exists {
         case EvidenceRecord(sourceRef, structural: StructuralDeltaEvidence, _) =>
+          val provingConsequences = structuralConsequencesForCause(kind, structural, signal.axis)
           eventLine.forall(line => sourceRef.line.contains(line) && structural.line.contains(line)) &&
             normalizeMove(structural.moveUci) == normalizedRoot &&
-            structuralConsequencesForCause(kind, structural).nonEmpty &&
-            strategicStructuralProofReady(kind, structural)
+            provingConsequences.nonEmpty &&
+            strategicStructuralProofReady(kind, structural, provingConsequences)
         case _ =>
           false
       }
@@ -1117,19 +1118,28 @@ object RelativeAssessmentAssembler:
           (selectedStructuralSourceIds.isEmpty || selectedStructuralSourceIds.contains(signal.source.id)) &&
           graph.byId.get(signal.source.id).exists {
             case EvidenceRecord(_, structural: StructuralDeltaEvidence, _) =>
-              structuralConsequencesForCause(kind, structural).nonEmpty &&
-                strategicStructuralProofReady(kind, structural)
+              val provingConsequences = structuralConsequencesForCause(kind, structural, signal.axis)
+              provingConsequences.nonEmpty &&
+                strategicStructuralProofReady(kind, structural, provingConsequences)
             case _ =>
               false
           }
       )
-    if structuralMatched.nonEmpty then structuralMatched.distinct else axisMatched.distinct
+    if selectedStructuralSourceIds.nonEmpty then structuralMatched.distinct
+    else if structuralMatched.nonEmpty then structuralMatched.distinct
+    else axisMatched.distinct
 
   private def strategicStructuralProofReady(
       kind: RelativeCauseKind,
       structural: StructuralDeltaEvidence
   ): Boolean =
-    val provingConsequences = structuralConsequencesForCause(kind, structural)
+    strategicStructuralProofReady(kind, structural, structuralConsequencesForCause(kind, structural))
+
+  private def strategicStructuralProofReady(
+      kind: RelativeCauseKind,
+      structural: StructuralDeltaEvidence,
+      provingConsequences: List[TransitionConsequence]
+  ): Boolean =
     provingConsequences.exists(consequenceHasConcreteStrategicTarget) ||
       (kind == RelativeCauseKind.ActivityGain && structural.developmentChoices.nonEmpty)
 
@@ -1164,7 +1174,17 @@ object RelativeAssessmentAssembler:
       case RelativeCauseKind.TargetPressureRelease =>
         axis.kind == StrategicAxisKind.Target && axis.polarity == StrategicAxisPolarity.Release
       case RelativeCauseKind.PawnBreakOpportunity =>
-        axis.kind == StrategicAxisKind.PawnBreak
+        axis.kind == StrategicAxisKind.PawnBreak &&
+          (
+            axis.polarity == StrategicAxisPolarity.Support ||
+              axis.polarity == StrategicAxisPolarity.Preserve ||
+              axis.polarity == StrategicAxisPolarity.Release ||
+              axis.polarity == StrategicAxisPolarity.Gain
+          ) &&
+          (
+            axis.polarity == StrategicAxisPolarity.Release ||
+              !pawnBreakResolutionAxis(axis)
+          )
       case RelativeCauseKind.CenterControlGain =>
         axis.kind == StrategicAxisKind.SpaceCenter
       case RelativeCauseKind.ActivityGain =>
@@ -1281,6 +1301,38 @@ object RelativeAssessmentAssembler:
         )
       case _ =>
         Nil
+
+  private def structuralConsequencesForCause(
+      kind: RelativeCauseKind,
+      payload: StructuralDeltaEvidence,
+      axis: Option[StrategicAxisDetail]
+  ): List[TransitionConsequence] =
+    import TransitionConsequenceKind.*
+    kind match
+      case RelativeCauseKind.PawnBreakOpportunity =>
+        axis match
+          case Some(detail) if detail.kind == StrategicAxisKind.PawnBreak && detail.polarity == StrategicAxisPolarity.Release =>
+            payload.consequencesOf(PawnTensionResolution)
+          case Some(detail)
+              if detail.kind == StrategicAxisKind.PawnBreak &&
+                !pawnBreakResolutionAxis(detail) &&
+                (
+                  detail.polarity == StrategicAxisPolarity.Support ||
+                    detail.polarity == StrategicAxisPolarity.Preserve ||
+                    detail.polarity == StrategicAxisPolarity.Gain
+                ) =>
+            payload.consequencesOf(PawnTensionGain)
+          case Some(_) =>
+            Nil
+          case None =>
+            structuralConsequencesForCause(kind, payload)
+      case _ =>
+        structuralConsequencesForCause(kind, payload)
+
+  private def pawnBreakResolutionAxis(axis: StrategicAxisDetail): Boolean =
+    val normalized = axis.label.toLowerCase
+    normalized.contains("resolved-tension") ||
+      normalized.contains("-release-")
 
   private def mergeCauseCandidates(candidates: List[RelativeCauseDraft]): List[RelativeCauseDraft] =
     candidates
