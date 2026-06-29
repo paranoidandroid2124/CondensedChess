@@ -1,12 +1,21 @@
 package lila.study
 package ui
 
-import lila.core.study.StudyOrder
+import lila.core.study.{ StudyOrder, Visibility }
 import lila.ui.*
 import ScalatagsTemplate.{ *, given }
 
 final class StudyBits(helpers: Helpers):
   import helpers.*
+
+  private def visibilityLabel(study: Study): String =
+    if study.isPublic then "Public review study"
+    else if study.isUnlisted then "Shared by link"
+    else "Private review study"
+
+  private def visibilityTone(study: Study): Option[String] =
+    if study.isPublic then None
+    else Some(if study.isUnlisted then "study__topchip--unlisted" else "study__topchip--private")
 
   def notebookGlyph(kind: String, extraCls: String = ""): Frag =
     val classes =
@@ -53,7 +62,7 @@ final class StudyBits(helpers: Helpers):
       ),
       div(cls := "notebook-cover__face")(
         div(cls := "notebook-cover__seal")(notebookGlyph("notebook", "notebook-cover__glyph")),
-        span(cls := "notebook-cover__eyebrow")("Research notebook"),
+        span(cls := "notebook-cover__eyebrow")("Review study"),
         strong(cls := "notebook-cover__title")(title),
         span(cls := "notebook-cover__subtitle")(subtitle),
         span(cls := "notebook-cover__detail")(detail)
@@ -71,13 +80,37 @@ final class StudyBits(helpers: Helpers):
         a(href := url(o), cls := (order == o).option("current"))(Orders.name(o))
     )
 
-  def newForm(label: String = "Create notebook") =
+  def newForm(buttonLabel: String = "Create Review Study") =
+    val visibilityChoices = List(
+      (Visibility.unlisted, "Link sharing", "Anyone with the link can review it."),
+      (Visibility.`private`, "Private", "Only you can open this review study."),
+      (Visibility.public, "Public", "Visible in public review study lists.")
+    )
     postForm(cls := "new-study", action := routes.Study.create.url)(
+      fieldset(cls := "new-study__visibility")(
+        legend("Access"),
+        div(cls := "new-study__visibility-options")(
+          visibilityChoices.map { case (visibility, title, help) =>
+            label(cls := "new-study__visibility-option")(
+              input(
+                tpe := "radio",
+                name := "visibility",
+                value := visibility.key,
+                if visibility == Visibility.unlisted then checked := true else emptyFrag
+              ),
+              span(cls := "new-study__visibility-copy")(
+                strong(title),
+                span(help)
+              )
+            )
+          }
+        )
+      ),
       submitButton(
         cls := "button button-green",
-        title := "Create a blank notebook and open it immediately",
+        title := "Create a blank review study and open it immediately",
         notebookGlyph("notebook", "new-study__glyph"),
-        span(cls := "new-study__label")(label)
+        span(cls := "new-study__label")(buttonLabel)
       )
     )
 
@@ -103,7 +136,7 @@ final class StudyBits(helpers: Helpers):
         div(
           tag(cls := "study-name")(s.study.name),
           span(cls := "study__topline")(
-            (!s.study.isPublic).option(span(cls := "study__topchip study__topchip--private")("Private")),
+            visibilityTone(s.study).map(tone => span(cls := s"study__topchip $tone")(visibilityLabel(s.study))),
             span(cls := "study__topchip")(s"${s.study.likes.value} likes"),
             span(cls := "study__topsep")("•"),
             titleNameOrId(s.study.ownerId),
@@ -113,7 +146,7 @@ final class StudyBits(helpers: Helpers):
         )
       ),
       div(cls := "study__meta")(
-        span(cls := "study__badge")(if s.study.isPublic then "Public notebook" else "Private notebook"),
+        span(cls := "study__badge")(visibilityLabel(s.study)),
         span(cls := "study__meta-item")(s"$sectionCount ${if sectionCount == 1 then "section" else "sections"}"),
         span(cls := "study__meta-item")(
           s"$collaboratorCount ${if collaboratorCount == 1 then "collaborator" else "collaborators"}"

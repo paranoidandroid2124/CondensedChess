@@ -17,7 +17,9 @@ $c-bg-popup: hsl(0, 0%, 100%);
 $c-bg-opaque: hsl(0, 0%, 100%);
 $c-body-gradient: hsl(37, 12%, 84%);
 $c-font: hsl(0, 0%, 30%);
+$c-font-muted: hsl(0, 0%, 47%);
 $c-primary: hsl(209, 77%, 46%);
+$c-primary-strong: hsl(209, 77%, 36%);
 $c-brag: hsl(37, 74%, 48%);
 $c-shade: hsl(0, 0%, 84%);
 $c-inaccuracy: hsl(202, 78%, 40%);
@@ -60,24 +62,30 @@ html.light {
   @include light-mix;
 }
 
-// Chesstory Pro Theme Overrides for Light Mode
+// Chesstory pro keeps the quiet dark tool palette even when light mode is active.
 html.pro.light {
-  $pro-cream: #171816;
-  $pro-green: #8bc071;
+  $pro-bg: #151713;
+  $pro-green: #a7c98c;
 
-  --c-bg-page: #{$pro-cream};
-  --c-bg: #{$pro-cream};
-  --c-bg-low: #1c1e1a;
-  --c-bg-zebra: #1f221d;
-  --c-bg-popup: #22241f;
-  --c-border: #3a3d34;
-  --c-font: #efeee8;
-  --c-font-dim: #a9ad9e;
+  --c-bg-page: #12140f;
+  --c-bg: #{$pro-bg};
+  --c-bg-low: #1f221c;
+  --c-bg-zebra: #24281f;
+  --c-bg-popup: #23261f;
+  --c-border: #34392f;
+  --c-font: #f2f0e8;
+  --c-font-muted: #b8bcad;
+  --c-font-dim: #b8bcad;
   --c-primary: #{$pro-green};
+  --c-secondary: #8fae99;
+  --c-good: #91bd83;
+  --c-accent: #d6a85d;
+  --c-bad: #d8766f;
   --c-link: #{$pro-green};
-  --c-link-hover: #b4d99a;
+  --c-primary-strong: #d9e6cc;
+  --c-link-hover: #d9e6cc;
 
   // Update header and chrome to match
-  --c-bg-header-dropdown: #{$pro-cream};
-  --c-bg-input: #22241f;
+  --c-bg-header-dropdown: #{$pro-bg};
+  --c-bg-input: #23261f;
 }

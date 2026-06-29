@@ -26,37 +26,38 @@ final class Main(
     Option(env.net.email.value).map(_.trim).filter(_.nonEmpty)
 
   def landing = Open:
-    Redirect(if ctx.isAuth then routes.Main.home else routes.Auth.login).toFuccess
+    if ctx.isAuth then Redirect(routes.Main.home).toFuccess
+    else Ok.page(views.pages.landing())
 
   def home = Auth { ctx ?=> me ?=>
     for
       summary <- env.analyse.importHistory.recentSummary(me.userId)
-      notebookPager <- env.study.pager.mine(StudyOrder.updated, page = 1)(using me)
-      recentNotebooks = notebookPager.currentPageResults.take(3).toList
+      studyPager <- env.study.pager.mine(StudyOrder.updated, page = 1)(using me)
+      recentStudies = studyPager.currentPageResults.take(3).toList
       continueCard =
         summary.analyses.headOption
           .map(Main.HomeContinueCard.Analysis.apply)
-          .orElse(recentNotebooks.headOption.map(Main.HomeContinueCard.Notebook.apply))
+          .orElse(recentStudies.headOption.map(Main.HomeContinueCard.Study.apply))
           .getOrElse(Main.HomeContinueCard.Starter)
       data = Main.HomePageData(
         continueCard = continueCard,
         quickActions = List(
           Main.HomeQuickAction(
-            label = "Game analysis",
-            title = "Review one game",
-            copy = "Paste a game and inspect it on the board.",
-            href = routes.Importer.importGame.url
+            label = "PGN",
+            title = "Start a deep review",
+            copy = "Paste one game and review the key positions on the board.",
+            href = routes.UserAnalysis.index.url
           ),
           Main.HomeQuickAction(
-            label = "Board",
-            title = "Explore a position",
-            copy = "Use the board, notation, eval, and explorer when you want to test lines yourself.",
-            href = s"${routes.UserAnalysis.index.url}?mode=raw"
+            label = "Recent games",
+            title = "Bring a public game",
+            copy = "Find recent Lichess or Chess.com games and choose one to review.",
+            href = routes.Importer.importGame.url
           )
         ),
         recentAnalyses = summary.analyses.take(4),
         recentAccounts = summary.accounts.take(4),
-        recentNotebooks = recentNotebooks
+        recentStudies = recentStudies
       )
       result <- Ok.page(views.pages.home(data))
     yield result
@@ -168,7 +169,7 @@ object Main:
   sealed trait HomeContinueCard
   object HomeContinueCard:
     final case class Analysis(entry: lila.analyse.ImportHistory.Analysis) extends HomeContinueCard
-    final case class Notebook(entry: lila.study.Study.WithChaptersAndLiked) extends HomeContinueCard
+    final case class Study(entry: lila.study.Study.WithChaptersAndLiked) extends HomeContinueCard
     case object Starter extends HomeContinueCard
 
   final case class HomeQuickAction(
@@ -183,7 +184,7 @@ object Main:
       quickActions: List[HomeQuickAction],
       recentAnalyses: List[lila.analyse.ImportHistory.Analysis],
       recentAccounts: List[lila.analyse.ImportHistory.Account],
-      recentNotebooks: List[lila.study.Study.WithChaptersAndLiked]
+      recentStudies: List[lila.study.Study.WithChaptersAndLiked]
   )
 
   final case class HealthCheck(

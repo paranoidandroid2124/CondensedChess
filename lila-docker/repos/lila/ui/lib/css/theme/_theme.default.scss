@@ -8,37 +8,39 @@
   @return mix(#000, $color, $weight);
 }
 
-$site-hue: 92;
+$site-hue: 86;
 
 // top level $c-variables must be valid css format (rgba, hsla, hex) to be mixable by ui/build
 
-$c-bg: #171816;
-$c-bg-page: #11130f;
-$c-bg-low: #1c1e1a;
-$c-bg-zebra: #1f221d;
-$c-bg-zebra2: #22251f;
-$c-bg-popup: #22241f;
-$c-bg-opaque: #171816;
-$c-body-gradient: #1a1d18;
-$c-border: #3a3d34;
-$c-font: #efeee8;
+$c-bg: #151713;
+$c-bg-page: #12140f;
+$c-bg-low: #1f221c;
+$c-bg-zebra: #24281f;
+$c-bg-zebra2: #292d24;
+$c-bg-popup: #23261f;
+$c-bg-opaque: #151713;
+$c-body-gradient: #181b15;
+$c-border: #34392f;
+$c-font: #f2f0e8;
+$c-font-muted: #b8bcad;
 
-// Chesstory study-room accents
-$c-primary: #8bc071;
-$c-secondary: #7fa7a0;
-$c-good: #77b673;
-$c-accent: #e3b15b;
-$c-bad: #d96f66;
-$c-brag: #b58a4b;
+// Chesstory quiet tool accents
+$c-primary: #a7c98c;
+$c-primary-strong: #d9e6cc;
+$c-secondary: #8fae99;
+$c-good: #91bd83;
+$c-accent: #d6a85d;
+$c-bad: #d8766f;
+$c-brag: #b8955a;
 
-$c-clas: #7fa7a0;
-$c-shade: #31352d;
+$c-clas: #8fae99;
+$c-shade: #303427;
 
-$c-inaccuracy: #7fa7a0;
-$c-mistake: #e3b15b;
-$c-blunder: #d96f66;
-$c-brilliant: #8bc071;
-$c-interesting: #b4d99a;
+$c-inaccuracy: #8fae99;
+$c-mistake: #d6a85d;
+$c-blunder: #d8766f;
+$c-brilliant: #a7c98c;
+$c-interesting: #d9e6cc;
 
 $c-paper: hsl(220, 10%, 90%);
 $c-dark: #1a1c22;
@@ -66,6 +68,7 @@ $c-mv-branch-black: #000;
   --c-header-dropdown: #{$c-font};
   --c-body-gradient: #{$c-body-gradient};
   --c-font: #{$c-font};
+  --c-font-muted: #{$c-font-muted};
   --c-shade: #{$c-shade};
   --c-dark: #{$c-dark};
   --c-dimmer: #{$c-dimmer};
@@ -92,11 +95,12 @@ $c-mv-branch-black: #000;
   --c-border-page: hsl(0, 0%, 22%);
   --c-border-light: hsl(0, 0%, 40%);
   --c-primary: #{$c-primary};
+  --c-primary-strong: #{$c-primary-strong};
   --c-primary-clear: #{_clear($c-primary)};
   --c-secondary: #{$c-secondary};
   --c-secondary-dim: #{_dim($c-secondary, 20%)};
   --c-secondary-dimmer: #{_dim($c-secondary, 40%)};
-  --c-good: #{$c-secondary};
+  --c-good: #{$c-good};
   --c-accent: #{$c-accent};
   --c-link: #{$c-primary};
   --c-link-dim: var(--c-primary-dim);
@@ -116,7 +120,7 @@ $c-mv-branch-black: #000;
   --c-inaccuracy: #{$c-inaccuracy};
   --c-mistake: #{$c-mistake};
   --c-blunder: #{$c-blunder};
-  --c-good-move: #{$c-secondary};
+  --c-good-move: #{$c-good};
   --c-brilliant: #{$c-brilliant};
   --c-interesting: #{$c-interesting};
   --c-mv-branch-white: #{$c-mv-branch-white};

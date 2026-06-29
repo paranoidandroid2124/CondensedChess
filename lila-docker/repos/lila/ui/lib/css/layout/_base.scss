@@ -56,12 +56,6 @@ body.prevent-select * {
   &.full-screen-force {
     ---main-max-width: 100%;
   }
-
-  @media (hover: none) {
-    body.clinput & {
-      display: none;
-    }
-  }
 }
 
 main {

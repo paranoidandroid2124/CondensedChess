@@ -1,15 +1,17 @@
-$explorer-bg: #171816;
-$explorer-bg-deep: #11130f;
-$explorer-surface: #22241f;
-$explorer-surface-low: #1c1e1a;
-$explorer-surface-raised: #2b2f27;
-$explorer-border: #3a3d34;
-$explorer-text: #efeee8;
-$explorer-muted: #a9ad9e;
-$explorer-subtle: #7d8374;
-$explorer-accent: #8bc071;
-$explorer-accent-strong: #b4d99a;
-$explorer-accent-dark: #5f8f4f;
+@import '../../../lib/css/theme/theme.default';
+
+$explorer-bg: $c-bg;
+$explorer-bg-deep: $c-bg-page;
+$explorer-surface: $c-bg-popup;
+$explorer-surface-low: $c-bg-low;
+$explorer-surface-raised: $c-bg-zebra2;
+$explorer-border: $c-border;
+$explorer-text: $c-font;
+$explorer-muted: $c-font-muted;
+$explorer-subtle: mix($c-font-muted, $c-bg-low, 72%);
+$explorer-accent: $c-primary;
+$explorer-accent-strong: $c-primary-strong;
+$explorer-accent-dark: darken($c-primary, 24%);
 
 .explorer-box {
   position: relative;

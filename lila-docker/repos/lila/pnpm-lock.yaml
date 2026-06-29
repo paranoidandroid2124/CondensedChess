@@ -86,12 +86,6 @@ importers:
         specifier: workspace:*
         version: link:../lib
 
-  ui/cli:
-    dependencies:
-      lib:
-        specifier: workspace:*
-        version: link:../lib
-
   ui/editor:
     dependencies:
       lib:

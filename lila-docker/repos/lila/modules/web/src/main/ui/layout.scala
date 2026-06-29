@@ -67,25 +67,6 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
     ctx.pref.pieceNotationIsLetter.not.option(fontPreload("chesstory-chess.woff2"))
   )
 
-  def clinput(using ctx: Context) =
-    val label = "Command"
-    div(id := "clinput")(
-      a(
-        cls := "link",
-        dataIcon := Icon.Search,
-        role := "button",
-        tabindex := 0,
-        aria.label := label
-      )(span(cls := "clinput__label")(label)),
-      input(
-        spellcheck := "false",
-        autocomplete := ctx.blind.toString,
-        aria.label := label,
-        placeholder := "FEN or /help",
-        enterkeyhint := "go"
-      )
-    )
-
   val manifests = raw:
     """<link rel="manifest" href="/manifest.json">"""
 
@@ -325,7 +306,6 @@ final class layout(helpers: Helpers, assetHelper: lila.web.ui.AssetFullHelper):
         ),
         div(cls := "site-buttons")(
           themeSwitch(using ctx),
-          (!isAppealUser).option(clinput),
           if isAppealUser then
             postForm(action := routes.Auth.logout):
               submitButton(cls := "button button-red link")("Log out")

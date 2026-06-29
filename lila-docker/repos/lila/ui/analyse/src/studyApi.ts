@@ -22,6 +22,14 @@ export type CreateStudyResponse = {
   visibility?: string;
 };
 
+export type StudyCreateVisibility = 'private' | 'unlisted' | 'public';
+
+export type StudyCreateSetup = {
+  name?: string;
+  chapterName?: string;
+  visibility?: StudyCreateVisibility;
+};
+
 export class StudyApiError extends Error {
   constructor(
     readonly status: number,
@@ -84,13 +92,14 @@ async function postFormJson<T>(url: string, form: URLSearchParams): Promise<T> {
   });
 
   if (!res.ok) {
-    const message = (await res.text().catch(() => '')).trim() || `Study request failed (${res.status})`;
+    const message =
+      (await res.text().catch(() => '')).trim() || `Review study request failed (${res.status})`;
     throw new StudyApiError(res.status, message);
   }
 
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json'))
-    throw new StudyApiError(res.status, 'Unexpected response while creating study.');
+    throw new StudyApiError(res.status, 'Unexpected response while creating review study.');
 
   return res.json() as Promise<T>;
 }
@@ -119,10 +128,19 @@ export function setNodeComment(ref: StudyRef, path: string, text: string): Promi
   return postJson(`/api/study/${ref.id}/${ref.chapterId}/comment`, { path, text });
 }
 
-export function createStudyFromAnalysis(payload: { pgn: string; orientation?: string }): Promise<CreateStudyResponse> {
+export function createStudyFromAnalysis(payload: {
+  pgn: string;
+  orientation?: string;
+  name?: string;
+  chapterName?: string;
+  visibility?: StudyCreateVisibility;
+}): Promise<CreateStudyResponse> {
   const form = new URLSearchParams();
   form.set('pgn', payload.pgn);
   form.set('as', 'study');
+  form.set('visibility', payload.visibility || 'unlisted');
+  if (payload.name?.trim()) form.set('name', payload.name.trim());
+  if (payload.chapterName?.trim()) form.set('chapterName', payload.chapterName.trim());
   if (payload.orientation) form.set('orientation', payload.orientation);
-  return postFormJson('/notebook', form);
+  return postFormJson('/study', form);
 }

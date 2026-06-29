@@ -16,6 +16,11 @@ object study:
     val size = chapters.size
     s"$size ${if size == 1 then "section" else "sections"}"
 
+  private def visibilityLabel(study: Study): String =
+    if study.isPublic then "Public"
+    else if study.isUnlisted then "Shared by link"
+    else "Private"
+
   private def heroMeta(kind: String, label: String, value: Frag) =
     div(cls := "notebook-hero__meta-pill")(
       studyBits.notebookGlyph(kind, "notebook-hero__meta-icon"),
@@ -25,8 +30,16 @@ object study:
       )
     )
 
-  private def notebookLede(study: Study, chapter: Chapter): String =
-    s"Working inside ${study.name.value}. The board below stays scoped to ${chapter.name.value}, and the rail lets you jump across saved sections without losing context."
+  private def studyLede(study: Study, chapter: Chapter): String =
+    s"Use ${study.name.value} as a review record. Connect the opening structure in " +
+      s"${chapter.name.value} to the middlegame plans, decisions, and evidence on the board below."
+
+  private val reviewMapSteps = List(
+    "Opening idea" -> "Name the structure, tension, or tabiya this game came from.",
+    "Middlegame plan" -> "Track the pawn break, piece route, or target the opening created.",
+    "Decision moment" -> "Use the board and engine lines as evidence for the key choice.",
+    "Reusable lesson" -> "Save the idea you should recognize next time this structure appears."
+  )
 
   object ui:
 
@@ -42,9 +55,13 @@ object study:
     )(using Context): Page =
       listUi.mine(pag, order)
 
-    def chapter(data: JsObject, study: Study, chapter: Chapter, canWrite: Boolean, chapters: List[Chapter.IdName])(
-        using ctx: Context
-    ): Page =
+    def chapter(
+        data: JsObject,
+        study: Study,
+        chapter: Chapter,
+        canWrite: Boolean,
+        chapters: List[Chapter.IdName]
+    )(using ctx: Context): Page =
       val studyCfgBase =
         Json.obj(
           "id" -> study.id.value,
@@ -80,31 +97,45 @@ object study:
                 studyBits.coverPreview(
                   study.name.value,
                   chapter.name.value,
-                  s"${sectionCountLabel(chapters)} • ${study.visibility.toString}",
+                  s"${sectionCountLabel(chapters)} • ${visibilityLabel(study)}",
                   compact = true
                 )
               ),
               div(cls := "notebook-hero__body")(
                 div(cls := "notebook-hero__eyebrow")(
                   studyBits.notebookGlyph("bookmark", "notebook-hero__eyebrow-icon"),
-                  span("Saved study"),
+                  span("Review study"),
                   span(cls := "notebook-hero__eyebrow-sep")("•"),
                   span(study.name.value)
                 ),
                 h1(cls := "notebook-hero__title")(chapter.name.value),
-                p(cls := "notebook-hero__lede")(notebookLede(study, chapter)),
+                p(cls := "notebook-hero__lede")(studyLede(study, chapter)),
                 div(cls := "notebook-hero__meta")(
-                  heroMeta("notebook", "Study", study.name.value),
+                  heroMeta("notebook", "Review", "Opening to middlegame"),
                   heroMeta("section", "Sections", sectionCountLabel(chapters)),
-                  heroMeta("bookmark", "Access", if canWrite then "Editable" else "Read-only"),
-                  heroMeta("page", "Visibility", study.visibility.toString)
+                  heroMeta("bookmark", "Access", visibilityLabel(study)),
+                  heroMeta("page", "Evidence", "Board, lines, notes")
+                ),
+                div(cls := "notebook-review")(
+                  div(cls := "notebook-review__head")(
+                    strong("Opening-to-middlegame thread"),
+                    span("A review study should explain how the opening became a plan, not just store lines.")
+                  ),
+                  div(cls := "notebook-review__grid")(
+                    reviewMapSteps.map { case (title, body) =>
+                      div(cls := "notebook-review__card")(
+                        strong(title),
+                        span(body)
+                      )
+                    }
+                  )
                 ),
                 div(cls := "notebook-hero__navigator")(
                   div(cls := "notebook-hero__navigator-head")(
                     studyBits.notebookGlyph("section", "notebook-hero__navigator-icon"),
                     div(
-                      strong("Jump between sections"),
-                      span("Switch sections without leaving the board below.")
+                      strong("Review sections"),
+                      span("Use sections for opening setup, critical moments, and lessons.")
                     )
                   ),
                   div(cls := "notebook-hero__navigator-grid")(
@@ -119,12 +150,21 @@ object study:
                         ),
                         span(cls := "notebook-hero__section-copy")(
                           strong(c.name.value),
-                          span(if c.id == chapter.id then "In view" else "Open section")
+                          span(if c.id == chapter.id then "Current review" else "Open review")
                         )
                       )
                   )
                 )
               )
             ),
-            main(cls := "analyse")
+            main(cls := "analyse")(
+              div(cls := "study-board-fallback")(
+                studyBits.notebookGlyph("notebook", "study-board-fallback__icon"),
+                strong("Opening the review study board"),
+                p(
+                  "The board, move list, engine lines, and review notes load here. " +
+                    "If this stays visible, refresh the page or check whether scripts are blocked."
+                )
+              )
+            )
           )

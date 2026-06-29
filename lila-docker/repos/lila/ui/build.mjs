@@ -39,7 +39,7 @@ const noInstall = args.some(arg => arg === '--no-install' || (isOneDash(arg) && 
 // 3. Run pnpm install if needed
 if (!noInstall) {
     console.log('Running pnpm install in ui/.build...');
-    const installResult = spawnSync('pnpm', ['install', '--ignore-workspace'], {
+    const installResult = spawnSync('corepack', ['pnpm', 'install', '--ignore-workspace'], {
         cwd: dotBuildDir,
         stdio: 'inherit',
         shell: true
@@ -53,7 +53,7 @@ if (!noInstall) {
 
 // 4. Run the build script
 console.log('Starting UI build...');
-const buildResult = spawnSync('node', [
+const buildResult = spawnSync(ps.execPath, [
     '--experimental-strip-types',
     '--no-warnings',
     'src/main.ts',

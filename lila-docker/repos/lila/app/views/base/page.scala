@@ -56,7 +56,6 @@ object page:
           cssTag("lib.theme.all"),
           cssTag("site"),
           pref.is3d.option(cssTag("lib.board-3d")),
-          ctx.impersonatedBy.isDefined.option(cssTag("mod.impersonate")),
           ctx.blind.option(cssTag("bits.blind")),
           p.cssKeys.map(cssTag),
           meta(

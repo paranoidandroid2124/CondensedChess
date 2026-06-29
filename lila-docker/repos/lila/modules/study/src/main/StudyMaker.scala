@@ -11,13 +11,20 @@ final private class StudyMaker(
     }
 
   private def createFromScratch(data: StudyMaker.ImportGame, user: User): Fu[Study.WithChapter] =
-    val study = Study.make(user, Study.From.Scratch, data.id, data.name, data.settings)
+    val study = Study.make(
+      user,
+      Study.From.Scratch,
+      data.id,
+      data.name.orElse(data.form.studyName),
+      data.settings,
+      visibility = data.form.visibility
+    )
     chapterMaker
       .fromFenOrPgnOrBlank(
         study,
         ChapterMaker.Data(
           game = none,
-          name = StudyChapterName("Chapter 1"),
+          name = data.form.chapterName | StudyChapterName("Chapter 1"),
           variant = data.form.variant,
           fen = data.form.fen,
           pgn = data.form.pgnStr,

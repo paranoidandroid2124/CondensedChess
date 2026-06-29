@@ -350,7 +350,7 @@ final class Study(
     bindForm(StudyForm.importGame.form)(
       err =>
         negotiate(
-          Redirect(mineLanding()).flashing("error" -> "Could not create that notebook."),
+          Redirect(mineLanding()).flashing("error" -> "Could not create that review study."),
           badJsonFormError(err)
         ),
       data =>
@@ -387,8 +387,8 @@ final class Study(
                 )
               case _ =>
                 negotiate(
-                  Redirect(mineLanding()).flashing("error" -> "We could not open a new notebook right now."),
-                  BadRequest(jsonError("Notebook creation failed"))
+                  Redirect(mineLanding()).flashing("error" -> "We could not open a new review study right now."),
+                  BadRequest(jsonError("Review study creation failed"))
                 )
             }
     )

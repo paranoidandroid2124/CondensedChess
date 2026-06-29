@@ -39,20 +39,20 @@ POST  /auth/password-reset/:token      controllers.Auth.passwordResetTokenApply(
 GET   /auth/token/:token               controllers.Auth.loginWithToken(token)
 POST  /auth/token/:token               controllers.Auth.loginWithTokenPost(token)
 
-# Analysis and Notebook
+# Analysis and Study
 GET   /analysis                        controllers.UserAnalysis.index
-# Notebook
-GET   /notebook                        controllers.Study.allDefault(page: Int ?= 1)
-GET   /notebook/all/:order            controllers.Study.all(order: StudyOrder, page: Int ?= 1)
-GET   /notebook/mine/:order           controllers.Study.mine(order: StudyOrder, page: Int ?= 1)
-POST  /notebook/$id<\w{8}>/delete     controllers.Study.delete(id: StudyId)
-POST  /notebook/$id<\w{8}>/$chapterId<\w{8}>/import-pgn controllers.Study.importPgn(id: StudyId, chapterId: StudyChapterId)
-GET   /notebook/$id<\w{8}>/$chapterId<\w{8}> controllers.Study.chapter(id: StudyId, chapterId: StudyChapterId)
-POST  /notebook                       controllers.Study.create
-GET   /notebook/create                controllers.Study.createAs
-GET   /notebook/:id                   controllers.Study.show(id: StudyId)
+# Study
+GET   /study                           controllers.Study.allDefault(page: Int ?= 1)
+GET   /study/all/:order               controllers.Study.all(order: StudyOrder, page: Int ?= 1)
+GET   /study/mine/:order              controllers.Study.mine(order: StudyOrder, page: Int ?= 1)
+POST  /study/$id<\w{8}>/delete        controllers.Study.delete(id: StudyId)
+POST  /study/$id<\w{8}>/$chapterId<\w{8}>/import-pgn controllers.Study.importPgn(id: StudyId, chapterId: StudyChapterId)
+GET   /study/$id<\w{8}>/$chapterId<\w{8}> controllers.Study.chapter(id: StudyId, chapterId: StudyChapterId)
+POST  /study                          controllers.Study.create
+GET   /study/create                   controllers.Study.createAs
+GET   /study/:id                      controllers.Study.show(id: StudyId)
 
-# Notebook API (legacy /api/study paths kept internal)
+# Study API
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/ana-move controllers.Study.anaMove(id: StudyId, chapterId: StudyChapterId)
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/ana-drop controllers.Study.anaDrop(id: StudyId, chapterId: StudyChapterId)
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/delete-node controllers.Study.deleteNode(id: StudyId, chapterId: StudyChapterId)

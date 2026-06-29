@@ -2,19 +2,10 @@
 // Magic link login, confirmation, and error pages
 // Uses same layout principles as landing page
 
-// Color variables (Chesstory study room)
-$c-bg-page: #11130f;
-$c-bg: #171816;
-$c-bg-low: #22241f;
-$c-bg-input: #1c1e1a;
-$c-border: #3a3d34;
-$c-font: #efeee8;
-$c-shade: #a9ad9e;
-$c-primary: #8bc071;
-$c-primary-strong: #b4d99a;
-$c-good: #77b673;
-$c-bad: #d96f66;
-$c-accent: #e3b15b;
+@import '../../lib/css/theme/theme.default';
+
+$c-shade: $c-font-muted;
+$c-bg-input: $c-bg-popup;
 
 .auth-page {
     min-height: 100vh;
@@ -151,7 +142,7 @@ html.pro .auth-message {
 .auth-form select:focus {
     outline: none;
     border-color: $c-primary;
-    box-shadow: 0 0 0 3px rgba(139, 192, 113, 0.18);
+    box-shadow: 0 0 0 3px rgba($c-primary, 0.18);
 }
 
 body.dark .auth-form input[type="email"],
@@ -207,7 +198,7 @@ html.pro .auth-form input[type="text"]:focus,
 html.pro .auth-form input[type="password"]:focus,
 html.pro .auth-form select:focus {
     border-color: $c-primary;
-    box-shadow: 0 0 0 3px rgba(139, 192, 113, 0.25);
+    box-shadow: 0 0 0 3px rgba($c-primary, 0.25);
 }
 
 .auth-submit {
@@ -486,8 +477,8 @@ html.pro .auth-url code {
 .auth-theme-switch__button:focus-visible {
     outline: none;
     box-shadow:
-        0 0 0 2px rgba(139, 192, 113, 0.26),
-        0 0 0 4px rgba(139, 192, 113, 0.12);
+        0 0 0 2px rgba($c-primary, 0.26),
+        0 0 0 4px rgba($c-primary, 0.12);
     color: $c-font;
 }
 
@@ -535,7 +526,7 @@ body.pro .auth-theme-switch,
 html.dark .auth-theme-switch,
 html.pro .auth-theme-switch {
     border-color: $c-border;
-    background: rgba(28, 30, 26, 0.86);
+    background: rgba($c-bg-low, 0.86);
 }
 
 body.dark .auth-theme-switch__button,
@@ -557,8 +548,8 @@ body.pro .auth-theme-switch__button:focus-visible,
 html.dark .auth-theme-switch__button:focus-visible,
 html.pro .auth-theme-switch__button:focus-visible {
     box-shadow:
-        0 0 0 2px rgba(139, 192, 113, 0.28),
-        0 0 0 4px rgba(139, 192, 113, 0.12);
+        0 0 0 2px rgba($c-primary, 0.28),
+        0 0 0 4px rgba($c-primary, 0.12);
     color: $c-font;
 }
 
@@ -684,14 +675,14 @@ html.pro .auth-theme-switch__button[aria-busy='true'] {
 
 .auth-history__card:hover {
     border-color: rgba($c-primary, 0.5);
-    box-shadow: 0 12px 30px rgba(139, 192, 113, 0.12);
+    box-shadow: 0 12px 30px rgba($c-primary, 0.12);
     transform: translateY(-1px);
 }
 
 .auth-history__card--priority {
     border-color: rgba($c-primary, 0.34);
     background:
-        linear-gradient(145deg, rgba(139, 192, 113, 0.12), rgba(34, 36, 31, 0.96) 60%),
+        linear-gradient(145deg, rgba($c-primary, 0.12), rgba($c-bg-popup, 0.96) 60%),
         $c-bg-input;
 }
 
@@ -919,7 +910,7 @@ body.pro .auth-import-card,
 html.dark .auth-import-card,
 html.pro .auth-import-card {
     border-color: $c-border;
-    background: rgba(28, 30, 26, 0.92);
+    background: rgba($c-bg-low, 0.92);
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
 }
 
@@ -928,8 +919,8 @@ body.pro .auth-history__card--priority,
 html.dark .auth-history__card--priority,
 html.pro .auth-history__card--priority {
     background:
-        linear-gradient(150deg, rgba(139, 192, 113, 0.14), rgba(34, 36, 31, 0.98) 62%),
-        rgba(34, 36, 31, 0.98);
+        linear-gradient(150deg, rgba($c-primary, 0.14), rgba($c-bg-popup, 0.98) 62%),
+        rgba($c-bg-popup, 0.98);
 }
 
 body.dark .auth-import-card__action,
@@ -950,7 +941,7 @@ html.pro .auth-import-card__action:hover {
 
 .auth-page--importer {
     background:
-        linear-gradient(180deg, #171816, #11130f);
+        linear-gradient(180deg, $c-bg, $c-bg-page);
 }
 
 body.dark .auth-page--importer,
@@ -958,7 +949,7 @@ body.pro .auth-page--importer,
 html.dark .auth-page--importer,
 html.pro .auth-page--importer {
     background:
-        linear-gradient(180deg, #171816, #11130f);
+        linear-gradient(180deg, $c-bg, $c-bg-page);
 }
 
 .auth-container--wide {
@@ -1005,9 +996,9 @@ html.pro .auth-card--importer {
     overflow: hidden;
     padding: 1.4rem 1.5rem;
     border-radius: 8px;
-    border: 1px solid rgba(139, 192, 113, 0.24);
+    border: 1px solid rgba($c-primary, 0.24);
     background:
-        linear-gradient(135deg, rgba(139, 192, 113, 0.12), rgba(34, 36, 31, 0.94) 52%, rgba(227, 177, 91, 0.08)),
+        linear-gradient(135deg, rgba($c-primary, 0.12), rgba($c-bg-popup, 0.94) 52%, rgba($c-accent, 0.08)),
         $c-bg-input;
 }
 
@@ -1127,7 +1118,7 @@ html.pro .auth-card--importer {
     min-height: 1.75rem;
     padding: 0 0.7rem;
     border-radius: 999px;
-    background: rgba(139, 192, 113, 0.1);
+    background: rgba($c-primary, 0.1);
     color: $c-primary;
     font-size: 0.76rem;
     font-weight: 700;
@@ -1171,7 +1162,7 @@ html.pro .auth-card--importer {
     padding: 1rem;
     border-radius: 8px;
     border: 1px solid $c-border;
-    background: rgba(28, 30, 26, 0.84);
+    background: rgba($c-bg-low, 0.84);
 }
 
 .importer-mode-card__title {
@@ -1206,7 +1197,7 @@ html.pro .auth-card--importer {
 
 .auth-import-card:hover {
     border-color: rgba($c-primary, 0.5);
-    box-shadow: 0 14px 30px rgba(139, 192, 113, 0.12);
+    box-shadow: 0 14px 30px rgba($c-primary, 0.12);
     transform: translateY(-2px);
 }
 
@@ -1223,7 +1214,7 @@ html.pro .auth-card--importer {
     padding: 0.9rem 1rem;
     border-radius: 8px;
     border: 1px solid $c-border;
-    background: rgba(28, 30, 26, 0.84);
+    background: rgba($c-bg-low, 0.84);
 }
 
 .status-progress__index {

@@ -1,3 +1,4 @@
+import { rm } from 'node:fs/promises';
 import { env } from '../ui/.build/src/env.ts';
 import { parsePackages } from '../ui/.build/src/parse.ts';
 import { sync } from '../ui/.build/src/sync.ts';
@@ -6,11 +7,13 @@ import { sass } from '../ui/.build/src/sass.ts';
 import { esbuild } from '../ui/.build/src/esbuild.ts';
 import { definedUnique } from '../ui/.build/src/algo.ts';
 
-const requested = ['site', 'serviceWorker', 'editor', 'analyse'];
+const requested = ['site', 'editor', 'analyse'];
 
 env.prod = true;
 env.install = false;
 env.startTime = Date.now();
+
+await rm(env.jsOutDir, { recursive: true, force: true });
 
 await parsePackages();
 

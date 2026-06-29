@@ -1,11 +1,13 @@
-$journal-bg-light: #171816;
-$journal-surface-light: rgba(#22241f, 0.92);
-$journal-surface-strong-light: rgba(#1c1e1a, 0.96);
-$journal-text-light: #efeee8;
-$journal-muted-light: #a9ad9e;
-$journal-border-light: rgba(#3a3d34, 0.9);
-$journal-primary-light: #8bc071;
-$journal-secondary-light: #e3b15b;
+@import '../../lib/css/theme/theme.default';
+
+$journal-bg-light: $c-bg;
+$journal-surface-light: rgba($c-bg-popup, 0.9);
+$journal-surface-strong-light: rgba($c-bg-low, 0.96);
+$journal-text-light: $c-font;
+$journal-muted-light: $c-font-muted;
+$journal-border-light: rgba($c-border, 0.9);
+$journal-primary-light: $c-primary;
+$journal-secondary-light: $c-accent;
 
 $journal-bg-dark: $journal-bg-light;
 $journal-surface-dark: $journal-surface-light;
@@ -23,7 +25,7 @@ $journal-secondary-dark: $journal-secondary-light;
   background:
     radial-gradient(circle at top left, rgba($journal-secondary-light, 0.17), transparent 34%),
     radial-gradient(circle at 85% 20%, rgba($journal-primary-light, 0.14), transparent 30%),
-    linear-gradient(180deg, rgba(#22241f, 0.94), rgba(#171816, 1)),
+    linear-gradient(180deg, rgba($c-bg-popup, 0.94), rgba($c-bg, 1)),
     $journal-bg-light;
   color: $journal-text-light;
 }
@@ -57,7 +59,7 @@ $journal-secondary-dark: $journal-secondary-light;
 .journal-hero-copy {
   padding: clamp(1.8rem, 3vw, 3rem);
   background:
-    linear-gradient(135deg, rgba(#22241f, 0.96), rgba(#1c1e1a, 0.9)),
+    linear-gradient(135deg, rgba($c-bg-popup, 0.96), rgba($c-bg-low, 0.9)),
     $journal-surface-strong-light;
 
   h1 {
@@ -128,14 +130,14 @@ $journal-secondary-dark: $journal-secondary-light;
 
 .journal-hero-link,
 .journal-action--primary {
-  color: #11130f;
+  color: $c-bg-page;
   background: linear-gradient(145deg, $journal-primary-light, darken($journal-primary-light, 9%));
   box-shadow: 0 1rem 2rem rgba($journal-primary-light, 0.28);
 }
 
 .journal-action--secondary {
   color: $journal-text-light;
-  background: rgba(#1c1e1a, 0.68);
+  background: rgba($c-bg-low, 0.68);
   border: 1px solid rgba($journal-border-light, 1);
 }
 
@@ -215,14 +217,14 @@ $journal-secondary-dark: $journal-secondary-light;
   border: 1px solid transparent;
   text-decoration: none;
   color: inherit;
-  background: rgba(#1c1e1a, 0.7);
+  background: rgba($c-bg-low, 0.7);
   transition: border-color 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
 
   &:hover,
   &.is-active {
     transform: translateY(-1px);
     border-color: rgba($journal-primary-light, 0.28);
-    background: rgba(#22241f, 0.92);
+    background: rgba($c-bg-popup, 0.92);
   }
 
   strong {
@@ -245,13 +247,13 @@ $journal-secondary-dark: $journal-secondary-light;
 }
 
 .journal-rail-card--soft {
-  background: rgba(#22241f, 0.82);
+  background: rgba($c-bg-popup, 0.82);
 }
 
 .journal-post {
   padding: clamp(1.5rem, 3vw, 2.5rem);
   background:
-    linear-gradient(180deg, rgba(#22241f, 0.96), rgba(#1c1e1a, 0.94)),
+    linear-gradient(180deg, rgba($c-bg-popup, 0.96), rgba($c-bg-low, 0.94)),
     $journal-surface-strong-light;
 }
 
@@ -385,7 +387,7 @@ $journal-secondary-dark: $journal-secondary-light;
   padding: 1rem 1.1rem;
   border-radius: 8px;
   border: 1px solid rgba($journal-border-light, 1);
-  background: rgba(#11130f, 0.72);
+  background: rgba($c-bg-page, 0.72);
 
   code {
     padding: 0;
@@ -458,7 +460,7 @@ body.pro .journal-page {
   background:
     radial-gradient(circle at top left, rgba($journal-secondary-dark, 0.12), transparent 28%),
     radial-gradient(circle at 85% 20%, rgba($journal-primary-dark, 0.14), transparent 30%),
-    linear-gradient(180deg, rgba(#22241f, 0.96), rgba(#171816, 0.98)),
+    linear-gradient(180deg, rgba($c-bg-popup, 0.96), rgba($c-bg, 0.98)),
     $journal-bg-dark;
   color: $journal-text-dark;
 }
@@ -497,7 +499,7 @@ body.dark .journal-hero-copy,
 html.pro .journal-hero-copy,
 body.pro .journal-hero-copy {
   background:
-    linear-gradient(180deg, rgba(#22241f, 0.97), rgba(#1c1e1a, 0.94)),
+    linear-gradient(180deg, rgba($c-bg-popup, 0.97), rgba($c-bg-low, 0.94)),
     $journal-surface-strong-dark;
 }
 
@@ -626,7 +628,7 @@ html.dark .journal-action--secondary,
 body.dark .journal-action--secondary,
 html.pro .journal-action--secondary,
 body.pro .journal-action--secondary {
-  background: rgba(#1c1e1a, 0.72);
+  background: rgba($c-bg-low, 0.72);
   border-color: $journal-border-dark;
   color: $journal-text-dark;
 }
@@ -639,7 +641,7 @@ html.dark .journal-archive-link.is-active,
 body.dark .journal-archive-link.is-active,
 html.pro .journal-archive-link.is-active,
 body.pro .journal-archive-link.is-active {
-  background: rgba(#22241f, 0.94);
+  background: rgba($c-bg-popup, 0.94);
   border-color: rgba($journal-primary-dark, 0.32);
 }
 
@@ -701,7 +703,7 @@ html.dark .journal-post-body pre,
 body.dark .journal-post-body pre,
 html.pro .journal-post-body pre,
 body.pro .journal-post-body pre {
-  background: rgba(#11130f, 0.82);
+  background: rgba($c-bg-page, 0.82);
 }
 
 html.dark .journal-post-body th,

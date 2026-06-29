@@ -1,30 +1,30 @@
 .ops-page {
-  --ops-page-bg: #11130f;
-  --ops-card-bg: #22241f;
-  --ops-card-border: #3a3d34;
+  --ops-page-bg: var(--c-bg-page);
+  --ops-card-bg: var(--c-bg-low);
+  --ops-card-border: var(--c-border);
   --ops-card-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
-  --ops-text: #efeee8;
-  --ops-text-dim: #a9ad9e;
-  --ops-link: #8bc071;
-  --ops-link-hover: #b4d99a;
-  --ops-input-bg: #1c1e1a;
-  --ops-input-border: #3a3d34;
-  --ops-input-border-strong: #6d7268;
-  --ops-muted-bg: rgba(139, 192, 113, 0.08);
-  --ops-muted-border: #3a3d34;
-  --ops-pill-bg: rgba(139, 192, 113, 0.14);
-  --ops-pill-text: #b4d99a;
-  --ops-success-bg: rgba(139, 192, 113, 0.16);
-  --ops-success-text: #b4d99a;
-  --ops-warn-bg: rgba(227, 177, 91, 0.16);
-  --ops-warn-text: #e3b15b;
-  --ops-danger-bg: rgba(217, 111, 102, 0.16);
-  --ops-danger-text: #d96f66;
-  --ops-primary: #8bc071;
-  --ops-primary-text: #11130f;
-  --ops-secondary: #3a3d34;
-  --ops-secondary-text: #efeee8;
-  --ops-focus: rgba(139, 192, 113, 0.24);
+  --ops-text: var(--c-font);
+  --ops-text-dim: var(--c-font-muted, var(--c-font-dim));
+  --ops-link: var(--c-primary);
+  --ops-link-hover: var(--c-primary-strong, var(--c-link-hover));
+  --ops-input-bg: var(--c-bg-popup);
+  --ops-input-border: var(--c-border);
+  --ops-input-border-strong: color-mix(in srgb, var(--c-border) 72%, var(--c-font));
+  --ops-muted-bg: color-mix(in srgb, var(--ops-card-bg) 86%, var(--ops-text) 14%);
+  --ops-muted-border: var(--c-border);
+  --ops-pill-bg: color-mix(in srgb, var(--ops-card-bg) 78%, var(--ops-text) 22%);
+  --ops-pill-text: var(--ops-text-dim);
+  --ops-success-bg: color-mix(in srgb, var(--c-good) 16%, transparent);
+  --ops-success-text: var(--c-good);
+  --ops-warn-bg: color-mix(in srgb, var(--c-accent) 16%, transparent);
+  --ops-warn-text: var(--c-accent);
+  --ops-danger-bg: color-mix(in srgb, var(--c-bad) 16%, transparent);
+  --ops-danger-text: var(--c-bad);
+  --ops-primary: var(--c-primary);
+  --ops-primary-text: var(--c-bg-page);
+  --ops-secondary: var(--c-border);
+  --ops-secondary-text: var(--c-font);
+  --ops-focus: color-mix(in srgb, var(--ops-link) 24%, transparent);
   max-width: 1400px;
   min-height: 100vh;
   margin: 0 auto;
@@ -36,32 +36,7 @@
   body.pro &,
   html.dark &,
   html.pro & {
-    --ops-page-bg: #11130f;
-    --ops-card-bg: #22241f;
-    --ops-card-border: #3a3d34;
     --ops-card-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
-    --ops-text: #efeee8;
-    --ops-text-dim: #a9ad9e;
-    --ops-link: #8bc071;
-    --ops-link-hover: #b4d99a;
-    --ops-input-bg: #1c1e1a;
-    --ops-input-border: #3a3d34;
-    --ops-input-border-strong: #6d7268;
-    --ops-muted-bg: rgba(139, 192, 113, 0.08);
-    --ops-muted-border: #3a3d34;
-    --ops-pill-bg: rgba(139, 192, 113, 0.14);
-    --ops-pill-text: #b4d99a;
-    --ops-success-bg: rgba(139, 192, 113, 0.16);
-    --ops-success-text: #b4d99a;
-    --ops-warn-bg: rgba(227, 177, 91, 0.16);
-    --ops-warn-text: #e3b15b;
-    --ops-danger-bg: rgba(217, 111, 102, 0.16);
-    --ops-danger-text: #d96f66;
-    --ops-primary: #8bc071;
-    --ops-primary-text: #11130f;
-    --ops-secondary: #3a3d34;
-    --ops-secondary-text: #efeee8;
-    --ops-focus: rgba(139, 192, 113, 0.24);
   }
 }
 
@@ -395,7 +370,7 @@
 
   &.danger {
     background: var(--ops-danger-text);
-    color: #11130f;
+    color: var(--ops-primary-text);
   }
 
   &.link {
@@ -498,8 +473,8 @@
 }
 
 .ops-preview {
-  border-color: color-mix(in srgb, var(--ops-link) 28%, transparent);
-  background: color-mix(in srgb, var(--ops-pill-bg) 48%, var(--ops-card-bg));
+  border-color: color-mix(in srgb, var(--ops-card-border) 72%, var(--ops-text) 28%);
+  background: color-mix(in srgb, var(--ops-muted-bg) 48%, var(--ops-card-bg));
 }
 
 .ops-empty {
@@ -530,8 +505,8 @@
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 0.82rem;
   line-height: 1.45;
-  background: #11130f;
-  color: #efeee8;
+  background: var(--ops-page-bg);
+  color: var(--ops-text);
   padding: 1rem;
   border-radius: 16px;
   overflow: auto;
@@ -546,7 +521,7 @@
   body.pro &,
   html.dark &,
   html.pro & {
-    background: #11130f;
+    background: var(--ops-page-bg);
   }
 }
 

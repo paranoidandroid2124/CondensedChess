@@ -154,6 +154,111 @@
   font-weight: 700;
 }
 
+.analyse__chesstory-brief {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.85rem 0.9rem;
+  border-top: $border;
+  border-bottom: $border;
+  background: linear-gradient(180deg, rgba($c-secondary, 0.08), rgba($c-bg-zebra, 0.92)), $c-bg-box;
+}
+
+.analyse__chesstory-brief-head,
+.analyse__chesstory-brief-focus,
+.analyse__chesstory-brief-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.analyse__chesstory-brief-title {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+
+  span {
+    color: $c-secondary;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  strong {
+    font-size: 1rem;
+    line-height: 1.2;
+  }
+}
+
+.analyse__chesstory-brief-state,
+.analyse__chesstory-brief-row-head span {
+  flex: 0 0 auto;
+  padding: 0.13rem 0.42rem;
+  border: 1px solid rgba($c-secondary, 0.3);
+  border-radius: 999px;
+  color: $c-font-dim;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.analyse__chesstory-brief-focus {
+  padding-inline-start: 0.65rem;
+  border-inline-start: 3px solid $c-secondary;
+
+  span {
+    flex: 0 0 auto;
+    color: $c-font-dim;
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  strong {
+    min-width: 0;
+    color: $c-font-clear;
+    font-size: 0.92rem;
+    line-height: 1.25;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+}
+
+.analyse__chesstory-brief-list {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba($c-border, 0.8);
+  border-radius: $box-radius-size;
+  background: rgba($c-bg-box, 0.74);
+}
+
+.analyse__chesstory-brief-row {
+  padding: 0.62rem 0.7rem;
+
+  + .analyse__chesstory-brief-row {
+    border-top: 1px solid rgba($c-border, 0.72);
+  }
+
+  strong {
+    min-width: 0;
+    font-size: 0.82rem;
+    line-height: 1.25;
+  }
+
+  p {
+    margin: 0.26rem 0 0;
+    color: $c-font-dim;
+    font-size: 0.78rem;
+    line-height: 1.38;
+  }
+}
+
 .analyse__moves {
   @include prevent-select;
   flex: 2 1 0;

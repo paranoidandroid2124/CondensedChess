@@ -8,6 +8,7 @@ import play.api.data.Forms.*
 import play.api.data.format.Formatter
 
 import lila.common.Form.{ cleanNonEmptyText, defaulting, formatter, into, given }
+import lila.core.study.Visibility
 
 object StudyForm:
 
@@ -16,6 +17,9 @@ object StudyForm:
 
   private given Formatter[ChapterMaker.Orientation] =
     formatter.stringFormatter(_.key, ChapterMaker.Orientation.apply)
+
+  private given Formatter[Visibility] =
+    formatter.stringOptionFormatter(_.key, Visibility.byKey.get)
 
   object importGame:
 
@@ -26,6 +30,9 @@ object StudyForm:
         "fen" -> optional(lila.common.Form.fen.playable(strict = false)),
         "pgn" -> optional(nonEmptyText.into[PgnStr]),
         "variant" -> optional(of[Variant]),
+        "name" -> optional(cleanNonEmptyText(minLength = 1, maxLength = 100).into[StudyName]),
+        "chapterName" -> optional(cleanNonEmptyText(minLength = 1, maxLength = 80).into[StudyChapterName]),
+        "visibility" -> defaulting(of[Visibility], Visibility.unlisted),
         "as" -> optional(nonEmptyText)
       )(Data.apply)(unapply)
     )
@@ -36,6 +43,9 @@ object StudyForm:
         fen: Option[Fen.Full] = None,
         pgnStr: Option[PgnStr] = None,
         variant: Option[Variant] = None,
+        studyName: Option[StudyName] = None,
+        chapterName: Option[StudyChapterName] = None,
+        visibility: Visibility = Visibility.unlisted,
         asStr: Option[String] = None
     ):
       def as: As = asStr match
@@ -43,7 +53,7 @@ object StudyForm:
         case Some(studyId) => As.ChapterOf(StudyId(studyId))
 
       def toChapterData = ChapterMaker.Data(
-        name = StudyChapterName(""),
+        name = chapterName | StudyChapterName(""),
         game = none,
         variant = variant,
         fen = fen,

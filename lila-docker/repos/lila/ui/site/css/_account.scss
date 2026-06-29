@@ -1,19 +1,12 @@
 // Chesstory Account Settings (Profile, Close, Delete)
 // Professional settings layout
 
-// Color variables (Chesstory study room)
-$c-bg-page: #11130f;
-$c-bg: #171816;
-$c-bg-low: #22241f;
-$c-bg-input: #1c1e1a;
-$c-border: #3a3d34;
-$c-font: #efeee8;
-$c-shade: #a9ad9e;
-$c-primary: #8bc071;
-$c-primary-strong: #b4d99a;
-$c-warm: #e3b15b;
-$c-bad: #d96f66;
-$c-bad-strong: #c75f57;
+@import '../../lib/css/theme/theme.default';
+
+$c-shade: $c-font-muted;
+$c-bg-input: $c-bg-popup;
+$c-warm: $c-accent;
+$c-bad-strong: darken($c-bad, 8%);
 
 .account-page {
     min-height: 100vh;

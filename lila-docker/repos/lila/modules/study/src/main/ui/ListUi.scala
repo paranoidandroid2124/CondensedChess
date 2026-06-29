@@ -10,28 +10,28 @@ import ScalatagsTemplate.{ *, given }
 final class ListUi(helpers: Helpers, bits: StudyBits):
   import helpers.*
 
-  private def notebookAllUrl(order: StudyOrder, page: Int): String =
+  private def studyAllUrl(order: StudyOrder, page: Int): String =
     routes.Study.all(order, page).url
 
-  private def notebookMineUrl(order: StudyOrder, page: Int): String =
+  private def studyMineUrl(order: StudyOrder, page: Int): String =
     routes.Study.mine(order, page).url
 
   def all(pag: Paginator[WithChaptersAndLiked], order: StudyOrder)(using Context) =
     page(
-      title = "Public notebooks",
+      title = "Public Review Studies",
       active = "all",
       order = order,
       pag = pag,
-      url = order => notebookAllUrl(order, 1)
+      url = order => studyAllUrl(order, 1)
     )
 
   def mine(pag: Paginator[WithChaptersAndLiked], order: StudyOrder)(using Context) =
     page(
-      title = "My notebooks",
+      title = "My Review Studies",
       active = "mine",
       order = order,
       pag = pag,
-      url = order => notebookMineUrl(order, 1)
+      url = order => studyMineUrl(order, 1)
     )
 
   private def page(
@@ -44,17 +44,17 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
     val (eyebrow, lede, railTitle, railBody) =
       if active == "mine" then
         (
-          "Your research shelf",
-          "Create a blank notebook or reopen the ones you already use for lines, notes, and reusable sections.",
+          "Your review studies",
+          "Create a blank review study or reopen the ones you already use for lines, notes, and reusable sections.",
           "Analysis carry-over",
           "Carry over PGN trees and reusable analysis sections."
         )
       else
         (
-          "Shared research boards",
-          "Browse public notebooks built around opening ideas, middlegame plans, and reusable annotated sections.",
+          "Shared review studies",
+          "Browse public review studies built around opening ideas, middlegame plans, and reusable annotated sections.",
           "Section links",
-          "Open a notebook directly on the saved section you want to review or share."
+          "Open a review study directly on the saved section you want to review or share."
         )
 
     Page(title)
@@ -76,8 +76,8 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
                     bits.newForm(),
                     p(cls := "notebook-index__create-copy")(
                       if active == "mine" then
-                        "Starts a blank notebook immediately. Bring lines in from analysis after it opens."
-                      else "Signed in? Start a blank notebook here, then add sections from analysis when you need them."
+                        "Starts a blank review study immediately. Bring lines in from analysis after it opens."
+                      else "Signed in? Start a blank review study here, then add sections from analysis when you need them."
                     )
                   )
                 )
@@ -85,7 +85,7 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
             ),
             div(cls := "notebook-index__proof")(
               proofCard("Section-first", "Keep each line as a reusable section instead of a disposable analysis tab."),
-              proofCard("Shareable", "Send a direct notebook link to the exact saved section you want to discuss."),
+              proofCard("Shareable", "Send a direct review study link to the exact saved section you want to discuss."),
               proofCard(railTitle, railBody)
             ),
             paginate(pag, active, url(order))
@@ -102,13 +102,13 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
     if pager.currentPageResults.isEmpty then
       div(cls := "nostudies")(
         bits.notebookGlyph("notebook", "notebook-empty__icon"),
-        strong(if active == "mine" then "No notebooks yet" else "No public notebooks yet"),
+        strong(if active == "mine" then "No review studies yet" else "No public review studies yet"),
         p(
           if active == "mine" then
             "Create one from analysis to keep sections and notes together."
-          else "Public notebooks will appear here once authors choose to share them."
+          else "Public review studies will appear here once authors choose to share them."
         ),
-        bits.newForm("Create your first notebook")
+        bits.newForm("Create your first review study")
       )
     else
       div(cls := "studies list infinite-scroll")(
@@ -122,7 +122,7 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
     val nonMineOrder = if order == StudyOrder.mine then StudyOrder.hot else order
     def activeCls(key: String) = (active == key).option("active")
     lila.ui.bits.pageMenuSubnav(
-      a(cls := activeCls("all"), href := notebookAllUrl(nonMineOrder, 1))("Browse notebooks"),
+      a(cls := activeCls("all"), href := studyAllUrl(nonMineOrder, 1))("Browse review studies"),
       ctx.isAuth.option:
-        a(cls := activeCls("mine"), href := notebookMineUrl(StudyOrder.mine, 1))("My notebooks")
+        a(cls := activeCls("mine"), href := studyMineUrl(StudyOrder.mine, 1))("My review studies")
     )

@@ -1,5 +1,3 @@
-import { loadEsm } from './asset';
-
 import { clamp } from 'lib/algo';
 import { isBrandV3ShellEnabled, readShellSelectors } from 'lib/shell';
 
@@ -115,46 +113,6 @@ export default function () {
     }, 10);
     return false;
   });
-
-  {
-    // cli
-    const $wrap = $('#clinput');
-    if (!$wrap.length) return;
-    const $input = $wrap.find('input');
-    let booted = false;
-    const boot = () => {
-      if (booted) return;
-      booted = true;
-      loadEsm('cli', { init: { input: $input[0] } }).catch(() => (booted = false));
-    };
-    $input.on({
-      blur() {
-        $input.val('');
-        $('body').removeClass('clinput');
-      },
-      focus() {
-        boot();
-        $('body').addClass('clinput');
-      },
-    });
-    $wrap.find('a').on({
-      mouseover: boot,
-      click() {
-        $('body').hasClass('clinput') ? $input[0]!.blur() : $input[0]!.focus();
-      },
-    });
-    $wrap.on('mouseenter', () => {
-      if ($input[0] !== document.activeElement) $input[0]!.focus();
-    });
-    $wrap.on('mouseleave', () => {
-      if (!$input.val()) $input[0]!.blur();
-    });
-    site.mousetrap.bind('/', () => {
-      $input.val('/');
-      $input[0]!.focus();
-      top.classList.remove('hide');
-    });
-  }
 
   {
     // stick top bar

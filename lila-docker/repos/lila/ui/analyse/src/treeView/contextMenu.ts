@@ -181,7 +181,7 @@ async function openStudyNote(ctrl: AnalyseCtrl, path: Tree.Path): Promise<void> 
     show: true,
     focus: 'textarea',
     htmlText: `
-      <h2>Study note</h2>
+      <h2>Review note</h2>
       <textarea rows="10" style="width:100%;resize:vertical"></textarea>
       <span>
         <button class="button button-empty cancel">Cancel</button>

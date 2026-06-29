@@ -12,7 +12,16 @@ import type { CevalHandler, EvalMeta, CevalOpts } from 'lib/ceval';
 import { CevalCtrl, isEvalBetter, sanIrreversible } from 'lib/ceval';
 import { TreeView } from './treeView/treeView';
 import type { Prop, Toggle } from 'lib';
-import { defined, prop, toggle, throttle, requestIdleCallback, propWithEffect, myUserId, myUsername } from 'lib';
+import {
+  defined,
+  prop,
+  toggle,
+  throttle,
+  requestIdleCallback,
+  propWithEffect,
+  myUserId,
+  myUsername,
+} from 'lib';
 import { preferenceLocalStorage } from 'lib/cookieConsent';
 import { pubsub } from 'lib/pubsub';
 import type { DrawShape } from '@lichess-org/chessground/draw';
@@ -126,6 +135,12 @@ export default class AnalyseCtrl implements CevalHandler {
   studyWriteError?: string;
   private studyCreateLoading = false;
   private studyCreateError: string | null = null;
+  private studyCreateSetupOpen = false;
+  private studyCreateForm: Required<studyApi.StudyCreateSetup> = {
+    name: 'Game review',
+    chapterName: 'Opening to middlegame',
+    visibility: 'unlisted',
+  };
   private studyActionMessage: string | null = null;
   private studyActionTone: 'info' | 'success' | 'error' = 'info';
   private studyActionTimer?: number;
@@ -316,13 +331,37 @@ export default class AnalyseCtrl implements CevalHandler {
   studyUrl = (chapterId?: string): string | null => {
     const study = this.studyData();
     if (!study?.id || !study?.chapterId) return null;
-    if (!chapterId || chapterId === study.chapterId) return study.url || `/notebook/${study.id}/${study.chapterId}`;
-    return study.chapters.find(chapter => chapter.id === chapterId)?.url || `/notebook/${study.id}/${chapterId}`;
+    if (!chapterId || chapterId === study.chapterId)
+      return study.url || `/study/${study.id}/${study.chapterId}`;
+    return study.chapters.find(chapter => chapter.id === chapterId)?.url || `/study/${study.id}/${chapterId}`;
   };
 
   studyCreateBusy = (): boolean => this.studyCreateLoading;
 
   studyCreateErrorText = (): string | null => this.studyCreateError;
+
+  studyCreateSetupVisible = (): boolean => this.studyCreateSetupOpen;
+
+  studyCreateSetupValues = (): Required<studyApi.StudyCreateSetup> => this.studyCreateForm;
+
+  openStudyCreateSetup = (): void => {
+    if (this.studyCreateLoading) return;
+    this.studyCreateError = null;
+    this.studyCreateForm = this.defaultStudyCreateSetup();
+    this.studyCreateSetupOpen = true;
+    this.redraw();
+  };
+
+  closeStudyCreateSetup = (): void => {
+    if (this.studyCreateLoading) return;
+    this.studyCreateSetupOpen = false;
+    this.redraw();
+  };
+
+  updateStudyCreateSetup = (patch: Partial<studyApi.StudyCreateSetup>): void => {
+    this.studyCreateForm = { ...this.studyCreateForm, ...patch };
+    this.redraw();
+  };
 
   studyTransferCountValue = (): number => this.studyTransferCount;
 
@@ -331,11 +370,11 @@ export default class AnalyseCtrl implements CevalHandler {
   studyActionToneValue = (): 'info' | 'success' | 'error' => this.studyActionTone;
 
   studyStatusText = (): string => {
-    if (this.studyWriteError) return `Study sync paused: ${this.studyWriteError}`;
+    if (this.studyWriteError) return `Review study sync paused: ${this.studyWriteError}`;
     if (this.isStudyWriting()) return 'Saving notes to this section...';
     return this.canWriteStudy()
       ? 'Notes auto-save to this section.'
-      : 'This study section is read-only. You can still share the current section link.';
+      : 'This review study section is read-only. You can still share the current section link.';
   };
 
   private setStudyActionMessage(message: string | null, tone: 'info' | 'success' | 'error' = 'info'): void {
@@ -359,14 +398,18 @@ export default class AnalyseCtrl implements CevalHandler {
     if (!url) return;
     try {
       await navigator.clipboard.writeText(new URL(url, location.origin).toString());
-      this.setStudyActionMessage('Study link copied.', 'success');
+      this.setStudyActionMessage('Review study link copied.', 'success');
     } catch (e) {
       console.warn('Study link copy failed', e);
       this.setStudyActionMessage('Copy failed. Open the study link directly instead.', 'error');
     }
   };
 
-  createStudyFromCurrentAnalysis = async (): Promise<void> => {
+  submitStudyCreateSetup = async (): Promise<void> => {
+    await this.createStudyFromCurrentAnalysis(this.studyCreateForm);
+  };
+
+  private createStudyFromCurrentAnalysis = async (setup: studyApi.StudyCreateSetup): Promise<void> => {
     if (this.studyCreateLoading) return;
     if (!myUserId()) {
       location.assign(this.studyLoginHref());
@@ -384,6 +427,7 @@ export default class AnalyseCtrl implements CevalHandler {
       const created = await studyApi.createStudyFromAnalysis({
         pgn: currentPgn,
         orientation: this.getOrientation(),
+        ...setup,
       });
 
       location.assign(created.url);
@@ -394,14 +438,30 @@ export default class AnalyseCtrl implements CevalHandler {
           location.assign(this.studyLoginHref());
           return;
         }
-        this.studyCreateError = e.message || 'Study creation failed.';
-      } else this.studyCreateError = e instanceof Error ? e.message : 'Study creation failed.';
+        this.studyCreateError = e.message || 'Review study creation failed.';
+      } else this.studyCreateError = e instanceof Error ? e.message : 'Review study creation failed.';
     } finally {
       this.studyCreateLoading = false;
       this.studyTransferCount = 0;
       this.redraw();
     }
   };
+
+  private defaultStudyCreateSetup(): Required<studyApi.StudyCreateSetup> {
+    const white = this.playerName('white');
+    const black = this.playerName('black');
+    const opening = this.data.game.opening?.name?.trim();
+    return {
+      name: `${white} vs ${black} review`.slice(0, 100),
+      chapterName: (opening ? `${opening}: opening to middlegame` : 'Opening to middlegame').slice(0, 80),
+      visibility: 'unlisted',
+    };
+  }
+
+  private playerName(color: Color): string {
+    const player = this.data.player.color === color ? this.data.player : this.data.opponent;
+    return player.user?.username || player.name || (color === 'white' ? 'White' : 'Black');
+  }
 
   initialize(data: AnalyseData, merge: boolean): void {
     this.data = data;
@@ -508,7 +568,6 @@ export default class AnalyseCtrl implements CevalHandler {
           dests.set(makeSquare(orig) as Key, Array.from(destSet, makeSquare) as Key[]);
         }
         this.addDests(writeDests(dests), path);
-
       },
       _ => this.addDests('', path),
     );
@@ -585,7 +644,8 @@ export default class AnalyseCtrl implements CevalHandler {
   private onHistoryPopState = (event: PopStateEvent): void => {
     if (this.opts.study) return;
     const state = event.state as AnalyseHistoryState | null;
-    const ply = typeof state?.analysePly === 'number' ? state.analysePly : parseInt(window.location.hash.slice(1), 10);
+    const ply =
+      typeof state?.analysePly === 'number' ? state.analysePly : parseInt(window.location.hash.slice(1), 10);
     const targetPath = this.mainlinePlyToPath(Number.isFinite(ply) && ply >= 0 ? ply : this.tree.root.ply);
     if (targetPath === this.path) return;
     this.restoringHistory = true;
@@ -740,20 +800,22 @@ export default class AnalyseCtrl implements CevalHandler {
     this.redraw();
     if (this.path !== before.path) {
       this.enqueueStudyWrite(ref =>
-        studyApi.anaMove(ref, {
-          orig,
-          dest,
-          fen: before.fen,
-          path: before.path,
-          variant: this.data.game.variant.key,
-          promotion: prom,
-          ch: ref.chapterId,
-        }).then(() => { }),
+        studyApi
+          .anaMove(ref, {
+            orig,
+            dest,
+            fen: before.fen,
+            path: before.path,
+            variant: this.data.game.variant.key,
+            promotion: prom,
+            ch: ref.chapterId,
+          })
+          .then(() => {}),
       );
     }
   };
 
-  onPremoveSet = () => { };
+  onPremoveSet = () => {};
 
   addNode(node: Tree.Node, path: Tree.Path) {
     this.idbTree.onAddNode(node, path);
@@ -790,9 +852,9 @@ export default class AnalyseCtrl implements CevalHandler {
       (count.nodes >= 10 || count.comments > 0) &&
       !(await confirm(
         'Delete ' +
-        plural('move', count.nodes) +
-        (count.comments ? ' and ' + plural('comment', count.comments) : '') +
-        '?',
+          plural('move', count.nodes) +
+          (count.comments ? ' and ' + plural('comment', count.comments) : '') +
+          '?',
       ))
     )
       return;
@@ -823,10 +885,10 @@ export default class AnalyseCtrl implements CevalHandler {
     return {
       send: this.opts.socketSend,
       receive: () => false,
-      sendAnaMove: () => { },
-      sendAnaDrop: () => { },
-      sendAnaDests: () => { },
-      clearCache: () => { },
+      sendAnaMove: () => {},
+      sendAnaDrop: () => {},
+      sendAnaDests: () => {},
+      clearCache: () => {},
     };
   }
 
@@ -933,9 +995,7 @@ export default class AnalyseCtrl implements CevalHandler {
   }
 
   isCevalAllowed = () =>
-    !this.ongoing &&
-    (this.synthetic || !playable(this.data)) &&
-    !location.search.includes('evals=0');
+    !this.ongoing && (this.synthetic || !playable(this.data)) && !location.search.includes('evals=0');
 
   cevalEnabled = (enable?: boolean): boolean | 'force' => {
     const state = this.cevalEnabledProp() && this.isCevalAllowed() && !this.ceval.isPaused;
@@ -1041,8 +1101,7 @@ export default class AnalyseCtrl implements CevalHandler {
     return show;
   };
 
-  activeControlMode = () =>
-    this.showCevalProp() ? 'ceval' : false;
+  activeControlMode = () => (this.showCevalProp() ? 'ceval' : false);
 
   private initWorkspacePrefs() {
     const defaultBoardLabelMode = boardLabelModeFromCoords(this.data.pref.coords);
@@ -1070,11 +1129,7 @@ export default class AnalyseCtrl implements CevalHandler {
   }
 
   activeControlBarTool() {
-    return this.actionMenu()
-      ? 'action-menu'
-      : this.explorer.enabled()
-          ? 'opening-explorer'
-          : false;
+    return this.actionMenu() ? 'action-menu' : this.explorer.enabled() ? 'opening-explorer' : false;
   }
 
   allowLines() {
@@ -1109,7 +1164,9 @@ export default class AnalyseCtrl implements CevalHandler {
     if (!raw) return (this.recentImportDraftsCache = []);
     try {
       const parsed = JSON.parse(raw);
-      this.recentImportDraftsCache = Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+      this.recentImportDraftsCache = Array.isArray(parsed)
+        ? parsed.filter((v): v is string => typeof v === 'string')
+        : [];
     } catch (_) {
       this.recentImportDraftsCache = [];
     }

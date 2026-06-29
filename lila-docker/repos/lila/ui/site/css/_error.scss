@@ -1,15 +1,9 @@
 // Chesstory Error Pages (404, 500, Rate Limited, etc.)
 // Uses same layout principles as landing and auth pages
 
-// Color variables (Chesstory study room)
-$c-bg-page: #11130f;
-$c-bg: #171816;
-$c-bg-low: #22241f;
-$c-border: #3a3d34;
-$c-font: #efeee8;
-$c-shade: #a9ad9e;
-$c-primary: #8bc071;
-$c-primary-strong: #b4d99a;
+@import '../../lib/css/theme/theme.default';
+
+$c-shade: $c-font-muted;
 
 .error-page {
     min-height: 100vh;

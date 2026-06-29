@@ -161,7 +161,8 @@ object Study:
       from: From,
       id: Option[StudyId] = None,
       name: Option[StudyName] = None,
-      settings: Option[Settings] = None
+      settings: Option[Settings] = None,
+      visibility: Visibility = Visibility.unlisted
   ) =
     val owner = StudyMember(id = user.id, role = StudyMember.Role.Write)
     Study(
@@ -170,7 +171,7 @@ object Study:
       members = StudyMembers(Map(user.id -> owner)),
       position = Position.Ref(StudyChapterId(""), UciPath.root),
       ownerId = user.id,
-      visibility = Visibility.public,
+      visibility = visibility,
       settings = settings | Settings.init,
       from = from,
       likes = Likes(1),

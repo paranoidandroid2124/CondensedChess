@@ -33,7 +33,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
       importHistory: Option[JsObject] = None
   )(using ctx: Context): Page =
     Page("Analysis")
-      .css("analyse.free")
+      .css("analyse.workspace")
       .css(withForecast.option("analyse.forecast"))
       .csp(bits.cspExternalEngine.compose(_.withExternalAnalysisApis))
       .js:
