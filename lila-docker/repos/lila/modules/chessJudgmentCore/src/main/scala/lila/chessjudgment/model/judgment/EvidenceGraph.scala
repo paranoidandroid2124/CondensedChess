@@ -1652,6 +1652,15 @@ object StrategicMechanismEvidence:
               concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Activity, StrategicAxisPolarity.Gain, "activity-gain"))
             )
           ),
+          Option.when(payload.hasBatteryPressureGain)(
+            StrategicMechanismKind.Activity -> signal(
+              StrategicMechanismSignalKind.StructuralDelta,
+              "battery-pressure-gain",
+              record.ref,
+              3,
+              concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Activity, StrategicAxisPolarity.Gain, "battery-pressure-gain"))
+            )
+          ),
           Option.when(payload.hasOutpostGain)(
             StrategicMechanismKind.Activity -> signal(
               StrategicMechanismSignalKind.StructuralDelta,

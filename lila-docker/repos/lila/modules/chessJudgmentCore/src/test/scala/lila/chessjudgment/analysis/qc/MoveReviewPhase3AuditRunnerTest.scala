@@ -3189,6 +3189,87 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(surface.flatMap(_.target.squares), List("d4"))
     assertEquals(surface.flatMap(_.target.pieces), List("pawn"))
 
+  test("move meaning public surface recognizes diagonal battery pressure without a new motif"):
+    val cause = causeFrame(
+      causeId = "cause-diagonal-battery",
+      axisKeys = List("Activity:Gain:battery-pressure-gain"),
+      objectSignatures = List(
+        "actor=Move:e2e3|actor=Piece:bishop|actor=Piece:queen|target=Square:c1|target=Square:h6|mechanism=Mechanism:battery-diagonal"
+      ),
+      causeKind = RelativeCauseKind.ActivityGain
+    ).copy(
+      hasOwnedAdmissibleLongTermProof = true,
+      attributionDirectProofEligible = true,
+      rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot
+    )
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.PieceRerouteRoute,
+      axisKey = Some("Activity:Gain:battery-pressure-gain"),
+      axisKind = Some(StrategicAxisKind.Activity),
+      axisPolarity = Some(StrategicAxisPolarity.Gain),
+      label = Some("battery-pressure-gain"),
+      candidateEvidenceIds = List("played-transition"),
+      sourceEvidenceIds = List("played-transition"),
+      causeEvidenceIds = List("cause-diagonal-battery"),
+      proofRoles = List(RelativeCauseProofRole.DirectProof),
+      structuralRouteMove = Some(candidateLine.rootMove),
+      structuralPurposeSubjects = List("battery:diagonal:c1-h6:bishop-queen"),
+      structuralPurposeConsequences = List("BatteryPressureGain"),
+      objectBindingSignatures = List(
+        "actor=Move:e2e3|actor=Piece:bishop|actor=Piece:queen|target=Square:c1|target=Square:h6|mechanism=Mechanism:battery-diagonal"
+      ),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+    )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(cause),
+      details = List(detail)
+    )
+
+    val surface = MoveMeaningSurface.from(view)
+    assertEquals(surface.map(_.ideaType), List("long_diagonal_pressure"))
+    assertEquals(surface.map(_.subject), List("played_move"))
+    assertEquals(surface.flatMap(_.target.squares), List("c1", "h6"))
+
+  test("move meaning public surface does not call file battery pressure long diagonal"):
+    val cause = causeFrame(
+      causeId = "cause-file-battery",
+      axisKeys = List("Activity:Gain:battery-pressure-gain"),
+      objectSignatures = List(
+        "actor=Move:e2e3|actor=Piece:rook|actor=Piece:queen|target=Square:a5|target=Square:h5|mechanism=Mechanism:battery-file"
+      ),
+      causeKind = RelativeCauseKind.ActivityGain
+    ).copy(
+      hasOwnedAdmissibleLongTermProof = true,
+      attributionDirectProofEligible = true,
+      rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot
+    )
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.PieceRerouteRoute,
+      axisKey = Some("Activity:Gain:battery-pressure-gain"),
+      axisKind = Some(StrategicAxisKind.Activity),
+      axisPolarity = Some(StrategicAxisPolarity.Gain),
+      label = Some("battery-pressure-gain"),
+      candidateEvidenceIds = List("played-transition"),
+      sourceEvidenceIds = List("played-transition"),
+      causeEvidenceIds = List("cause-file-battery"),
+      proofRoles = List(RelativeCauseProofRole.DirectProof),
+      structuralRouteMove = Some(candidateLine.rootMove),
+      structuralPurposeSubjects = List("battery:file:a5-h5:rook-queen"),
+      structuralPurposeConsequences = List("BatteryPressureGain"),
+      objectBindingSignatures = List(
+        "actor=Move:e2e3|actor=Piece:rook|actor=Piece:queen|target=Square:a5|target=Square:h5|mechanism=Mechanism:battery-file"
+      ),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+    )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(cause),
+      details = List(detail)
+    )
+
+    assert(!MoveMeaningSurface.from(view).exists(_.ideaType == "long_diagonal_pressure"))
+
   test("move meaning claims do not call engine candidate comparisons current move lanes"):
     val candidateSetCause = causeFrame(
       causeId = "cause-candidate-set-break",

@@ -1811,7 +1811,7 @@ object MoveMeaningSurface:
         "counterplay_control"
       case PositionPlanTechniqueUnit.PieceRerouteRoute if hasPublicDetailSignal(claim, "outpost") =>
         "outpost_attempt"
-      case PositionPlanTechniqueUnit.PieceRerouteRoute if hasPublicDetailSignal(claim, "BatteryLine") =>
+      case PositionPlanTechniqueUnit.PieceRerouteRoute if hasLongDiagonalPressureSignal(claim) =>
         "long_diagonal_pressure"
       case PositionPlanTechniqueUnit.PieceRerouteRoute =>
         "piece_route"
@@ -1903,6 +1903,14 @@ object MoveMeaningSurface:
     val needle = value.toLowerCase
     (claim.reasonTokens ++ claim.label.toList ++ claim.axisKey.toList)
       .exists(_.toLowerCase.contains(needle))
+
+  private def hasLongDiagonalPressureSignal(claim: MoveMeaningClaim): Boolean =
+    val tokens = claim.reasonTokens ++ claim.label.toList ++ claim.axisKey.toList ++ claim.objectBindingSignatures
+    tokens.exists(token =>
+      val normalized = token.toLowerCase
+      normalized.contains("battery:diagonal") ||
+        normalized.contains("mechanism=mechanism:battery-diagonal")
+    )
 
   private def surfaceSortKey(surface: MoveMeaningSurface): (Int, String, String) =
     (

@@ -1345,6 +1345,313 @@ class RelativeCauseSignalProfileTest extends munit.FunSuite:
     assertEquals(drafts.map(_.kind), List(RelativeCauseKind.ActivityGain))
     assertEquals(drafts.map(_.sourceSide), List(Some(RelativeCauseSourceSide.Candidate)))
 
+  test("lets concrete current move battery pressure own candidate activity value"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val after = PositionNodeRef("8/8/7Q/8/8/8/3P4/2B5 b - - 1 1", 2, Some(Color.Black), Some("after"))
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+    val candidateLine = LineNodeRef("candidate-line", "h1h6", 2, LineNodeRole.Alternative)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:played:h1h6:battery",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(candidateLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val mechanismRef = EvidenceRef(
+      id = "strategic-mechanism:activity:h1h6:battery",
+      producer = EvidenceProducer.StrategicMechanismProducer,
+      layer = EvidenceLayer.StrategicMechanism,
+      position = root,
+      line = Some(candidateLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val transition = StructuralTransitionBinding(
+      moveUci = "h1h6",
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = after,
+      line = Some(candidateLine),
+      perspective = Color.White
+    )
+    val structuralRecord = EvidenceRecord(
+      structuralRef,
+      StructuralDeltaEvidence(
+        transition = transition,
+        signals = Nil,
+        consequences = List(
+          TransitionConsequence(
+            TransitionConsequenceKind.BatteryPressureGain,
+            StructuralSignalPolarity.Gain,
+            strength = 2,
+            subjects = List("battery:diagonal:c1-h6:bishop-queen")
+          )
+        )
+      )
+    )
+    val mechanismRecord = EvidenceRecord(
+      mechanismRef,
+      StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.Activity,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "battery-pressure-gain",
+            source = structuralRef,
+            strength = 3,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.Activity, StrategicAxisPolarity.Gain, "battery-pressure-gain"))
+          )
+        ),
+        semanticAnchors = Nil
+      ),
+      parents = List(structuralRef)
+    )
+    val profile = candidateBetterProfile(referenceLine, candidateLine, List(structuralRecord, mechanismRecord))
+
+    val drafts = RelativeCauseDraftPlanner.drafts(profile)
+    assertEquals(drafts.map(_.kind), List(RelativeCauseKind.ActivityGain))
+    assertEquals(drafts.map(_.sourceSide), List(Some(RelativeCauseSourceSide.Candidate)))
+
+  test("does not let file battery pressure own long diagonal candidate activity value"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val after = PositionNodeRef("8/8/8/R6Q/8/8/3P4/8 b - - 1 1", 2, Some(Color.Black), Some("after"))
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+    val candidateLine = LineNodeRef("candidate-line", "h1h5", 2, LineNodeRole.Alternative)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:played:h1h5:file-battery",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(candidateLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val mechanismRef = EvidenceRef(
+      id = "strategic-mechanism:activity:h1h5:file-battery",
+      producer = EvidenceProducer.StrategicMechanismProducer,
+      layer = EvidenceLayer.StrategicMechanism,
+      position = root,
+      line = Some(candidateLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val structuralRecord = EvidenceRecord(
+      structuralRef,
+      StructuralDeltaEvidence(
+        transition = StructuralTransitionBinding(
+          moveUci = "h1h5",
+          role = TransitionEdgeRole.Played,
+          from = root,
+          to = after,
+          line = Some(candidateLine),
+          perspective = Color.White
+        ),
+        signals = Nil,
+        consequences = List(
+          TransitionConsequence(
+            TransitionConsequenceKind.BatteryPressureGain,
+            StructuralSignalPolarity.Gain,
+            strength = 2,
+            subjects = List("battery:file:a5-h5:rook-queen")
+          )
+        )
+      )
+    )
+    val mechanismRecord = EvidenceRecord(
+      mechanismRef,
+      StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.Activity,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "battery-pressure-gain",
+            source = structuralRef,
+            strength = 3,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.Activity, StrategicAxisPolarity.Gain, "battery-pressure-gain"))
+          )
+        ),
+        semanticAnchors = Nil
+      ),
+      parents = List(structuralRef)
+    )
+    val profile = candidateBetterProfile(referenceLine, candidateLine, List(structuralRecord, mechanismRecord))
+
+    assertEquals(RelativeCauseDraftPlanner.drafts(profile).map(_.kind), Nil)
+
+  test("does not borrow diagonal battery proof from another signal in the same activity payload"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val after = PositionNodeRef("8/8/8/8/8/5N2/3P4/8 b - - 1 1", 2, Some(Color.Black), Some("after"))
+    val referenceLine = LineNodeRef("reference-line", "d2d4", 1, LineNodeRole.BestReference)
+    val candidateLine = LineNodeRef("candidate-line", "g1f3", 2, LineNodeRole.Alternative)
+    val currentStructuralRef = EvidenceRef(
+      id = "structural-delta:played:g1f3:mobility",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(candidateLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val staleBatteryRef = EvidenceRef(
+      id = "structural-delta:reference:h1h6:diagonal-battery",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(referenceLine),
+      scope = EvidenceScope.Counterfactual,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val mechanismRef = EvidenceRef(
+      id = "strategic-mechanism:activity:mixed-signals",
+      producer = EvidenceProducer.StrategicMechanismProducer,
+      layer = EvidenceLayer.StrategicMechanism,
+      position = root,
+      line = Some(candidateLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val currentStructuralRecord = EvidenceRecord(
+      currentStructuralRef,
+      StructuralDeltaEvidence(
+        transition = StructuralTransitionBinding(
+          moveUci = "g1f3",
+          role = TransitionEdgeRole.Played,
+          from = root,
+          to = after,
+          line = Some(candidateLine),
+          perspective = Color.White
+        ),
+        signals = Nil,
+        consequences = List(
+          TransitionConsequence(
+            TransitionConsequenceKind.DevelopmentMobilityGain,
+            StructuralSignalPolarity.Gain,
+            strength = 1,
+            subjects = List("knight:g1-f3:mobility+2")
+          )
+        )
+      )
+    )
+    val staleBatteryRecord = EvidenceRecord(
+      staleBatteryRef,
+      StructuralDeltaEvidence(
+        transition = StructuralTransitionBinding(
+          moveUci = "h1h6",
+          role = TransitionEdgeRole.Reference,
+          from = root,
+          to = after,
+          line = Some(referenceLine),
+          perspective = Color.White
+        ),
+        signals = Nil,
+        consequences = List(
+          TransitionConsequence(
+            TransitionConsequenceKind.BatteryPressureGain,
+            StructuralSignalPolarity.Gain,
+            strength = 2,
+            subjects = List("battery:diagonal:c1-h6:bishop-queen")
+          )
+        )
+      )
+    )
+    val mechanismRecord = EvidenceRecord(
+      mechanismRef,
+      StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.Activity,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "activity-gain",
+            source = currentStructuralRef,
+            strength = 2,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.Activity, StrategicAxisPolarity.Gain, "activity-gain"))
+          ),
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "battery-pressure-gain",
+            source = staleBatteryRef,
+            strength = 3,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.Activity, StrategicAxisPolarity.Gain, "battery-pressure-gain"))
+          )
+        ),
+        semanticAnchors = Nil
+      ),
+      parents = List(currentStructuralRef, staleBatteryRef)
+    )
+    val profile =
+      candidateBetterProfile(referenceLine, candidateLine, List(currentStructuralRecord, staleBatteryRecord, mechanismRecord))
+
+    assertEquals(RelativeCauseDraftPlanner.drafts(profile).map(_.kind), Nil)
+
+  test("does not let generic current move mobility own candidate activity value"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val after = PositionNodeRef("8/8/8/8/8/5N2/3P4/8 b - - 1 1", 2, Some(Color.Black), Some("after"))
+    val referenceLine = LineNodeRef("reference-line", "d2d4", 1, LineNodeRole.BestReference)
+    val candidateLine = LineNodeRef("candidate-line", "g1f3", 2, LineNodeRole.Alternative)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:played:g1f3:mobility",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(candidateLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val mechanismRef = EvidenceRef(
+      id = "strategic-mechanism:activity:g1f3:mobility",
+      producer = EvidenceProducer.StrategicMechanismProducer,
+      layer = EvidenceLayer.StrategicMechanism,
+      position = root,
+      line = Some(candidateLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val transition = StructuralTransitionBinding(
+      moveUci = "g1f3",
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = after,
+      line = Some(candidateLine),
+      perspective = Color.White
+    )
+    val structuralRecord = EvidenceRecord(
+      structuralRef,
+      StructuralDeltaEvidence(
+        transition = transition,
+        signals = Nil,
+        consequences = List(
+          TransitionConsequence(
+            TransitionConsequenceKind.DevelopmentMobilityGain,
+            StructuralSignalPolarity.Gain,
+            strength = 1,
+            subjects = List("knight:g1-f3:mobility+2")
+          )
+        )
+      )
+    )
+    val mechanismRecord = EvidenceRecord(
+      mechanismRef,
+      StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.Activity,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "activity-gain",
+            source = structuralRef,
+            strength = 2,
+            axis = Some(StrategicAxisDetail(StrategicAxisKind.Activity, StrategicAxisPolarity.Gain, "activity-gain"))
+          )
+        ),
+        semanticAnchors = Nil
+      ),
+      parents = List(structuralRef)
+    )
+    val profile = candidateBetterProfile(referenceLine, candidateLine, List(structuralRecord, mechanismRecord))
+
+    assertEquals(RelativeCauseDraftPlanner.drafts(profile).map(_.kind), Nil)
+
   test("maps candidate positive counterplay restraint axis to opponent restriction"):
     val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
     val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)

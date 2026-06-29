@@ -337,16 +337,23 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
     val exactReferenceMove =
       profile.fact.kind == CandidateComparisonKind.PlayedVsBest &&
         profile.fact.comparison.verdict == MoveChoiceVerdict.MatchesReference
-    val candidatePawnBreakCanOwnValue =
+    val candidateCurrentMoveCanOwnValue =
       profile.playedCandidateSideComparison &&
         profile.candidateBetter
-    if !exactReferenceMove && !candidatePawnBreakCanOwnValue then Nil
+    if !exactReferenceMove && !candidateCurrentMoveCanOwnValue then Nil
     else
       profile.candidateCurrentMoveStrategicSupport.flatMap {
         case record @ EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
           val causeKinds =
             currentMoveStrategicSupportCauseKinds(payload, profile.fact.candidateLine)
-              .filter(kind => exactReferenceMove || kind == RelativeCauseKind.PawnBreakOpportunity)
+              .filter(kind =>
+                exactReferenceMove ||
+                  candidateCurrentMoveCanOwnValue &&
+                    (
+                      kind == RelativeCauseKind.PawnBreakOpportunity ||
+                        currentMoveConcreteActivityCanOwnValue(kind, payload, profile)
+                    )
+              )
           causeKinds.map(kind =>
             RelativeCauseDraft(
               kind,
@@ -358,6 +365,44 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
         case _ =>
           Nil
       }.distinctBy(draft => (draft.kind, draft.support.map(_.ref.id).sorted.mkString("|")))
+
+  private def currentMoveConcreteActivityCanOwnValue(
+      kind: RelativeCauseKind,
+      payload: StrategicMechanismEvidence,
+      profile: RelativeCauseSignalProfile
+  ): Boolean =
+    kind == RelativeCauseKind.ActivityGain &&
+      currentMoveConcreteActivitySignals(payload, profile.fact.candidateLine)
+        .exists(signal => currentMoveConcreteActivitySource(signal.source, profile.allRecords))
+
+  private def currentMoveConcreteActivitySignals(
+      payload: StrategicMechanismEvidence,
+      candidateLine: LineNodeRef
+  ): List[StrategicMechanismSignal] =
+    payload.signals.filter(signal =>
+      RelativeCauseSignalProfile.currentMoveStrategicSupportSignal(signal, candidateLine) &&
+        signal.axis.exists(axis =>
+          axis.kind == StrategicAxisKind.Activity &&
+            axis.polarity == StrategicAxisPolarity.Gain
+        )
+    )
+
+  private def currentMoveConcreteActivitySource(
+      source: EvidenceRef,
+      records: List[EvidenceRecord]
+  ): Boolean =
+    records.exists {
+      case EvidenceRecord(ref, payload: StructuralDeltaEvidence, _) if ref.id == source.id =>
+        payload.consequencesOf(TransitionConsequenceKind.BatteryPressureGain).exists(consequence =>
+          consequence.subjects.exists(currentMoveDiagonalBatterySubject)
+        )
+      case _ =>
+        false
+    }
+
+  private def currentMoveDiagonalBatterySubject(subject: String): Boolean =
+    val normalized = Option(subject).getOrElse("").trim.toLowerCase
+    normalized.startsWith("battery:diagonal:")
 
   private def currentMoveStrategicSupportCauseKinds(
       payload: StrategicMechanismEvidence,
