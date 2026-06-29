@@ -2566,6 +2566,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
         List("actor=Move:e2e3|target=Square:e4|mechanism=Mechanism:counterplayrace"),
       specificityTier = PositionPlanTechniqueSpecificityTier.ConcreteObjectAxis,
       resourceContestSquares = List("e4"),
+      raceLeadingLineRole = Some(LineNodeRole.Played),
+      raceReferenceRootMove = Some(referenceLine.rootMove),
       raceCandidateRootMove = Some(candidateLine.rootMove)
     )
     val restrictionCause = causeFrame(
@@ -2598,6 +2600,20 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       resourceContestSquares = Nil,
       counterBreakFiles = List("c")
     )
+    val rootlessDynamicRace = raceDetail.copy(
+      axisKey = None,
+      axisKind = None,
+      axisPolarity = None,
+      label = Some("dynamic-counterplay-race"),
+      causeEvidenceIds = Nil,
+      proofRoles = Nil,
+      threatKind = Some("Positional"),
+      turnsToImpact = Some(2),
+      defenseMove = Some("h2h3"),
+      raceLeadingLineRole = None,
+      raceReferenceRootMove = None,
+      raceCandidateRootMove = None
+    )
     val pawnBreakRace = PositionPlanTechniqueSemanticDetail(
       unit = PositionPlanTechniqueUnit.CounterplayRace,
       axisKey = Some("PawnBreak:Support:break-file-e-created-tension-e3-d4"),
@@ -2605,6 +2621,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       axisPolarity = Some(StrategicAxisPolarity.Support),
       label = Some("counterplay-race-e-vs-c"),
       contrastOutcome = Some(StrategicAxisComparisonOutcome.CandidateOnly),
+      raceLeadingLineRole = Some(LineNodeRole.Played),
+      raceReferenceRootMove = Some(referenceLine.rootMove),
       raceCandidateRootMove = Some(candidateLine.rootMove),
       candidateEvidenceIds = List("played-transition"),
       sourceEvidenceIds = List("structural-delta:played:e2e3", "played-transition"),
@@ -2660,6 +2678,11 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       auditCauses = Nil,
       details = List(counterBreakOnlyRace)
     )
+    val rootlessDynamicView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(rootlessDynamicRace)
+    )
     val offFilePawnBreakRaceView = meaningClaimView(
       verdict = MoveChoiceVerdict.MatchesReference,
       auditCauses = List(pawnBreakRaceCause),
@@ -2681,6 +2704,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(actorOnlyView.moveMeaningClaims, Nil)
     assertEquals(restraintOnlyView.moveMeaningClaims, Nil)
     assertEquals(counterBreakOnlyView.moveMeaningClaims, Nil)
+    assertEquals(rootlessDynamicView.moveMeaningClaims, Nil)
     assertEquals(offFilePawnBreakRaceView.moveMeaningClaims, Nil)
     assertEquals(sameFilePawnBreakRaceView.moveMeaningClaims, Nil)
 
@@ -2876,15 +2900,14 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       details = List(detail)
     )
 
-    assertEquals(view.moveMeaningClaims.headOption.map(_.role), Some("ImprovesPieceActivity"))
-    assertEquals(view.moveMeaningClaims.headOption.map(_.supportLevel), Some("view_surfaced"))
-    assertEquals(view.moveMeaningClaims.flatMap(_.causeEvidenceIds), Nil)
+    assertEquals(view.moveMeaningClaims, Nil)
 
   test("move meaning claims keep non-binary axes and reject borrowed objects"):
     val ownedCause = causeFrame(
       causeId = "cause-break",
       axisKeys = List("PawnBreak:Support:central-break-timing"),
-      objectSignatures = List("target=Square:e3|mechanism=Mechanism:pawn-break|proof=DirectProof")
+      objectSignatures = List("target=Square:e3|mechanism=Mechanism:pawn-break|proof=DirectProof"),
+      causeKind = RelativeCauseKind.PawnBreakOpportunity
     ).copy(
       role = MoveJudgmentCauseFrameRole.ContextCause,
       hasOwnedAdmissibleLongTermProof = true,
@@ -3053,8 +3076,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
 
     assertEquals(broadView.moveMeaningClaims.headOption.map(_.supportLevel), Some("contextual"))
     assertEquals(playableView.moveMeaningClaims.headOption.map(_.meaningKind), Some("PawnBreakTiming"))
-    assertEquals(negativeView.moveMeaningClaims.headOption.map(_.role), Some("PreparesBreak"))
-    assertEquals(negativeOutcomeView.moveMeaningClaims.headOption.map(_.role), Some("PreparesBreak"))
+    assertEquals(negativeView.moveMeaningClaims.headOption.map(_.role), Some("ReleasesPawnTension"))
+    assertEquals(negativeOutcomeView.moveMeaningClaims.headOption.map(_.role), Some("ReleasesPawnTension"))
     assertEquals(lineOnlyView.moveMeaningClaims, Nil)
     assertEquals(planCoherenceView.moveMeaningClaims.headOption.map(_.meaningKind), Some("PlanContinuity"))
     assertEquals(planCoherenceView.moveMeaningClaims.headOption.map(_.role), Some("SharedCompatiblePlan"))

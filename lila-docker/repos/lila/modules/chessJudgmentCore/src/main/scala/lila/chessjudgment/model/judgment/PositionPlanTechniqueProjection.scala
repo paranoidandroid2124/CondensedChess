@@ -1842,6 +1842,9 @@ object PositionPlanTechniqueProjection:
       payload.axisComparisons.flatMap(axisComparison =>
         positionPlanTechniqueUnits(axisComparison.axis).map(unit =>
           val sourceIds = axisComparison.sources.map(_.id).distinct.sorted
+          val raceLineContext =
+            unit == PositionPlanTechniqueUnit.CounterplayRace ||
+              axisComparison.axis.kind == StrategicAxisKind.PawnBreak
           val detail = PositionPlanTechniqueSemanticDetail(
             unit = unit,
             axisKey = Some(axisComparison.axisKey),
@@ -1853,15 +1856,15 @@ object PositionPlanTechniqueProjection:
             candidateStrength = Some(axisComparison.candidateStrength),
             narrativeHorizon = Some(payload.sustainability.horizon),
             raceLeadingLineRole =
-              Option.when(unit == PositionPlanTechniqueUnit.CounterplayRace)(
+              Option.when(raceLineContext)(
                 positionPlanTechniqueRaceLeadingLineRole(axisComparison, payload)
               ).flatten,
             raceReferenceRootMove =
-              Option.when(unit == PositionPlanTechniqueUnit.CounterplayRace)(
+              Option.when(raceLineContext)(
                 positionPlanTechniqueRootMove(payload.referenceLine)
               ).flatten,
             raceCandidateRootMove =
-              Option.when(unit == PositionPlanTechniqueUnit.CounterplayRace)(
+              Option.when(raceLineContext)(
                 positionPlanTechniqueRootMove(payload.candidateLine)
               ).flatten,
             semanticAnchorKeys = anchorKeys,
