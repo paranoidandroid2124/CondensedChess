@@ -1848,11 +1848,21 @@ object MoveMeaningClaim:
       linkedCauseFrames.exists(frame => frame.concreteObjectReady && frame.hasOwnedAdmissibleLongTermProof) ||
         linkedCauseFrames.exists(frame => frame.concreteObjectReady && frame.attributionDirectProofEligible)
     val ownedMeaningReady =
-      detail.unit != PositionPlanTechniqueUnit.TensionBreakPolicyRoute ||
-        pawnBreakOwnedCauseReady(detail, objectSignatures, claimMove, positionFen)
+      detail.unit match
+        case PositionPlanTechniqueUnit.TensionBreakPolicyRoute =>
+          pawnBreakOwnedCauseReady(detail, objectSignatures, claimMove, positionFen)
+        case PositionPlanTechniqueUnit.CounterplayRace =>
+          counterplayRaceOwnedCauseReady(detail, objectSignatures, claimMove, positionFen)
+        case _ =>
+          true
     val viewMeaningReady =
-      detail.unit != PositionPlanTechniqueUnit.TensionBreakPolicyRoute ||
-        currentMoveFunctionalProof
+      detail.unit match
+        case PositionPlanTechniqueUnit.TensionBreakPolicyRoute =>
+          currentMoveFunctionalProof
+        case PositionPlanTechniqueUnit.CounterplayRace =>
+          counterplayRaceViewReady(detail, objectSignatures, claimMove, positionFen)
+        case _ =>
+          true
     if linkedCauseFrames.nonEmpty && ownedCause && hasConcreteObject && specificObjectAxis && direct && ownedMeaningReady then
       Some("owned_cause_linked")
     else if viewMeaningReady && hasConcreteObject && (specificObjectAxis || currentMoveFunctionalProof) && hasDetailEvidence &&
@@ -1900,10 +1910,13 @@ object MoveMeaningClaim:
           pawnMoveFromPawn(positionFen, claimMove) &&
           pawnBreakOwnsClaimMove(detail, objectSignatures, claimMove) &&
           pawnBreakCurrentMoveFunctionalCarrier(detail)
-      case PositionPlanTechniqueUnit.SpacePreventionResourceDenial | PositionPlanTechniqueUnit.CounterplayRace =>
+      case PositionPlanTechniqueUnit.SpacePreventionResourceDenial =>
         moveOwnedSource &&
           resourceDetailOwnsClaimMove(detail, objectSignatures, claimMove) &&
           resourceDetailHasConcreteCarrier(detail, objectSignatures)
+      case PositionPlanTechniqueUnit.CounterplayRace =>
+        moveOwnedSource &&
+          counterplayRaceViewReady(detail, objectSignatures, claimMove, positionFen)
       case _ =>
         false
 
@@ -2004,6 +2017,7 @@ object MoveMeaningClaim:
         detail.axisKind.contains(StrategicAxisKind.PawnBreak) &&
           (
             detail.unit == PositionPlanTechniqueUnit.TensionBreakPolicyRoute ||
+              counterplayRacePawnBreakDetail(detail) ||
               detail.unit == PositionPlanTechniqueUnit.StructuralTransformation
           )
       case RelativeCauseKind.OpponentRestriction =>
@@ -2036,8 +2050,10 @@ object MoveMeaningClaim:
     else if actorMoves.nonEmpty && !actorMoves.contains(normalizedClaimMove) then false
     else
       detail.unit match
-        case PositionPlanTechniqueUnit.SpacePreventionResourceDenial | PositionPlanTechniqueUnit.CounterplayRace =>
+        case PositionPlanTechniqueUnit.SpacePreventionResourceDenial =>
           resourceDetailOwnsClaimMove(detail, objectSignatures, claimMove)
+        case PositionPlanTechniqueUnit.CounterplayRace =>
+          counterplayRaceOwnsClaimMove(detail, objectSignatures, claimMove)
         case PositionPlanTechniqueUnit.EndgameTechniqueRecipe =>
           detail.endgameTechniqueTriggerMove.exists(move => sameMove(move, claimMove)) ||
             generalDetailOwnsClaimMove(detail, objectSignatures, claimMove)
@@ -2264,6 +2280,137 @@ object MoveMeaningClaim:
       detail.structuralPurposeSubjects.exists(concreteSubject) ||
       signatureTokens(objectSignatures, "target=").exists(concreteTargetToken)
 
+  private def counterplayRaceOwnedCauseReady(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String,
+      positionFen: String
+  ): Boolean =
+    counterplayRaceClaimReady(detail, objectSignatures, claimMove, positionFen) &&
+      counterplayRaceOwnsClaimMove(detail, objectSignatures, claimMove)
+
+  private def counterplayRaceViewReady(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String,
+      positionFen: String
+  ): Boolean =
+    counterplayRaceClaimReady(detail, objectSignatures, claimMove, positionFen) &&
+      counterplayRaceOwnsClaimMove(detail, objectSignatures, claimMove)
+
+  private def counterplayRaceShapeReady(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String]
+  ): Boolean =
+    counterplayRaceSemanticProof(detail) &&
+      counterplayRaceConcreteCarrier(detail, objectSignatures)
+
+  private def counterplayRaceClaimReady(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String,
+      positionFen: String
+  ): Boolean =
+    counterplayRaceShapeReady(detail, objectSignatures) &&
+      (
+        !counterplayRacePawnBreakDetail(detail) ||
+          counterplayRacePawnBreakReady(detail, claimMove, positionFen)
+      )
+
+  private def counterplayRaceSemanticProof(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    counterplayRaceDynamicThreat(detail) || counterplayRaceLineProof(detail)
+
+  private def counterplayRaceDynamicThreat(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    counterplayRaceText(detail).contains("dynamic-counterplay-race") &&
+      detail.threatKind.nonEmpty &&
+      detail.turnsToImpact.nonEmpty
+
+  private def counterplayRaceLineProof(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    val text = counterplayRaceText(detail)
+    text.contains("counterplay-race") &&
+      !text.contains("king-safety-concession") &&
+      (
+        detail.raceLeadingLineRole.nonEmpty ||
+          detail.raceCandidateRootMove.nonEmpty ||
+          detail.raceReferenceRootMove.nonEmpty ||
+          detail.contrastOutcome.nonEmpty
+      )
+
+  private def counterplayRaceText(detail: PositionPlanTechniqueSemanticDetail): String =
+    (
+      detail.axisKey.toList ++
+        detail.label.toList ++
+        detail.semanticAnchorKeys ++
+        detail.structuralMotifTags
+    ).mkString(" ").toLowerCase
+
+  private def counterplayRaceConcreteCarrier(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String]
+  ): Boolean =
+    detail.resourceContestSquares.nonEmpty ||
+      detail.resourceContestFiles.nonEmpty ||
+      detail.breakFile.nonEmpty ||
+      detail.structuralPurposeSubjects.exists(concreteSubject) ||
+      signatureTokens(objectSignatures, "target=").exists(concreteTargetToken) ||
+      signatureTokens(objectSignatures, "actor=").exists(specificActorToken) ||
+      (counterplayRaceDynamicThreat(detail) && detail.defenseMove.nonEmpty)
+
+  private def counterplayRaceOwnsClaimMove(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String
+  ): Boolean =
+    if counterplayRacePawnBreakDetail(detail) then counterplayRacePawnBreakOwnsClaimMove(detail, claimMove)
+    else
+      resourceDetailOwnsClaimMove(detail, objectSignatures, claimMove) ||
+        detail.raceCandidateRootMove.exists(move => sameMove(move, claimMove)) ||
+        detail.raceReferenceRootMove.exists(move => sameMove(move, claimMove))
+
+  private def counterplayRacePawnBreakDetail(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detail.unit == PositionPlanTechniqueUnit.CounterplayRace &&
+      detail.breakFile.exists(_.trim.nonEmpty) &&
+      detail.counterBreakFiles.exists(_.trim.nonEmpty)
+
+  private def counterplayRacePawnBreakReady(
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String,
+      positionFen: String
+  ): Boolean =
+    pawnMoveFromPawn(positionFen, claimMove) &&
+      pawnBreakConcreteTransitionCarrier(detail) &&
+      counterplayRaceDistinctBreakFiles(detail)
+
+  private def counterplayRaceDistinctBreakFiles(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    val breakFile = detail.breakFile.map(counterplayRaceFileToken)
+    breakFile.exists(file =>
+      detail.counterBreakFiles.map(counterplayRaceFileToken).exists(counterFile => counterFile.nonEmpty && counterFile != file)
+    )
+
+  private def counterplayRaceFileToken(value: String): String =
+    value.trim.toLowerCase.take(1)
+
+  private def counterplayRacePawnBreakOwnsClaimMove(
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String
+  ): Boolean =
+    moveTouchesBreakFile(detail, claimMove) ||
+      moveEndpoints(claimMove).exists { case (from, to) =>
+        val moveSquares = Set(from, to)
+        val breakFile = detail.breakFile.map(counterplayRaceFileToken)
+        breakFile.exists(file =>
+          detail.tensionEdges.exists(edge =>
+            val edgeSquares = squareTokens(edge)
+            edgeSquares.exists(moveSquares.contains) &&
+              edgeSquares.exists(square => square.take(1) == file)
+          ) ||
+            detail.tensionSquares.exists(square =>
+              moveSquares.contains(square.toLowerCase) &&
+                square.toLowerCase.take(1) == file
+            )
+        )
+      }
+
   private def generalDetailOwnsClaimMove(
       detail: PositionPlanTechniqueSemanticDetail,
       objectSignatures: List[String],
@@ -2479,6 +2626,7 @@ object MoveMeaningClaim:
           detail.unit == PositionPlanTechniqueUnit.StructuralTransformation
       case RelativeCauseKind.PawnBreakOpportunity =>
         detail.unit == PositionPlanTechniqueUnit.TensionBreakPolicyRoute ||
+          counterplayRacePawnBreakDetail(detail) ||
           detail.unit == PositionPlanTechniqueUnit.StructuralTransformation
       case RelativeCauseKind.OpponentRestriction =>
         detail.unit == PositionPlanTechniqueUnit.SpacePreventionResourceDenial ||
@@ -2502,8 +2650,10 @@ object MoveMeaningClaim:
           detail.tensionSquares.nonEmpty ||
           detail.tensionEdges.nonEmpty ||
           detail.counterBreakFiles.nonEmpty
-      case PositionPlanTechniqueUnit.SpacePreventionResourceDenial | PositionPlanTechniqueUnit.CounterplayRace =>
+      case PositionPlanTechniqueUnit.SpacePreventionResourceDenial =>
         resourceDetailHasConcreteCarrier(detail, detail.objectBindingSignatures)
+      case PositionPlanTechniqueUnit.CounterplayRace =>
+        counterplayRaceShapeReady(detail, detail.objectBindingSignatures)
       case PositionPlanTechniqueUnit.EndgameTechniqueRecipe =>
         detail.requiredSquares.nonEmpty ||
           detail.maintainedSquares.nonEmpty ||
@@ -2727,7 +2877,7 @@ object MoveMeaningClaim:
         case PositionPlanTechniqueUnit.EndgameTechniqueRecipe =>
           Some("TechniqueConversion")
         case PositionPlanTechniqueUnit.CounterplayRace =>
-          Some("CounterplayRace")
+          Option.when(counterplayRaceSemanticProof(detail))("CounterplayRace")
         case PositionPlanTechniqueUnit.SpacePreventionResourceDenial =>
           detail.axisKind match
             case Some(StrategicAxisKind.SpaceCenter) => Some("CenterControl")
@@ -2739,7 +2889,7 @@ object MoveMeaningClaim:
             case Some(StrategicAxisKind.Target)        => Some("TargetPressure")
             case Some(StrategicAxisKind.SpaceCenter)   => Some("CenterControl")
             case Some(StrategicAxisKind.PawnBreak)     => Some("PawnBreakTiming")
-            case Some(StrategicAxisKind.Counterplay)   => Some("CounterplayRace")
+            case Some(StrategicAxisKind.Counterplay)   => Option.when(counterplayRaceSemanticProof(detail))("CounterplayRace")
             case Some(StrategicAxisKind.Activity)      => Some("PieceActivity")
             case Some(StrategicAxisKind.PlanCoherence) => Some("PlanContinuity")
             case None                                  => Some("StructureShift")

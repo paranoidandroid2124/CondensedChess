@@ -334,11 +334,20 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
     }.distinctBy(draft => (draft.kind, draft.sourceSide, draft.support.map(_.ref.id).sorted.mkString("|")))
 
   private def currentMoveStrategicSupportDrafts(profile: RelativeCauseSignalProfile): List[RelativeCauseDraft] =
-    if profile.fact.kind != CandidateComparisonKind.PlayedVsBest || profile.fact.comparison.verdict != MoveChoiceVerdict.MatchesReference then Nil
+    val exactReferenceMove =
+      profile.fact.kind == CandidateComparisonKind.PlayedVsBest &&
+        profile.fact.comparison.verdict == MoveChoiceVerdict.MatchesReference
+    val candidatePawnBreakCanOwnValue =
+      profile.playedCandidateSideComparison &&
+        profile.candidateBetter
+    if !exactReferenceMove && !candidatePawnBreakCanOwnValue then Nil
     else
       profile.candidateCurrentMoveStrategicSupport.flatMap {
         case record @ EvidenceRecord(_, payload: StrategicMechanismEvidence, _) =>
-          currentMoveStrategicSupportCauseKinds(payload, profile.fact.candidateLine).map(kind =>
+          val causeKinds =
+            currentMoveStrategicSupportCauseKinds(payload, profile.fact.candidateLine)
+              .filter(kind => exactReferenceMove || kind == RelativeCauseKind.PawnBreakOpportunity)
+          causeKinds.map(kind =>
             RelativeCauseDraft(
               kind,
               List(record),

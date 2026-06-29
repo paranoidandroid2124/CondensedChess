@@ -2552,10 +2552,10 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       details = List(centerDetail, concededRace)
     )
 
-    assertEquals(view.moveMeaningClaims.map(_.meaningKind), List("CenterControl", "CounterplayRace"))
-    assertEquals(view.moveMeaningClaims.map(_.role), List("ExplainsMoveFunction", "ConcedesCounterplayRace"))
+    assertEquals(view.moveMeaningClaims.map(_.meaningKind), List("CenterControl"))
+    assertEquals(view.moveMeaningClaims.map(_.role), List("ExplainsMoveFunction"))
     assert(!view.moveMeaningClaims.exists(claim => claim.meaningKind == "CounterplayControl" && claim.axisKey.contains("SpaceCenter")))
-    assert(!view.moveMeaningClaims.exists(_.role == "StartsCounterplayRace"))
+    assert(!view.moveMeaningClaims.exists(claim => claim.meaningKind == "CounterplayRace"))
 
   test("move meaning claims keep counterplay race distinct and require concrete resource ownership"):
     val raceDetail = PositionPlanTechniqueSemanticDetail(
@@ -2587,21 +2587,108 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       specificityTier = PositionPlanTechniqueSpecificityTier.BroadAxis,
       resourceContestSquares = Nil
     )
+    val restraintOnlyRace = raceDetail.copy(
+      causeEvidenceIds = Nil,
+      proofRoles = Nil,
+      axisKey = Some("Counterplay:Support:opponent-low-mobility"),
+      label = Some("opponent-low-mobility"),
+      raceCandidateRootMove = None,
+      resourceContestSquares = List("e4"),
+      resourceContestKinds = List("CounterplayRestraint"),
+      resourceContestSignals = List("OpponentLowMobility")
+    )
+    val counterBreakOnlyRace = raceDetail.copy(
+      causeEvidenceIds = Nil,
+      proofRoles = Nil,
+      raceCandidateRootMove = None,
+      resourceContestSquares = Nil,
+      counterBreakFiles = List("c")
+    )
+    val pawnBreakRace = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.CounterplayRace,
+      axisKey = Some("PawnBreak:Support:break-file-e-created-tension-e3-d4"),
+      axisKind = Some(StrategicAxisKind.PawnBreak),
+      axisPolarity = Some(StrategicAxisPolarity.Support),
+      label = Some("counterplay-race-e-vs-c"),
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.CandidateOnly),
+      raceCandidateRootMove = Some(candidateLine.rootMove),
+      candidateEvidenceIds = List("played-transition"),
+      sourceEvidenceIds = List("structural-delta:played:e2e3", "played-transition"),
+      causeEvidenceIds = List("cause-pawn-race"),
+      proofRoles = List(RelativeCauseProofRole.DirectProof),
+      objectBindingSignatures =
+        List("actor=Move:e2e3|target=File:e|mechanism=Mechanism:pawnbreak|mechanism=Mechanism:counterplayrace"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ConcreteObjectAxis,
+      breakFile = Some("e"),
+      tensionEdges = List("e3-d4"),
+      counterBreakFiles = List("c")
+    )
+    val pawnBreakRaceCause = causeFrame(
+      causeId = "cause-pawn-race",
+      axisKeys = List("PawnBreak:Support:break-file-e-created-tension-e3-d4"),
+      objectSignatures = pawnBreakRace.objectBindingSignatures,
+      rootArbitrationTier = MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot,
+      causeKind = RelativeCauseKind.PawnBreakOpportunity
+    )
+    val offFilePawnBreakRace = pawnBreakRace.copy(
+      axisKey = Some("PawnBreak:Support:break-file-a-created-tension-e3-d4"),
+      label = Some("counterplay-race-a-vs-c"),
+      breakFile = Some("a"),
+      objectBindingSignatures =
+        List("actor=Move:e2e3|target=File:a|mechanism=Mechanism:pawnbreak|mechanism=Mechanism:counterplayrace")
+    )
+    val sameFilePawnBreakRace = pawnBreakRace.copy(
+      label = Some("counterplay-race-e-vs-e"),
+      counterBreakFiles = List("e")
+    )
     val linkedView = meaningClaimView(
       verdict = MoveChoiceVerdict.MatchesReference,
       auditCauses = List(restrictionCause),
       details = List(raceDetail)
+    )
+    val pawnBreakRaceView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(pawnBreakRaceCause),
+      details = List(pawnBreakRace)
     )
     val actorOnlyView = meaningClaimView(
       verdict = MoveChoiceVerdict.MatchesReference,
       auditCauses = Nil,
       details = List(actorOnlyRace)
     )
+    val restraintOnlyView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(restraintOnlyRace)
+    )
+    val counterBreakOnlyView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(counterBreakOnlyRace)
+    )
+    val offFilePawnBreakRaceView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(pawnBreakRaceCause),
+      details = List(offFilePawnBreakRace)
+    )
+    val sameFilePawnBreakRaceView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = List(pawnBreakRaceCause),
+      details = List(sameFilePawnBreakRace)
+    )
 
     assertEquals(linkedView.moveMeaningClaims.map(_.meaningKind), List("CounterplayRace"))
     assertEquals(linkedView.moveMeaningClaims.map(_.role), List("StartsCounterplayRace"))
     assertEquals(linkedView.moveMeaningClaims.head.supportLevel, "owned_cause_linked")
+    assertEquals(pawnBreakRaceView.moveMeaningClaims.map(_.meaningKind), List("CounterplayRace"))
+    assertEquals(pawnBreakRaceView.moveMeaningClaims.head.supportLevel, "owned_cause_linked")
+    assert(pawnBreakRaceView.moveMeaningClaims.head.reasonTokens.contains("breakFile:e"))
+    assert(pawnBreakRaceView.moveMeaningClaims.head.reasonTokens.contains("counterBreakFile:c"))
     assertEquals(actorOnlyView.moveMeaningClaims, Nil)
+    assertEquals(restraintOnlyView.moveMeaningClaims, Nil)
+    assertEquals(counterBreakOnlyView.moveMeaningClaims, Nil)
+    assertEquals(offFilePawnBreakRaceView.moveMeaningClaims, Nil)
+    assertEquals(sameFilePawnBreakRaceView.moveMeaningClaims, Nil)
 
   test("move meaning claims reject broad or mismatched contrast support"):
     val alternativeLine = lineRef("alt", "d2d4", 3, LineNodeRole.Alternative)
