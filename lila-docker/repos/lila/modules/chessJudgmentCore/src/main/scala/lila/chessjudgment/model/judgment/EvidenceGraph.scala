@@ -160,6 +160,22 @@ object EvidenceObjectBinding:
       }
     ).toSet
 
+  private[chessjudgment] def signaturesForProofRole(
+      signatures: Iterable[String],
+      proofRole: Option[RelativeCauseProofRole]
+  ): Set[String] =
+    val proofPart = proofRole.map(role => s"proof=$role")
+    signatures.filter(signature => proofPart.forall(signatureParts(signature).contains)).toSet
+
+  private[chessjudgment] def objectTokens(
+      signatures: Iterable[String],
+      role: String,
+      proofRole: Option[RelativeCauseProofRole] = None
+  ): Set[String] =
+    val prefix = s"$role="
+    signatureTokens(signaturesForProofRole(signatures, proofRole).toList, prefix)
+      .map(_.drop(prefix.length))
+
   private[chessjudgment] def signatureValues(signatures: List[String], role: String, kind: String): List[String] =
     val prefix = s"$role=$kind:"
     signatureTokens(signatures, prefix).toList.map(_.drop(prefix.length)).sorted
@@ -186,7 +202,38 @@ object EvidenceObjectBinding:
       (
         token.contains("=Square:") ||
           token.toLowerCase.contains("square:") ||
-          token.toLowerCase.matches(".*[a-h][1-8].*")
+        token.toLowerCase.matches(".*[a-h][1-8].*")
+      )
+
+  private[chessjudgment] def directProofObjectReady(signatures: Iterable[String]): Boolean =
+    signaturesForProofRole(signatures, Some(RelativeCauseProofRole.DirectProof)).exists(objectReadySignature)
+
+  private[chessjudgment] def directProofSpecificObjectReady(signatures: Iterable[String]): Boolean =
+    signaturesForProofRole(signatures, Some(RelativeCauseProofRole.DirectProof)).exists(specificRootObjectSignature)
+
+  private def specificRootObjectSignature(signature: String): Boolean =
+    val parts = signatureParts(signature)
+    parts.exists(specificRootTargetPart) &&
+      parts.exists(_.startsWith("mechanism=")) &&
+      parts.exists(part => part.startsWith("consequence=") || part.startsWith("witness="))
+
+  private def objectReadySignature(signature: String): Boolean =
+    val parts = signatureParts(signature)
+    parts.exists(_.startsWith("target=")) &&
+      parts.exists(_.startsWith("mechanism=")) &&
+      parts.exists(part => part.startsWith("consequence=") || part.startsWith("witness="))
+
+  private def specificRootTargetPart(part: String): Boolean =
+    val normalized = part.trim.toLowerCase
+    normalized.startsWith("target=square:") ||
+      normalized.startsWith("target=file:") ||
+      normalized.startsWith("target=pawn:") ||
+      normalized.startsWith("target=piece:") ||
+      (
+        normalized.startsWith("target=plansubject:") && {
+          val subject = normalized.stripPrefix("target=plansubject:")
+          subject.contains(":") || subject.matches(".*[a-h][1-8].*")
+        }
       )
 
   def playerFacingReady(bindings: List[EvidenceObjectBinding]): Boolean =

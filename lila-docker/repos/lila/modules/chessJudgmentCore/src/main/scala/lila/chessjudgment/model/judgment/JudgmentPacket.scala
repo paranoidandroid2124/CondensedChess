@@ -418,6 +418,23 @@ object JudgmentSubjectBinding:
   def playedRelated(binding: SubjectBindingClass): Boolean =
     binding != SubjectBindingClass.Other
 
+  def sourceIdOwnsCurrentPlayedMove(sourceId: String, move: String): Boolean =
+    val normalizedId = sourceId.toLowerCase
+    val normalizedMove = normalizeMove(move).toLowerCase
+    normalizedId.contains(s":played:$normalizedMove") ||
+      normalizedId.contains(s":$normalizedMove:played-transition") ||
+      normalizedId.contains(s"played-transition:$normalizedMove") ||
+      normalizedId == "played-transition" ||
+      normalizedId == s"played-transition:$normalizedMove"
+
+  def sourceIdOwnsPawnBreakMove(sourceId: String, move: String): Boolean =
+    val normalizedId = sourceId.toLowerCase
+    val normalizedMove = normalizeMove(move).toLowerCase
+    normalizedId.contains(s":played:$normalizedMove") ||
+      normalizedId.contains(s":reference:$normalizedMove") ||
+      normalizedId.contains(s":$normalizedMove:played-transition") ||
+      normalizedId.contains(s":$normalizedMove:reference-transition")
+
   def normalizeMove(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase
 
@@ -2192,16 +2209,8 @@ object MoveMeaningClaim:
       claimMove: String,
       positionFen: String
   ): Boolean =
-    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
     val moveOwnedSource =
-      detail.sourceEvidenceIds.exists(id =>
-        val normalized = id.toLowerCase
-        normalized.contains(s":played:$normalizedClaimMove") ||
-          normalized.contains(s":$normalizedClaimMove:played-transition") ||
-          normalized.contains(s"played-transition:$normalizedClaimMove") ||
-          normalized == "played-transition" ||
-          normalized == s"played-transition:$normalizedClaimMove"
-      )
+      detail.sourceEvidenceIds.exists(JudgmentSubjectBinding.sourceIdOwnsCurrentPlayedMove(_, claimMove))
     detail.unit match
       case PositionPlanTechniqueUnit.PieceRerouteRoute =>
         moveOwnedSource &&
@@ -2484,13 +2493,7 @@ object MoveMeaningClaim:
   ): Boolean =
     val normalizedMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
     val sourceOwnsMove =
-      detail.sourceEvidenceIds.exists(id =>
-        val normalized = id.toLowerCase
-        normalized.contains(s":played:$normalizedMove") ||
-          normalized.contains(s":reference:$normalizedMove") ||
-          normalized.contains(s":$normalizedMove:played-transition") ||
-          normalized.contains(s":$normalizedMove:reference-transition")
-      )
+      detail.sourceEvidenceIds.exists(JudgmentSubjectBinding.sourceIdOwnsPawnBreakMove(_, claimMove))
     sourceOwnsMove ||
       moveTokens(objectSignatures).contains(normalizedMove) ||
       detail.structuralRouteMove.exists(move => sameMove(move, claimMove))

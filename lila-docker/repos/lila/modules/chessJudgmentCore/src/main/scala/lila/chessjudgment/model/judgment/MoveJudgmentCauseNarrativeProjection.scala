@@ -218,35 +218,10 @@ object MoveJudgmentCauseNarrativeProjection:
     )
 
   private def directProofObjectReady(frame: MoveJudgmentCauseFrame): Boolean =
-    val directSignatures = objectSignatures(frame, Some(RelativeCauseProofRole.DirectProof))
-    directSignatures.exists(signature =>
-      signature.contains("target=") &&
-        signature.contains("mechanism=") &&
-        (signature.contains("consequence=") || signature.contains("witness="))
-    )
+    EvidenceObjectBinding.directProofObjectReady(frame.objectBindingSignatures)
 
   private def directProofSpecificObjectReady(frame: MoveJudgmentCauseFrame): Boolean =
-    val directSignatures = objectSignatures(frame, Some(RelativeCauseProofRole.DirectProof))
-    directSignatures.exists(specificRootObjectSignature)
-
-  private def specificRootObjectSignature(signature: String): Boolean =
-    val parts = signature.split("\\|").toList
-    parts.exists(specificRootTargetPart) &&
-      parts.exists(_.startsWith("mechanism=")) &&
-      parts.exists(part => part.startsWith("consequence=") || part.startsWith("witness="))
-
-  private def specificRootTargetPart(part: String): Boolean =
-    val normalized = part.trim.toLowerCase
-    normalized.startsWith("target=square:") ||
-      normalized.startsWith("target=file:") ||
-      normalized.startsWith("target=pawn:") ||
-      normalized.startsWith("target=piece:") ||
-      (
-        normalized.startsWith("target=plansubject:") && {
-          val subject = normalized.stripPrefix("target=plansubject:")
-          subject.contains(":") || subject.matches(".*[a-h][1-8].*")
-        }
-      )
+    EvidenceObjectBinding.directProofSpecificObjectReady(frame.objectBindingSignatures)
 
   private def arbitrationManagedPrimaryFrame(frame: MoveJudgmentCauseFrame): Boolean =
     frame.role == MoveJudgmentCauseFrameRole.PrimaryCause &&
@@ -403,20 +378,13 @@ object MoveJudgmentCauseNarrativeProjection:
       role: String,
       proofRole: Option[RelativeCauseProofRole]
   ): Set[String] =
-    val prefix = s"$role="
-    objectSignatures(frame, proofRole).flatMap { signature =>
-      signature
-        .split("\\|")
-        .toList
-        .collect { case part if part.startsWith(prefix) => part.stripPrefix(prefix) }
-    }.toSet
+    EvidenceObjectBinding.objectTokens(frame.objectBindingSignatures, role, proofRole)
 
   private def objectSignatures(
       frame: MoveJudgmentCauseFrame,
       proofRole: Option[RelativeCauseProofRole]
   ): Set[String] =
-    val proofPart = proofRole.map(role => s"proof=$role")
-    frame.objectBindingSignatures.filter(signature => proofPart.forall(signature.contains)).toSet
+    EvidenceObjectBinding.signaturesForProofRole(frame.objectBindingSignatures, proofRole)
 
   private def witnessBindingRank(level: MoveJudgmentCauseWitnessBindingLevel): Int =
     level match
@@ -452,4 +420,3 @@ object MoveJudgmentCauseNarrativeProjection:
 
   private def comparisonFrameKey(frame: MoveJudgmentCauseFrame): (CandidateComparisonKind, LineNodeRef, LineNodeRef) =
     (frame.comparisonKind, frame.referenceLine, frame.candidateLine)
-
