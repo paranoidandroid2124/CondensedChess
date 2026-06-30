@@ -3234,6 +3234,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(view.moveMeaningClaims.map(_.supportLevel), List("owned_cause_linked"))
     assertEquals(view.moveMeaningClaims.map(_.surfaceLane), List("reference_or_opponent_resource"))
     assert(!view.moveMeaningClaims.exists(claim => claim.moveUci == candidateLine.rootMove && claim.supportLevel == "owned_cause_linked"))
+    assert(view.moveMeaningClaims.exists(_.reasonTokens.contains("comparisonLossSide:candidate")))
+    assert(view.moveMeaningClaims.exists(_.reasonTokens.contains("comparisonLoss:break_option_missed")))
 
     val surface = MoveMeaningSurface.from(view)
     assertEquals(surface.map(_.subject), List("reference_move"))
@@ -3241,7 +3243,111 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(surface.map(_.priority), List("alternative"))
     assertEquals(surface.flatMap(_.failureFamily), Nil)
     assertEquals(surface.flatMap(_.problem), Nil)
+    assertEquals(surface.flatMap(_.comparisonLossSides), List("candidate"))
+    assertEquals(surface.flatMap(_.comparisonLosses), List("break_option_missed"))
     assertEquals(surface.flatMap(_.target.files), List("e"))
+
+  test("move meaning comparison loss tokens require a distinct compared move"):
+    val sameRootReferenceLine = lineRef("same-best", candidateLine.rootMove, 1, LineNodeRole.BestReference)
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+      axisKey = Some("PawnBreak:Support:same-root-break"),
+      axisKind = Some(StrategicAxisKind.PawnBreak),
+      axisPolarity = Some(StrategicAxisPolarity.Support),
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.ReferenceOnly),
+      breakFile = Some("e"),
+      tensionPolicy = Some("maintain"),
+      tensionSquares = List("e3", "d4"),
+      candidateEvidenceIds = List("structural-delta:played:e2e3:tension"),
+      referenceEvidenceIds = List("structural-delta:reference:e2e3:tension"),
+      sourceEvidenceIds = List("structural-delta:played:e2e3:tension", "structural-delta:reference:e2e3:tension"),
+      proofRoles = List(RelativeCauseProofRole.ContrastProof),
+      objectBindingSignatures = List("actor=Move:e2e3|target=File:e|mechanism=Mechanism:pawn-break|proof=ContrastProof"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.ExactObjectAxis
+    )
+    val base =
+      MoveJudgmentView(
+        verdict = Some(
+          MoveJudgmentVerdictFrame(
+            verdict = MoveChoiceVerdict.MatchesReference,
+            winPercentLossForMover = 0.0,
+            candidateWinPercentDeltaForMover = 0.0,
+            relativeAssessmentEvidenceId = "relative-assessment",
+            verdictCertificationEvidenceId = None,
+            comparisonKind = CandidateComparisonKind.PlayedVsBest,
+            referenceLine = sameRootReferenceLine,
+            candidateLine = candidateLine
+          )
+        ),
+        verdictCarriers = Nil,
+        causeAudit = MoveJudgmentCauseAudit(),
+        positionPlanTechniqueFrames = List(meaningClaimPlanTechniqueFrame(List(detail))),
+        supportContextClusterIds = Nil,
+        overriddenLocalIdeas = Nil,
+        preservedLocalIdeas = Nil
+      )
+    val view = meaningClaimViewWithClaims(base)
+
+    assert(view.moveMeaningClaims.nonEmpty)
+    assert(!view.moveMeaningClaims.exists(_.reasonTokens.exists(_.startsWith("comparisonLoss:"))))
+    assert(!view.moveMeaningClaims.exists(_.reasonTokens.exists(_.startsWith("comparisonLossSide:"))))
+    assertEquals(MoveMeaningSurface.from(view).flatMap(_.comparisonLosses), Nil)
+
+  test("position plan comparison loss kinds map concrete chess carriers"):
+    val pawnRelease = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.TensionBreakPolicyRoute,
+      axisKind = Some(StrategicAxisKind.PawnBreak),
+      axisPolarity = Some(StrategicAxisPolarity.Release),
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.ReferenceStronger),
+      breakFile = Some("d"),
+      tensionEdges = List("d4-e5")
+    )
+    val candidateRelease = pawnRelease.copy(contrastOutcome = Some(StrategicAxisComparisonOutcome.CandidateConcession))
+    val counterRace = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.CounterplayRace,
+      axisKind = Some(StrategicAxisKind.Counterplay),
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.ReferenceStronger),
+      breakFile = Some("e"),
+      counterBreakFiles = List("c"),
+      resourceContestFiles = List("c")
+    )
+    val genericCounterRace =
+      counterRace.copy(breakFile = None, counterBreakFiles = Nil, resourceContestFiles = List("c"))
+    val outpostRoute = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.PieceRerouteRoute,
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.ReferenceStronger),
+      structuralPurposeSubjects = List("outpost:knight:d5")
+    )
+    val diagonalPressure = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.PieceRerouteRoute,
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.ReferenceStronger),
+      objectBindingSignatures = List(
+        "actor=Piece:bishop|target=Square:h6|mechanism=Mechanism:bishop-long-diagonal|consequence=Consequence:diagonalpressure"
+      )
+    )
+    val slowOrder = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.PlanOptionSet,
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.ReferenceStronger),
+      planAlignmentReasonCodes = List("move-order-too-slow")
+    )
+    val tempoOnly = slowOrder.copy(planAlignmentReasonCodes = List("tempo-lag"))
+    val pawnBreakWithTargetContext =
+      pawnRelease.copy(
+        axisPolarity = Some(StrategicAxisPolarity.Support),
+        structuralRouteMove = Some("e6e5"),
+        structuralPurposeSubjects = List("weak-pawn:d4", "weak-square:d4")
+      )
+
+    assertEquals(PositionPlanTechniqueSemanticDetail.comparisonLossSides(pawnRelease), List("reference"))
+    assertEquals(PositionPlanTechniqueSemanticDetail.comparisonLossSides(candidateRelease), List("candidate"))
+    assert(PositionPlanTechniqueSemanticDetail.comparisonLossKinds(pawnRelease).contains("tension_released_early"))
+    assertEquals(PositionPlanTechniqueSemanticDetail.comparisonLossKinds(pawnBreakWithTargetContext), List("break_option_missed"))
+    assert(PositionPlanTechniqueSemanticDetail.comparisonLossKinds(counterRace).contains("counter_break_allowed"))
+    assert(!PositionPlanTechniqueSemanticDetail.comparisonLossKinds(genericCounterRace).contains("counter_break_allowed"))
+    assert(PositionPlanTechniqueSemanticDetail.comparisonLossKinds(outpostRoute).contains("outpost_route_missed"))
+    assert(PositionPlanTechniqueSemanticDetail.comparisonLossKinds(diagonalPressure).contains("diagonal_pressure_lost"))
+    assert(PositionPlanTechniqueSemanticDetail.comparisonLossKinds(slowOrder).contains("move_order_too_slow"))
+    assert(!PositionPlanTechniqueSemanticDetail.comparisonLossKinds(tempoOnly).contains("move_order_too_slow"))
 
   test("move meaning public surface normalizes pawn target signatures"):
     val cause = causeFrame(

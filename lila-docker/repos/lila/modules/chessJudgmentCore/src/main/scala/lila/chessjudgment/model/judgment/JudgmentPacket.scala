@@ -1748,7 +1748,9 @@ case class MoveMeaningSurface(
     failureFamily: Option[String],
     problem: Option[String],
     target: MoveMeaningSurfaceTarget,
-    priority: String
+    priority: String,
+    comparisonLossSides: List[String] = Nil,
+    comparisonLosses: List[String] = Nil
 )
 
 object MoveMeaningSurface:
@@ -1778,7 +1780,9 @@ object MoveMeaningSurface:
       failureFamily = Option.when(badPlayedMove)(failureFamily(claim)).flatten,
       problem = Option.when(badPlayedMove)(problem(claim)).flatten,
       target = MoveMeaningSurfaceTarget.fromClaim(claim),
-      priority = priority(claim, claimSubject)
+      priority = priority(claim, claimSubject),
+      comparisonLossSides = comparisonLossSides(claim),
+      comparisonLosses = comparisonLosses(claim)
     )
 
   private def subject(claim: MoveMeaningClaim): String =
@@ -1913,6 +1917,24 @@ object MoveMeaningSurface:
     else if claim.causeKinds.contains(RelativeCauseKind.KingSafetyConcession) then Some("king_safety")
     else if claim.causeKinds.contains(RelativeCauseKind.ConversionMiss) then Some("missed_conversion")
     else None
+
+  private def comparisonLosses(claim: MoveMeaningClaim): List[String] =
+    claim.reasonTokens
+      .collect {
+        case token if token.startsWith("comparisonLoss:") =>
+          token.stripPrefix("comparisonLoss:")
+      }
+      .distinct
+      .sorted
+
+  private def comparisonLossSides(claim: MoveMeaningClaim): List[String] =
+    claim.reasonTokens
+      .collect {
+        case token if token.startsWith("comparisonLossSide:") =>
+          token.stripPrefix("comparisonLossSide:")
+      }
+      .distinct
+      .sorted
 
   private def hasPublicDetailSignal(claim: MoveMeaningClaim, value: String): Boolean =
     val needle = value.toLowerCase
@@ -2171,7 +2193,7 @@ object MoveMeaningClaim:
         supportLevel = support,
         visibility = visibility(support),
         surfaceLane =
-          surfaceLane(surfaceMeaningKind, detail, verdict, claimLineRole, claimMove, frame.position.fen, support, roleCompatibleCauseFrames),
+          surfaceLane(surfaceMeaningKind, detail, verdict, claimLineRole, claimMove, frame.position.fen, support, roleCompatibleCauseFrames, surfaceClaimRole),
         lineRole = claimLineRole,
         moveUci = moveUci(verdict, claimLineRole),
         frameId = frame.id,
@@ -2185,7 +2207,7 @@ object MoveMeaningClaim:
         causeEvidenceIds = linkedCauseIds,
         sourceEvidenceIds = detail.sourceEvidenceIds.distinct.sorted,
         objectBindingSignatures = surfaceObjectSignatures,
-        reasonTokens = reasonTokens(detail, surfaceObjectSignatures, linkedCauseIds),
+        reasonTokens = reasonTokens(detail, surfaceObjectSignatures, linkedCauseIds, verdict),
         targetSquares = surfaceTarget.squares,
         targetFiles = surfaceTarget.files,
         targetPieces = surfaceTarget.pieces
@@ -3756,7 +3778,8 @@ object MoveMeaningClaim:
       claimMove: String,
       positionFen: String,
       supportLevel: String,
-      linkedCauseFrames: List[MoveJudgmentCauseFrame]
+      linkedCauseFrames: List[MoveJudgmentCauseFrame],
+      claimRole: String
   ): String =
     val candidateMove = JudgmentSubjectBinding.normalizeMove(verdict.candidateLine.rootMove)
     val referenceMove = JudgmentSubjectBinding.normalizeMove(verdict.referenceLine.rootMove)
@@ -3773,11 +3796,20 @@ object MoveMeaningClaim:
         !currentMove
     val currentMoveSurfaceReadyForLane =
       currentMoveSurfaceReady(meaningKind, detail, detail.objectBindingSignatures, claimMove, positionFen, currentMove)
+    val referenceLedPositiveCandidateWitness =
+      currentMove &&
+        claimLineRole == "candidate" &&
+        PositionPlanTechniqueSemanticDetail.comparisonLossSides(detail).contains("candidate") &&
+        positiveMeaningRole(claimRole)
     if referenceMoveOnly || (referenceOwnedCause && !candidateOwnedCause) || referenceDetailOnly then
       "reference_or_opponent_resource"
-    else if supportLevel == "owned_cause_linked" && currentMove && candidateOwnedCause && currentMoveSurfaceReadyForLane then
+    else if supportLevel == "owned_cause_linked" && currentMove && candidateOwnedCause && currentMoveSurfaceReadyForLane &&
+        !referenceLedPositiveCandidateWitness
+    then
       "current_move_owned"
-    else if supportLevel == "view_surfaced" && currentMove && claimLineRole == "candidate" && currentMoveSurfaceReadyForLane then
+    else if supportLevel == "view_surfaced" && currentMove && claimLineRole == "candidate" && currentMoveSurfaceReadyForLane &&
+        !referenceLedPositiveCandidateWitness
+    then
       "current_move_function"
     else if supportLevel == "contextual" || contextualMeaningDetail(detail) then
       "inherited_context"
@@ -3789,8 +3821,20 @@ object MoveMeaningClaim:
   private def reasonTokens(
       detail: PositionPlanTechniqueSemanticDetail,
       objectSignatures: List[String],
-      linkedCauseIds: List[String]
+      linkedCauseIds: List[String],
+      verdict: MoveJudgmentVerdictFrame
   ): List[String] =
+    val comparisonLossTokens =
+      if distinctCandidateReferenceMoves(verdict) then
+        val sides =
+          PositionPlanTechniqueSemanticDetail
+            .comparisonLossSides(detail)
+            .filter(side => side == "candidate" || !lossVerdict(verdict.verdict))
+        if sides.nonEmpty then
+          sides.map(value => s"comparisonLossSide:$value") ++
+            PositionPlanTechniqueSemanticDetail.comparisonLossKinds(detail).map(value => s"comparisonLoss:$value")
+        else Nil
+      else Nil
     val raceReasonTokens =
       if detail.unit == PositionPlanTechniqueUnit.CounterplayRace then
         List(
@@ -3843,8 +3887,19 @@ object MoveMeaningClaim:
         linkedCauseIds.map(value => s"causeEvidenceId:$value") ++
         detail.proofRoles.map(value => s"proofRole:$value") ++
         detail.contextProofRoles.map(value => s"contextProofRole:$value") ++
+        comparisonLossTokens ++
         objectSignatures.take(5).map(value => s"objectBinding:$value")
     ).distinct.sorted
+
+  private def distinctCandidateReferenceMoves(verdict: MoveJudgmentVerdictFrame): Boolean =
+    JudgmentSubjectBinding.normalizeMove(verdict.candidateLine.rootMove) !=
+      JudgmentSubjectBinding.normalizeMove(verdict.referenceLine.rootMove)
+
+  private def lossVerdict(verdict: MoveChoiceVerdict): Boolean =
+    verdict == MoveChoiceVerdict.PlayableLoss ||
+      verdict == MoveChoiceVerdict.Inaccuracy ||
+      verdict == MoveChoiceVerdict.Mistake ||
+      verdict == MoveChoiceVerdict.Blunder
 
   private def sortKey(claim: MoveMeaningClaim): (Int, Int, Int, Int, String) =
     (
