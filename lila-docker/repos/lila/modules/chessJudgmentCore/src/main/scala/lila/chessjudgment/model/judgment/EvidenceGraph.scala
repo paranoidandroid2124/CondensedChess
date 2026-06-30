@@ -211,6 +211,14 @@ object EvidenceObjectBinding:
   private[chessjudgment] def directProofSpecificTargetReady(signatures: Iterable[String]): Boolean =
     signaturesForProofRole(signatures, Some(RelativeCauseProofRole.DirectProof)).exists(specificTargetSurfaceReadySignature)
 
+  private[chessjudgment] def playerFacingReadySignatures(signatures: Iterable[String]): Boolean =
+    signatures.exists(playerFacingReadySignature)
+
+  private def playerFacingReadySignature(signature: String): Boolean =
+    surfaceReadyObjectSignature(signature) &&
+      signatureParts(signature).exists(specificSurfaceTargetPart) &&
+      !signatureParts(signature).contains("proof=ContextSupport")
+
   private def specificTargetSurfaceReadySignature(signature: String): Boolean =
     val parts = signatureParts(signature)
     parts.exists(specificSurfaceTargetPart) &&

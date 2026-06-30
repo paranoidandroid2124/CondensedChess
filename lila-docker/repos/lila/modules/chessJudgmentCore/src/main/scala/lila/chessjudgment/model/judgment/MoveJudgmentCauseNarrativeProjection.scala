@@ -257,6 +257,8 @@ object MoveJudgmentCauseNarrativeProjection:
       kind == RelativeCauseKind.TargetPressureRelease ||
       kind == RelativeCauseKind.PawnBreakOpportunity ||
       kind == RelativeCauseKind.PawnWeaknessTarget ||
+      kind == RelativeCauseKind.CenterControlGain ||
+      kind == RelativeCauseKind.StructuralImprovement ||
       kind == RelativeCauseKind.OpponentRestriction ||
       kind == RelativeCauseKind.KingSafetyConcession ||
       fallbackRootKind(kind)
@@ -304,15 +306,19 @@ object MoveJudgmentCauseNarrativeProjection:
     val witnessSignatures = witness.objectBindingSignatures.toSet
     val rootDirectSignatures = objectSignatures(root, Some(RelativeCauseProofRole.DirectProof))
     val witnessDirectSignatures = objectSignatures(witness, Some(RelativeCauseProofRole.DirectProof))
-    val sharedExact = rootSignatures.intersect(witnessSignatures).nonEmpty
-    val sharedActor = sharedObjectToken(root, witness, "actor")
-    val sharedTarget = sharedObjectToken(root, witness, "target")
+    val sharedExactSignatures = rootSignatures.intersect(witnessSignatures)
+    val sharedDirectExactSignatures = rootDirectSignatures.intersect(witnessDirectSignatures)
+    val sharedExact = sharedExactSignatures.nonEmpty
+    val sharedSurfaceExact = EvidenceObjectBinding.playerFacingReadySignatures(sharedExactSignatures)
+    val sharedActor = sharedSpecificActorToken(root, witness)
+    val sharedTarget = sharedConcreteTargetToken(root, witness)
     val sharedMechanism = sharedObjectToken(root, witness, "mechanism")
     val sharedConsequence = sharedObjectToken(root, witness, "consequence")
     val sharedWitness = sharedObjectToken(root, witness, "witness")
-    val sharedDirectExact = rootDirectSignatures.intersect(witnessDirectSignatures).nonEmpty
-    val sharedDirectActor = sharedObjectToken(root, witness, "actor", Some(RelativeCauseProofRole.DirectProof))
-    val sharedDirectTarget = sharedObjectToken(root, witness, "target", Some(RelativeCauseProofRole.DirectProof))
+    val sharedDirectExact = sharedDirectExactSignatures.nonEmpty
+    val sharedDirectSurfaceExact = EvidenceObjectBinding.directProofSpecificTargetReady(sharedDirectExactSignatures)
+    val sharedDirectActor = sharedSpecificActorToken(root, witness, Some(RelativeCauseProofRole.DirectProof))
+    val sharedDirectTarget = sharedConcreteTargetToken(root, witness, Some(RelativeCauseProofRole.DirectProof))
     val sharedDirectMechanism = sharedObjectToken(root, witness, "mechanism", Some(RelativeCauseProofRole.DirectProof))
     val sharedDirectConsequence = sharedObjectToken(root, witness, "consequence", Some(RelativeCauseProofRole.DirectProof))
     val sameEvent = root.eventLine == witness.eventLine
@@ -336,8 +342,8 @@ object MoveJudgmentCauseNarrativeProjection:
       ).flatten.distinct.sortBy(_.toString)
     TacticalWitnessBinding(
       level = witnessBindingLevel(
-        objectBound = sharedExact || sharedActor || sharedTarget,
-        directObjectBound = sharedDirectExact || sharedDirectActor || sharedDirectTarget,
+        objectBound = sharedSurfaceExact || sharedActor || sharedTarget,
+        directObjectBound = sharedDirectSurfaceExact || sharedDirectActor || sharedDirectTarget,
         mechanismBound = sharedMechanism,
         consequenceBound = sharedConsequence,
         directMechanismBound = sharedDirectMechanism,
@@ -375,6 +381,35 @@ object MoveJudgmentCauseNarrativeProjection:
       proofRole: Option[RelativeCauseProofRole] = None
   ): Boolean =
     objectTokens(left, role, proofRole).intersect(objectTokens(right, role, proofRole)).nonEmpty
+
+  private def sharedSpecificActorToken(
+      left: MoveJudgmentCauseFrame,
+      right: MoveJudgmentCauseFrame,
+      proofRole: Option[RelativeCauseProofRole] = None
+  ): Boolean =
+    filteredObjectTokens(left, "actor", proofRole, EvidenceObjectBinding.specificActorToken)
+      .intersect(filteredObjectTokens(right, "actor", proofRole, EvidenceObjectBinding.specificActorToken))
+      .nonEmpty
+
+  private def sharedConcreteTargetToken(
+      left: MoveJudgmentCauseFrame,
+      right: MoveJudgmentCauseFrame,
+      proofRole: Option[RelativeCauseProofRole] = None
+  ): Boolean =
+    filteredObjectTokens(left, "target", proofRole, EvidenceObjectBinding.concreteTargetToken)
+      .intersect(filteredObjectTokens(right, "target", proofRole, EvidenceObjectBinding.concreteTargetToken))
+      .nonEmpty
+
+  private def filteredObjectTokens(
+      frame: MoveJudgmentCauseFrame,
+      role: String,
+      proofRole: Option[RelativeCauseProofRole],
+      keep: String => Boolean
+  ): Set[String] =
+    val prefix = s"$role="
+    EvidenceObjectBinding
+      .signatureTokens(EvidenceObjectBinding.signaturesForProofRole(frame.objectBindingSignatures, proofRole).toList, prefix)
+      .filter(keep)
 
   private def objectTokens(
       frame: MoveJudgmentCauseFrame,

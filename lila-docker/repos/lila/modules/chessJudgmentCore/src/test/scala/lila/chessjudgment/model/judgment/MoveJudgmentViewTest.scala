@@ -2081,7 +2081,8 @@ class MoveJudgmentViewTest extends munit.FunSuite:
     val consequence = TransitionConsequence(
       kind = TransitionConsequenceKind.CenterControlGain,
       polarity = StructuralSignalPolarity.Gain,
-      strength = 2
+      strength = 2,
+      subjects = List("d4")
     )
     val structuralCause = RelativeCauseFact(
       kind = RelativeCauseKind.StructuralImprovement,
@@ -2781,6 +2782,114 @@ class MoveJudgmentViewTest extends munit.FunSuite:
     assertEquals(view.causeAudit.primary, Nil)
     assertEquals(activityFrame.rootArbitrationTier, MoveJudgmentCauseRootArbitrationTier.BroadOwnedRoot)
     assertEquals(activityFrame.narrativeRole, MoveJudgmentCauseNarrativeRole.SupportingCause)
+
+  test("cluster frames do not mark actor-only proof bindings as concrete object ready"):
+    val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val afterPlayed = PositionNodeRef("8/8/8/8/3P4/8/8/8 b - - 0 1", 2, Some(Color.Black), Some("after-played"))
+    val playedLine = LineNodeRef("played-line", "d2d4", 2, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "g1f3", 1, LineNodeRole.BestReference)
+    val structuralRef = evidenceRef(
+      id = "structural-delta:played:d2d4:actor-only",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition
+    )
+    val causeRef = evidenceRef(
+      id = "relative-cause:played-best:tactical:actor-only-proof",
+      producer = EvidenceProducer.RelativeMoveProducer,
+      layer = EvidenceLayer.RelativeCause,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.Counterfactual
+    )
+    val transition = StructuralTransitionBinding(
+      moveUci = "d2d4",
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = afterPlayed,
+      line = Some(playedLine),
+      perspective = Color.White
+    )
+    val consequence = TransitionConsequence(
+      kind = TransitionConsequenceKind.CenterControlGain,
+      polarity = StructuralSignalPolarity.Gain,
+      strength = 2
+    )
+    val cause = RelativeCauseFact(
+      kind = RelativeCauseKind.TacticalRefutationOfPlayed,
+      comparisonKind = CandidateComparisonKind.PlayedVsBest,
+      referenceLine = referenceLine,
+      candidateLine = playedLine,
+      verdict = MoveChoiceVerdict.Mistake,
+      winPercentLossForMover = 8.0,
+      candidateWinPercentDeltaForMover = -8.0,
+      supportEvidence = List(structuralRef),
+      evidenceLines = List(playedLine),
+      role = RelativeCauseRole.PrimaryPlayedCause,
+      eventLine = playedLine,
+      sourceSide = RelativeCauseSourceSide.Candidate,
+      importance = RelativeCauseImportance.Primary,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.CandidateAllowsLiability,
+        ownedEvidence = List(structuralRef),
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(
+      proof = Some(
+        RelativeCauseProof(
+          directProof = RelativeCauseProofSection(
+            role = RelativeCauseProofRole.DirectProof,
+            strength = RelativeCauseProofStrength.Primary,
+            transitionConsequences = List(TransitionConsequenceProof(structuralRef, transition, consequence))
+          )
+        )
+      )
+    )
+    val graph = TypedEvidenceGraph(
+      List(
+        EvidenceRecord(
+          structuralRef,
+          StructuralDeltaEvidence(transition = transition, signals = Nil, consequences = List(consequence))
+        ),
+        EvidenceRecord(causeRef, RelativeCauseFactEvidence(cause), parents = List(structuralRef))
+      )
+    )
+    val claim = ClaimSeed(
+      id = "claim:tactical:actor-only-proof",
+      family = ClaimFamily.Tactical,
+      idea = None,
+      subject = IdeaSubject.PlayedMove,
+      primaryPosition = root,
+      primaryLine = Some(playedLine),
+      subjectMove = Some("d2d4"),
+      evidence = List(causeRef),
+      engineComparison = None,
+      scope = EvidenceScope.Counterfactual,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val clusters = ClaimEventCluster.fromClaims(List(claim), graph)
+    assertEquals(clusters.size, 1)
+    assert(clusters.head.objectBindingSignatures.nonEmpty, clusters.head.objectBindingSignatures)
+
+    val view = MoveJudgmentView
+      .from(
+        relativeAssessments = Nil,
+        evidenceGraph = graph,
+        ideas = Nil,
+        claims = List(claim),
+        claimLifecycle = Nil,
+        ideaVerdict = None,
+        claimSupportClusters = Nil,
+        claimEventClusters = clusters
+      )
+      .get
+    val clusterFrame = view.causeAudit.all.find(_.clusterId.contains(clusters.head.id)).get
+    assertEquals(clusterFrame.framed, true)
+    assertEquals(clusterFrame.objectBindingSignatures.nonEmpty, true)
+    assertEquals(clusterFrame.concreteObjectReady, false)
 
   test("keeps unbound recapture label below tactical event root when plan fallback is suppressed"):
     val root = PositionNodeRef("8/8/8/8/8/8/3P4/8 w - - 0 1", 1, Some(Color.White), Some("root"))

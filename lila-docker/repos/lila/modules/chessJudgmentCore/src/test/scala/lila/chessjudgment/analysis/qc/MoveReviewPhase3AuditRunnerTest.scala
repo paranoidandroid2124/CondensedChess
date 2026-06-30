@@ -1880,6 +1880,8 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
 
     assertEquals((audit \ "sideOnlyTargetFrameCount").as[Int], 1)
     assertEquals((audit \ "contextSupportOnlyBindingFrameCount").as[Int], 1)
+    assertEquals((audit \ "playerFacingObjectReadyFrameCount").as[Int], 1)
+    assertEquals((audit \ "weakConcreteReadyFrameCount").as[Int], 2)
     assertEquals((audit \ "axisWithMultipleObjectFingerprintsCount").as[Int], 1)
     assertEquals((audit \ "sameComparisonOnlyBindingFrameCount").as[Int], 1)
     assertEquals((audit \ "witnessBindingLevelCounts" \ "SameComparisonOnly").as[Int], 1)

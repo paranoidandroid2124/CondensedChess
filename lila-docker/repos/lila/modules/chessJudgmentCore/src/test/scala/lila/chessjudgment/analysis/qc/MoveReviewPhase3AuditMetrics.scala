@@ -77,6 +77,13 @@ private[qc] object MoveReviewPhase3AuditMetrics:
         frame.objectBindingSignatures.nonEmpty &&
           frame.objectBindingSignatures.forall(signature => signatureParts(signature).contains("proof=ContextSupport"))
       )
+    val playerFacingObjectReadyFrames =
+      frames.filter(frame => EvidenceObjectBinding.playerFacingReadySignatures(frame.objectBindingSignatures))
+    val weakConcreteReadyFrames =
+      frames.filter(frame =>
+        frame.concreteObjectReady &&
+          !EvidenceObjectBinding.playerFacingReadySignatures(frame.objectBindingSignatures)
+      )
     val axisObjectFingerprints =
       frames.flatMap(frame =>
         val fingerprints = frame.objectBindingSignatures.map(objectFingerprint).filter(_.nonEmpty).distinct
@@ -100,6 +107,9 @@ private[qc] object MoveReviewPhase3AuditMetrics:
       "sideOnlyTargetFrameIds" -> sideOnlyTargetFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
       "contextSupportOnlyBindingFrameCount" -> contextSupportOnlyFrames.size,
       "contextSupportOnlyBindingFrameIds" -> contextSupportOnlyFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
+      "playerFacingObjectReadyFrameCount" -> playerFacingObjectReadyFrames.size,
+      "weakConcreteReadyFrameCount" -> weakConcreteReadyFrames.size,
+      "weakConcreteReadyFrameIds" -> weakConcreteReadyFrames.flatMap(_.causeEvidenceIds).distinct.sorted,
       "axisWithMultipleObjectFingerprintsCount" -> axisWithMultipleFingerprints.size,
       "axisWithMultipleObjectFingerprints" -> JsObject(
         axisWithMultipleFingerprints.toList.sortBy(_._1).map { case (axis, fingerprints) =>

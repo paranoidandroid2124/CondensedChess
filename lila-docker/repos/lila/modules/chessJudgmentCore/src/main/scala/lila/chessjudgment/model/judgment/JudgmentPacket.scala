@@ -4090,7 +4090,7 @@ object MoveJudgmentView:
       proofStrategicMechanismSignalSourceIds = strategicProof.signalSourceIds,
       supportEvidenceSourceIds = judgmentVisibleEvidenceIds(graph, cluster.causeProofs.flatMap(_.supportEvidenceSourceIds)),
       objectBindingSignatures = cluster.objectBindingSignatures,
-      concreteObjectReady = cluster.objectBindingSignatures.nonEmpty,
+      concreteObjectReady = EvidenceObjectBinding.playerFacingReadySignatures(cluster.objectBindingSignatures),
       hasOwnedTacticalProof = clusterHasOwnedTacticalProof(cluster),
       narrativeRole = MoveJudgmentCauseNarrativeProjection.defaultNarrativeRole(frameRoleFor(cluster.causeRole, cluster.comparisonKind, cluster.causeImportance, cluster.verdict))
     )
