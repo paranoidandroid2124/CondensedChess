@@ -1794,9 +1794,30 @@ object CandidateComparisonDiagnostic:
   private def positionPlanTechniqueStructuralSubjectTokens(subject: String): List[String] =
     val normalized = subject.toLowerCase
     val pieceRoute = """([a-z]+):([a-h][1-8])-([a-h][1-8]).*""".r
+    val outpost = """outpost:([a-z]+):([a-h][1-8]).*""".r
+    val weakSquare = """weak-square:([a-h][1-8]).*""".r
     val pieceRestriction = """([a-z]+):([a-h][1-8]):diagonal-denial:blocked-by:([a-h][1-8]).*""".r
     val battery = """battery:([a-z]+):([a-h][1-8])-([a-h][1-8])(?::([a-z-]+))?.*""".r
     normalized match
+      case outpost(piece, square) =>
+        List(
+          "piece",
+          s"piece:$piece",
+          piece,
+          s"structuralPurposeSubject:$piece",
+          "route",
+          "outpost",
+          s"targetSquare:$square",
+          s"objectTarget:Square:$square"
+        )
+      case weakSquare(square) =>
+        List(
+          "weak-square",
+          "target",
+          "routeTarget",
+          s"targetSquare:$square",
+          s"objectTarget:Square:$square"
+        )
       case pieceRoute(piece, from, to) =>
         val routeTokens =
           List(

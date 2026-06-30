@@ -1918,7 +1918,8 @@ object MoveMeaningSurface:
     tokens.exists(token =>
       val normalized = token.toLowerCase
       normalized.contains("battery:diagonal") ||
-        normalized.contains("mechanism=mechanism:battery-diagonal")
+        normalized.contains("mechanism=mechanism:battery-diagonal") ||
+        normalized.contains("mechanism=mechanism:bishop-long-diagonal")
     )
 
   private def surfaceSortKey(surface: MoveMeaningSurface): (Int, String, String) =
@@ -1986,8 +1987,7 @@ object MoveMeaningClaim:
           .filter(token =>
             token.startsWith("breakFile:") ||
               token.startsWith("tensionEdge:") ||
-              token.startsWith("tensionSquare:") ||
-              token.startsWith("counterBreakFile:")
+              token.startsWith("tensionSquare:")
           )
           .sorted
           .mkString("|")
@@ -2845,6 +2845,7 @@ object MoveMeaningClaim:
 
   private def counterplayRaceOrderProof(detail: PositionPlanTechniqueSemanticDetail): Boolean =
     counterplayRaceDynamicThreat(detail) ||
+      counterplayRacePawnBreakProof(detail) ||
       detail.raceLeadingLineRole.nonEmpty ||
       (detail.raceCandidateRootMove.nonEmpty && detail.raceReferenceRootMove.nonEmpty)
 
@@ -2875,8 +2876,7 @@ object MoveMeaningClaim:
       claimMove: String
   ): Boolean =
     if counterplayRacePawnBreakDetail(detail) then
-      counterplayRaceLineLeadOwnsClaimMove(detail, claimMove) &&
-        counterplayRacePawnBreakCarrierOwnsClaimMove(detail, claimMove)
+      counterplayRacePawnBreakCarrierOwnsClaimMove(detail, claimMove)
     else
       counterplayRaceLineLeadOwnsClaimMove(detail, claimMove) &&
         (
@@ -3253,7 +3253,8 @@ object MoveMeaningClaim:
     normalized.contains("actor=piece:") &&
       (
         normalized.contains("mechanism=mechanism:outpost") ||
-          normalized.contains("mechanism=mechanism:battery") ||
+        normalized.contains("mechanism=mechanism:battery") ||
+          normalized.contains("mechanism=mechanism:bishop-long-diagonal") ||
           normalized.contains("mechanism=mechanism:rerouting") ||
           normalized.contains("mechanism=mechanism:improvingscope") ||
           normalized.contains("mechanism=mechanism:maneuver") ||
@@ -3264,7 +3265,8 @@ object MoveMeaningClaim:
           normalized.contains("mechanism=mechanism:fileoccupation") ||
           normalized.contains("mechanism=mechanism:file-occupation") ||
           normalized.contains("consequence=consequence:outpost") ||
-          normalized.contains("consequence=consequence:batteryline")
+          normalized.contains("consequence=consequence:batteryline") ||
+          normalized.contains("consequence=consequence:diagonalpressure")
       )
 
   private def qualifiedRouteToken(token: String): Boolean =
@@ -3295,7 +3297,9 @@ object MoveMeaningClaim:
     val normalized = signature.toLowerCase
     normalized.contains("rerouting") ||
       normalized.contains("maneuver") ||
-      normalized.contains("battery")
+      normalized.contains("battery") ||
+      normalized.contains("bishop-long-diagonal") ||
+      normalized.contains("diagonalpressure")
 
   private def crossComparisonLineOwnsClaimMove(
       frame: MoveJudgmentCauseFrame,

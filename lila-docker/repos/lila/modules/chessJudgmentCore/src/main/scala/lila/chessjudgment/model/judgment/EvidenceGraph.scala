@@ -727,6 +727,7 @@ object EvidenceObjectBinding:
       .stripPrefix("created-tension:")
       .stripPrefix("resolved-tension:")
       .stripPrefix("break-file:")
+      .stripPrefix("weak-square:")
     StructuralPurposeSubject.parse(cleaned) match
       case Some(StructuralPurposeSubject.PieceRoute(role, _, to)) =>
         objectOf(EvidenceObjectKind.Piece, role) ++ objectOf(EvidenceObjectKind.Square, to)

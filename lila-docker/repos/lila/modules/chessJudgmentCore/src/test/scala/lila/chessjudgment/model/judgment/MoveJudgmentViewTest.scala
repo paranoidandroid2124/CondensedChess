@@ -1413,6 +1413,81 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       detail.objectBindingSignatures
     )
 
+  test("ordinary bishop development does not become main long-diagonal pressure"):
+    val root = PositionNodeRef("8/8/8/8/8/8/8/4KB2 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val afterPlayed = PositionNodeRef("8/8/8/1B6/8/8/8/4K3 b - - 1 1", 2, Some(Color.Black), Some("after-played"))
+    val playedLine = LineNodeRef("played-line", "f1b5", 1, LineNodeRole.Played)
+    val structuralRef = evidenceRef(
+      id = "structural-delta:played:f1b5:mobility",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition
+    )
+    val mechanismRef = evidenceRef(
+      id = "strategic-mechanism:activity:f1b5:mobility",
+      producer = EvidenceProducer.StrategicMechanismProducer,
+      layer = EvidenceLayer.StrategicMechanism,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition
+    )
+    val transition = StructuralTransitionBinding(
+      moveUci = "f1b5",
+      role = TransitionEdgeRole.Played,
+      from = root,
+      to = afterPlayed,
+      line = Some(playedLine),
+      perspective = Color.White
+    )
+    val structuralDelta = StructuralDeltaEvidence(
+      transition = transition,
+      signals = Nil,
+      consequences = List(
+        TransitionConsequence(
+          kind = TransitionConsequenceKind.MobilityGain,
+          polarity = StructuralSignalPolarity.Gain,
+          strength = 4,
+          subjects = List("bishop:f1-b5:mobility+4")
+        )
+      )
+    )
+    val axis = StrategicAxisDetail(StrategicAxisKind.Activity, StrategicAxisPolarity.Gain, "activity-gain")
+    val mechanism = StrategicMechanismEvidence(
+      kind = StrategicMechanismKind.Activity,
+      signals = List(
+        StrategicMechanismSignal(
+          kind = StrategicMechanismSignalKind.StructuralDelta,
+          label = "activity-gain",
+          source = structuralRef,
+          strength = 4,
+          axis = Some(axis)
+        )
+      ),
+      semanticAnchors = Nil
+    )
+
+    val frame = PositionPlanTechniqueProjection
+      .frames(
+        TypedEvidenceGraph(
+          List(
+            EvidenceRecord(structuralRef, structuralDelta),
+            EvidenceRecord(mechanismRef, mechanism, parents = List(structuralRef))
+          )
+        ),
+        Nil,
+        Nil,
+        None
+      )
+      .head
+    val detail = frame.semanticDetails.find(_.unit == PositionPlanTechniqueUnit.PieceRerouteRoute).get
+
+    assertEquals(detail.structuralPurposeSubjects, List("bishop:f1-b5:mobility+4"))
+    assert(detail.objectBindingSignatures.exists(_.contains("actor=Piece:bishop")), detail.objectBindingSignatures)
+    assert(!detail.objectBindingSignatures.exists(_.contains("mechanism=Mechanism:bishop-long-diagonal")), detail.objectBindingSignatures)
+    assert(!detail.objectBindingSignatures.exists(_.contains("consequence=Consequence:diagonalpressure")), detail.objectBindingSignatures)
+
   test("decodes counterplay race line lead from strategic contrast"):
     val root = PositionNodeRef("8/8/8/8/8/8/4P3/4K3 w - - 0 1", 1, Some(Color.White), Some("root"))
     val referenceLine = LineNodeRef("reference-line", "b2b4", 1, LineNodeRole.BestReference)

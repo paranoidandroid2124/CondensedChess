@@ -697,6 +697,8 @@ object PositionPlanTechniqueProjection:
       detail.structuralPurposeSubjects.flatMap { subject =>
         StructuralPurposeSubject.parse(subject) match
           case Some(StructuralPurposeSubject.PieceRoute(piece, from, to)) =>
+            val longDiagonal =
+              positionPlanTechniqueLongDiagonalBishopRoute(piece, from, to)
             List(
               (
                 detail.structuralRouteMove.map(move => s"actor=Move:${move.toLowerCase}") ::
@@ -705,7 +707,9 @@ object PositionPlanTechniqueProjection:
                     Some(s"actor=Square:${from.toLowerCase}"),
                     Some(s"target=Square:${to.toLowerCase}"),
                     Some("mechanism=Mechanism:developmentchoice"),
-                    Some("consequence=Consequence:developmentpieceactivated")
+                    Option.when(longDiagonal)("mechanism=Mechanism:bishop-long-diagonal"),
+                    Some("consequence=Consequence:developmentpieceactivated"),
+                    Option.when(longDiagonal)("consequence=Consequence:diagonalpressure")
                   )
               ).flatten.mkString("|")
             )
@@ -737,6 +741,31 @@ object PositionPlanTechniqueProjection:
           case _ =>
             Nil
       }.distinct.sorted
+
+  private def positionPlanTechniqueLongDiagonalBishopRoute(piece: String, from: String, to: String): Boolean =
+    piece.equalsIgnoreCase("bishop") &&
+      positionPlanTechniqueDiagonalDistance(from, to).exists(_ >= 3) &&
+      positionPlanTechniqueMainLongDiagonal(from) &&
+      positionPlanTechniqueMainLongDiagonal(to)
+
+  private def positionPlanTechniqueDiagonalDistance(from: String, to: String): Option[Int] =
+    for
+      fromFile <- from.headOption.map(_.toLower - 'a')
+      fromRank <- from.drop(1).headOption.map(_ - '1')
+      toFile <- to.headOption.map(_.toLower - 'a')
+      toRank <- to.drop(1).headOption.map(_ - '1')
+      fileDistance = (toFile - fromFile).abs
+      rankDistance = (toRank - fromRank).abs
+      if fileDistance == rankDistance && fileDistance > 0
+    yield fileDistance
+
+  private def positionPlanTechniqueMainLongDiagonal(square: String): Boolean =
+    (
+      for
+        file <- square.headOption.map(_.toLower - 'a')
+        rank <- square.drop(1).headOption.map(_ - '1')
+      yield file == rank || file + rank == 7
+    ).contains(true)
 
   private def positionPlanTechniquePawnBreakObjectSignatures(
       detail: PositionPlanTechniqueSemanticDetail
@@ -834,6 +863,7 @@ object PositionPlanTechniqueProjection:
       kind: RelativeCauseKind
   ): Boolean =
     detail.axisKind.exists(axisKind => positionPlanTechniqueCauseKindsForAxis(axisKind, detail.label).contains(kind)) ||
+      positionPlanTechniqueConcreteCounterplayRaceCauseKind(detail, kind) ||
       positionPlanTechniqueConcreteRoutePlanCauseKind(detail, kind) ||
       positionPlanTechniqueConcreteStructuralPlanCauseKind(detail, kind)
 
@@ -855,6 +885,20 @@ object PositionPlanTechniqueProjection:
       detail.axisKind.contains(StrategicAxisKind.Activity) &&
       positionPlanTechniqueConcretePieceRoute(detail) &&
       Set(RelativeCauseKind.PlanImprovement, RelativeCauseKind.PlanContradiction).contains(kind)
+
+  private def positionPlanTechniqueConcreteCounterplayRaceCauseKind(
+      detail: PositionPlanTechniqueSemanticDetail,
+      kind: RelativeCauseKind
+  ): Boolean =
+    detail.unit == PositionPlanTechniqueUnit.CounterplayRace &&
+      detail.axisKind.contains(StrategicAxisKind.Counterplay) &&
+      positionPlanTechniqueCounterplayRaceProof(detail) &&
+      (
+        detail.resourceContestSquares.nonEmpty ||
+          detail.resourceContestFiles.nonEmpty ||
+          detail.structuralPurposeSubjects.exists(positionPlanTechniqueConcreteSubject)
+      ) &&
+      kind == RelativeCauseKind.StructuralImprovement
 
   private def positionPlanTechniqueConcretePieceRoute(
       detail: PositionPlanTechniqueSemanticDetail
@@ -1649,7 +1693,10 @@ object PositionPlanTechniqueProjection:
             detail.threatKind.nonEmpty
         )
     ) ||
-      (detail.unit == PositionPlanTechniqueUnit.CounterplayRace && detail.threatKind.nonEmpty)
+      (
+        detail.unit == PositionPlanTechniqueUnit.CounterplayRace &&
+          (detail.threatKind.nonEmpty || positionPlanTechniqueCounterplayRaceProof(detail))
+      )
 
   private def positionPlanTechniqueResourceContestMatchesDetail(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -1677,7 +1724,11 @@ object PositionPlanTechniqueProjection:
       detail.unit == PositionPlanTechniqueUnit.TensionBreakPolicyRoute ||
         detail.unit == PositionPlanTechniqueUnit.StructuralTransformation ||
         detail.unit == PositionPlanTechniqueUnit.PieceRerouteRoute ||
-        detail.unit == PositionPlanTechniqueUnit.SpacePreventionResourceDenial
+        detail.unit == PositionPlanTechniqueUnit.SpacePreventionResourceDenial ||
+        (
+          detail.unit == PositionPlanTechniqueUnit.CounterplayRace &&
+            positionPlanTechniqueCounterplayRaceProof(detail)
+        )
     )) ||
       (detail.axisKey.isEmpty &&
         detail.unit == PositionPlanTechniqueUnit.StructuralTransformation &&
@@ -1706,6 +1757,25 @@ object PositionPlanTechniqueProjection:
   private def positionPlanTechniqueStructuralPurposeAnchor(detail: PositionPlanTechniqueSemanticDetail): Boolean =
     detail.semanticAnchorKeys.exists(_.startsWith("StructuralDelta:")) ||
       detail.sourceEvidenceIds.exists(_.toLowerCase.contains("structural-delta"))
+
+  private def positionPlanTechniqueCounterplayRaceProof(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detail.unit == PositionPlanTechniqueUnit.CounterplayRace &&
+      (
+        detail.raceLeadingLineRole.nonEmpty ||
+          (detail.raceCandidateRootMove.nonEmpty && detail.raceReferenceRootMove.nonEmpty) ||
+          positionPlanTechniqueCounterplayPawnBreakRace(detail)
+      )
+
+  private def positionPlanTechniqueCounterplayPawnBreakRace(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detail.breakFile.exists(_.trim.nonEmpty) &&
+      detail.counterBreakFiles.exists(_.trim.nonEmpty) &&
+      detail.semanticAnchorKeys.exists(_.startsWith("CounterplayRace:PawnBreak:"))
+
+  private def positionPlanTechniqueConcreteSubject(subject: String): Boolean =
+    val normalized = subject.toLowerCase
+    normalized.matches(".*[a-h][1-8].*") ||
+      normalized.contains("file") ||
+      normalized.contains("diagonal")
 
   private def positionPlanTechniqueWithStructuralMotifs(
       detail: PositionPlanTechniqueSemanticDetail
@@ -1975,7 +2045,32 @@ object PositionPlanTechniqueProjection:
   private def positionPlanTechniqueWithPawnBreakRaceDetails(
       details: List[PositionPlanTechniqueSemanticDetail]
   ): List[PositionPlanTechniqueSemanticDetail] =
-    details ++ details.flatMap(positionPlanTechniquePawnBreakRaceDetail)
+    val breakFiles =
+      details
+        .filter(positionPlanTechniquePawnBreakRaceSiblingCandidate)
+        .flatMap(_.breakFile.map(positionPlanTechniqueRaceToken))
+        .filter(_.nonEmpty)
+        .distinct
+        .sorted
+    val enrichedDetails =
+      details.map(positionPlanTechniqueWithSiblingCounterBreakFiles(_, breakFiles))
+    enrichedDetails ++ enrichedDetails.flatMap(positionPlanTechniquePawnBreakRaceDetail)
+
+  private def positionPlanTechniqueWithSiblingCounterBreakFiles(
+      detail: PositionPlanTechniqueSemanticDetail,
+      breakFiles: List[String]
+  ): PositionPlanTechniqueSemanticDetail =
+    if detail.unit != PositionPlanTechniqueUnit.TensionBreakPolicyRoute ||
+        !positionPlanTechniquePawnBreakTransitionEvidence(detail)
+    then detail
+    else
+      detail.breakFile.map(positionPlanTechniqueRaceToken).filter(_.nonEmpty) match
+        case Some(breakFile) =>
+          val siblingFiles = breakFiles.filter(file => file.nonEmpty && file != breakFile)
+          if siblingFiles.isEmpty then detail
+          else detail.copy(counterBreakFiles = (detail.counterBreakFiles ++ siblingFiles).distinct.sorted)
+        case None =>
+          detail
 
   private def positionPlanTechniquePawnBreakRaceDetail(
       detail: PositionPlanTechniqueSemanticDetail
@@ -2008,13 +2103,51 @@ object PositionPlanTechniqueProjection:
     detail.unit == PositionPlanTechniqueUnit.TensionBreakPolicyRoute &&
       detail.breakFile.exists(_.trim.nonEmpty) &&
       distinctCounterBreak &&
-      detail.pawnPlayDriver.exists(driver =>
-        val normalized = driver.toLowerCase
-        normalized.contains("breakready") ||
-          normalized.contains("tensionactive") ||
-          normalized.contains("tensioncritical")
+      (
+        detail.pawnPlayDriver.exists(driver =>
+          val normalized = driver.toLowerCase
+          normalized.contains("breakready") ||
+            normalized.contains("tensionactive") ||
+            normalized.contains("tensioncritical")
+        ) || positionPlanTechniquePawnBreakTransitionEvidence(detail)
       ) &&
-      (detail.tensionEdges.nonEmpty || detail.tensionSquares.nonEmpty)
+      positionPlanTechniquePawnBreakTensionCarrier(detail)
+
+  private def positionPlanTechniquePawnBreakRaceSiblingCandidate(
+      detail: PositionPlanTechniqueSemanticDetail
+  ): Boolean =
+    detail.unit == PositionPlanTechniqueUnit.TensionBreakPolicyRoute &&
+      detail.breakFile.exists(_.trim.nonEmpty) &&
+      positionPlanTechniquePawnBreakTensionCarrier(detail) &&
+      positionPlanTechniquePawnBreakRaceSiblingEvidence(detail)
+
+  private def positionPlanTechniquePawnBreakTensionCarrier(
+      detail: PositionPlanTechniqueSemanticDetail
+  ): Boolean =
+    detail.tensionEdges.nonEmpty || detail.tensionSquares.nonEmpty
+
+  private def positionPlanTechniquePawnBreakTransitionEvidence(
+      detail: PositionPlanTechniqueSemanticDetail
+  ): Boolean =
+    detail.sourceEvidenceIds.exists(id =>
+      val normalized = id.toLowerCase
+      normalized.contains(":played-transition") ||
+        normalized.contains(":reference-transition") ||
+        normalized.contains(":transition:played") ||
+        normalized.contains(":transition:reference")
+    )
+
+  private def positionPlanTechniquePawnBreakRaceSiblingEvidence(
+      detail: PositionPlanTechniqueSemanticDetail
+  ): Boolean =
+    positionPlanTechniquePawnBreakTransitionEvidence(detail) ||
+      detail.sourceEvidenceIds.exists(id =>
+        val normalized = id.toLowerCase
+        normalized.contains(":after-played") ||
+          normalized.contains(":after-reference") ||
+          normalized.contains(":structural-delta:played") ||
+          normalized.contains(":structural-delta:reference")
+      )
 
   private def positionPlanTechniqueRaceToken(raw: String): String =
     raw.trim.toLowerCase.replaceAll("[^a-z0-9]+", "-").stripPrefix("-").stripSuffix("-")
@@ -2157,7 +2290,7 @@ object PositionPlanTechniqueProjection:
       case StrategicMechanismKind.CenterControl =>
         List(PositionPlanTechniqueUnit.SpacePreventionResourceDenial)
       case StrategicMechanismKind.KingSafety =>
-        List(PositionPlanTechniqueUnit.CounterplayRace)
+        List(PositionPlanTechniqueUnit.StructuralTransformation)
 
   private def positionPlanTechniqueUnits(axis: StrategicAxisDetail): List[PositionPlanTechniqueUnit] =
     axis.kind match

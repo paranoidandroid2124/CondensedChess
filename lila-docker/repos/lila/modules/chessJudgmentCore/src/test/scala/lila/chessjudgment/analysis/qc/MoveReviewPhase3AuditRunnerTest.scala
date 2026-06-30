@@ -3233,6 +3233,43 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(surface.map(_.subject), List("played_move"))
     assertEquals(surface.flatMap(_.target.squares), List("c1", "h6"))
 
+  test("move meaning public surface recognizes long bishop diagonal route without a battery unit"):
+    val signature =
+      "actor=Move:b7e4|actor=Piece:bishop|actor=Square:b7|target=Square:e4|mechanism=Mechanism:developmentchoice|mechanism=Mechanism:bishop-long-diagonal|consequence=Consequence:diagonalpressure"
+    val claim = MoveMeaningClaim(
+      meaningKind = "PieceRoute",
+      role = "ImprovesPieceRoute",
+      laneKey = "kind=PieceRoute|axis=Activity:Gain:activity-gain|object=target=Square:e4",
+      conflictKey = None,
+      supportLevel = "owned_cause_linked",
+      visibility = "reason_grade",
+      surfaceLane = "current_move_owned",
+      lineRole = "candidate",
+      moveUci = "b7e4",
+      frameId = "frame-bishop-long-diagonal",
+      unit = PositionPlanTechniqueUnit.PieceRerouteRoute,
+      axisKey = Some("Activity:Gain:activity-gain"),
+      axisKind = Some(StrategicAxisKind.Activity),
+      axisPolarity = Some(StrategicAxisPolarity.Gain),
+      label = Some("activity-gain"),
+      causeKinds = List(RelativeCauseKind.ActivityGain),
+      causeSourceSides = List(RelativeCauseSourceSide.Candidate),
+      causeEvidenceIds = List("cause-bishop-long-diagonal"),
+      sourceEvidenceIds = List("played-transition"),
+      objectBindingSignatures = List(signature),
+      reasonTokens = List(s"objectBinding:$signature", "structuralMotif:diagonal"),
+      targetSquares = List("e4")
+    )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = Nil
+    ).copy(moveMeaningClaims = List(claim))
+
+    val surface = MoveMeaningSurface.from(view)
+    assertEquals(surface.map(_.ideaType), List("long_diagonal_pressure"))
+    assertEquals(surface.flatMap(_.target.squares), List("e4"))
+
   test("move meaning public surface does not call file battery pressure long diagonal"):
     val cause = causeFrame(
       causeId = "cause-file-battery",
