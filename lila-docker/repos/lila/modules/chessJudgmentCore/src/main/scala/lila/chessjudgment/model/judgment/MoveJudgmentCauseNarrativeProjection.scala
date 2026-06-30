@@ -125,7 +125,7 @@ object MoveJudgmentCauseNarrativeProjection:
   private def eventRootSortKey(frame: MoveJudgmentCauseFrame): (Int, Int, Int, Int, Int, Int, Int, String) =
     (
       eventRootKindRank(frame),
-      boolRank(frame.concreteObjectReady || directProofObjectReady(frame)),
+      boolRank(rootArbitrationObjectReady(frame)),
       boolRank(frame.attributionRootMoveMatched),
       boolRank(frame.attributionDirectProofEligible),
       frame.proofDirectSourceIds.distinct.size,
@@ -137,7 +137,7 @@ object MoveJudgmentCauseNarrativeProjection:
   private def fallbackRootSortKey(frame: MoveJudgmentCauseFrame): (Int, Int, Int, Int, Int, String) =
     (
       fallbackRootKindRank(frame.causeKind),
-      boolRank(frame.concreteObjectReady || directProofObjectReady(frame)),
+      boolRank(rootArbitrationObjectReady(frame)),
       frame.proofDirectSourceIds.distinct.size,
       frame.objectBindingSignatures.distinct.size,
       sourceSideRank(frame.causeSourceSide),
@@ -198,17 +198,17 @@ object MoveJudgmentCauseNarrativeProjection:
   private def rootArbitrationProfile(frame: MoveJudgmentCauseFrame): RootArbitrationProfile =
     val lineOwned = frame.attributionDirectProofEligible && frame.attributionRootMoveMatched
     val fallbackKind = fallbackRootKind(frame.causeKind)
-    val typedObjectReady =
-      if broadObjectSensitiveRootKind(frame.causeKind) then directProofSpecificObjectReady(frame)
-      else frame.concreteObjectReady || directProofObjectReady(frame)
+    val arbitrationObjectReady =
+      if broadObjectSensitiveRootKind(frame.causeKind) then directProofSpecificTargetReady(frame)
+      else rootArbitrationObjectReady(frame)
     val eventKind = tacticalWitnessFrame(frame) && eventRootSelectable(frame)
     val tier =
       if !lineOwned then MoveJudgmentCauseRootArbitrationTier.ContextOnly
       else if fallbackKind && fallbackRootProofReady(frame) then MoveJudgmentCauseRootArbitrationTier.FallbackRoot
       else if fallbackKind then MoveJudgmentCauseRootArbitrationTier.ContextOnly
-      else if longTermRootFrame(frame) && typedObjectReady then MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot
+      else if longTermRootFrame(frame) && arbitrationObjectReady then MoveJudgmentCauseRootArbitrationTier.ExactOwnedRoot
       else if eventKind then MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot
-      else if typedObjectReady then MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot
+      else if arbitrationObjectReady then MoveJudgmentCauseRootArbitrationTier.ConcreteOwnedRoot
       else if longTermRootFrame(frame) then MoveJudgmentCauseRootArbitrationTier.BroadOwnedRoot
       else MoveJudgmentCauseRootArbitrationTier.ContextOnly
     RootArbitrationProfile(
@@ -217,11 +217,14 @@ object MoveJudgmentCauseNarrativeProjection:
       eventKind = eventKind
     )
 
-  private def directProofObjectReady(frame: MoveJudgmentCauseFrame): Boolean =
-    EvidenceObjectBinding.directProofObjectReady(frame.objectBindingSignatures)
+  private def rootArbitrationObjectReady(frame: MoveJudgmentCauseFrame): Boolean =
+    frame.concreteObjectReady || directProofSurfaceObjectReady(frame)
 
-  private def directProofSpecificObjectReady(frame: MoveJudgmentCauseFrame): Boolean =
-    EvidenceObjectBinding.directProofSpecificObjectReady(frame.objectBindingSignatures)
+  private def directProofSurfaceObjectReady(frame: MoveJudgmentCauseFrame): Boolean =
+    EvidenceObjectBinding.directProofSurfaceObjectReady(frame.objectBindingSignatures)
+
+  private def directProofSpecificTargetReady(frame: MoveJudgmentCauseFrame): Boolean =
+    EvidenceObjectBinding.directProofSpecificTargetReady(frame.objectBindingSignatures)
 
   private def arbitrationManagedPrimaryFrame(frame: MoveJudgmentCauseFrame): Boolean =
     frame.role == MoveJudgmentCauseFrameRole.PrimaryCause &&

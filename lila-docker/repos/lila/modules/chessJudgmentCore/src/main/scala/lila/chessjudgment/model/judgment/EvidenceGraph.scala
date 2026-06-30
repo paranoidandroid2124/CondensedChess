@@ -205,25 +205,25 @@ object EvidenceObjectBinding:
         token.toLowerCase.matches(".*[a-h][1-8].*")
       )
 
-  private[chessjudgment] def directProofObjectReady(signatures: Iterable[String]): Boolean =
-    signaturesForProofRole(signatures, Some(RelativeCauseProofRole.DirectProof)).exists(objectReadySignature)
+  private[chessjudgment] def directProofSurfaceObjectReady(signatures: Iterable[String]): Boolean =
+    signaturesForProofRole(signatures, Some(RelativeCauseProofRole.DirectProof)).exists(surfaceReadyObjectSignature)
 
-  private[chessjudgment] def directProofSpecificObjectReady(signatures: Iterable[String]): Boolean =
-    signaturesForProofRole(signatures, Some(RelativeCauseProofRole.DirectProof)).exists(specificRootObjectSignature)
+  private[chessjudgment] def directProofSpecificTargetReady(signatures: Iterable[String]): Boolean =
+    signaturesForProofRole(signatures, Some(RelativeCauseProofRole.DirectProof)).exists(specificTargetSurfaceReadySignature)
 
-  private def specificRootObjectSignature(signature: String): Boolean =
+  private def specificTargetSurfaceReadySignature(signature: String): Boolean =
     val parts = signatureParts(signature)
-    parts.exists(specificRootTargetPart) &&
+    parts.exists(specificSurfaceTargetPart) &&
       parts.exists(_.startsWith("mechanism=")) &&
       parts.exists(part => part.startsWith("consequence=") || part.startsWith("witness="))
 
-  private def objectReadySignature(signature: String): Boolean =
+  private def surfaceReadyObjectSignature(signature: String): Boolean =
     val parts = signatureParts(signature)
     parts.exists(_.startsWith("target=")) &&
       parts.exists(_.startsWith("mechanism=")) &&
       parts.exists(part => part.startsWith("consequence=") || part.startsWith("witness="))
 
-  private def specificRootTargetPart(part: String): Boolean =
+  private def specificSurfaceTargetPart(part: String): Boolean =
     val normalized = part.trim.toLowerCase
     normalized.startsWith("target=square:") ||
       normalized.startsWith("target=file:") ||

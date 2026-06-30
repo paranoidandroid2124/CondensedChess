@@ -2159,10 +2159,10 @@ object MoveMeaningClaim:
       positionFen: String,
       claimRole: String
   ): Option[String] =
-    val hasConcreteObject = concreteObject(detail, objectSignatures)
-    val specificObjectAxis = specificity(detail)
-    val direct = directProof(detail)
-    val hasDetailEvidence = detailEvidence(detail)
+    val hasConcreteObject = detailHasConcreteSurfaceObject(detail, objectSignatures)
+    val specificObjectAxis = detailHasSpecificObjectAxis(detail)
+    val direct = detailHasDirectOrContrastProof(detail)
+    val hasDetailEvidence = detailHasEvidenceLink(detail)
     val currentMoveFunctionalProof = currentMoveFunctionalDetailProof(detail, objectSignatures, claimMove, positionFen)
     val ownedCause =
       roleCompatibleCauseFrames.exists(frame => frame.concreteObjectReady && frame.hasOwnedAdmissibleLongTermProof) ||
@@ -2195,7 +2195,7 @@ object MoveMeaningClaim:
     if roleCompatibleCauseFrames.nonEmpty && ownedCause && hasConcreteObject && specificObjectAxis && direct && ownedMeaningReady then
       Some("owned_cause_linked")
     else if viewMeaningReady && hasConcreteObject && (specificObjectAxis || currentMoveFunctionalProof) && hasDetailEvidence &&
-        (anyProof(detail) || currentMoveFunctionalProof) &&
+        (detailHasAnyProofLink(detail) || currentMoveFunctionalProof) &&
         !rejectedPositiveCause
     then
       Some("view_surfaced")
@@ -2939,19 +2939,19 @@ object MoveMeaningClaim:
       kind == RelativeCauseKind.WrongMoveOrder ||
       kind == RelativeCauseKind.TempoLoss
 
-  private def specificity(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+  private def detailHasSpecificObjectAxis(detail: PositionPlanTechniqueSemanticDetail): Boolean =
     detail.specificityTier == PositionPlanTechniqueSpecificityTier.ExactObjectAxis ||
       detail.specificityTier == PositionPlanTechniqueSpecificityTier.ConcreteObjectAxis
 
-  private def directProof(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+  private def detailHasDirectOrContrastProof(detail: PositionPlanTechniqueSemanticDetail): Boolean =
     detail.proofRoles.exists(role => role == RelativeCauseProofRole.DirectProof || role == RelativeCauseProofRole.ContrastProof)
 
-  private def anyProof(detail: PositionPlanTechniqueSemanticDetail): Boolean =
-    directProof(detail) ||
+  private def detailHasAnyProofLink(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detailHasDirectOrContrastProof(detail) ||
       detail.contextProofRoles.nonEmpty ||
       detail.contrastOutcome.nonEmpty
 
-  private def detailEvidence(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+  private def detailHasEvidenceLink(detail: PositionPlanTechniqueSemanticDetail): Boolean =
     detail.sourceEvidenceIds.nonEmpty ||
       detail.referenceEvidenceIds.nonEmpty ||
       detail.candidateEvidenceIds.nonEmpty ||
@@ -3026,8 +3026,8 @@ object MoveMeaningClaim:
   private def detailCanOwnCrossComparisonCause(detail: PositionPlanTechniqueSemanticDetail): Boolean =
     detail.unit != PositionPlanTechniqueUnit.PlanOptionSet &&
       !detail.axisKind.contains(StrategicAxisKind.PlanCoherence) &&
-      specificity(detail) &&
-      directProof(detail) &&
+      detailHasSpecificObjectAxis(detail) &&
+      detailHasDirectOrContrastProof(detail) &&
       crossComparisonDetailHasOwnedShape(detail)
 
   private def crossComparisonDetailHasOwnedShape(detail: PositionPlanTechniqueSemanticDetail): Boolean =
@@ -3200,7 +3200,7 @@ object MoveMeaningClaim:
     detail.unit == PositionPlanTechniqueUnit.PlanOptionSet ||
       detail.axisKind.contains(StrategicAxisKind.PlanCoherence)
 
-  private def concreteObject(
+  private def detailHasConcreteSurfaceObject(
       detail: PositionPlanTechniqueSemanticDetail,
       objectSignatures: List[String]
   ): Boolean =

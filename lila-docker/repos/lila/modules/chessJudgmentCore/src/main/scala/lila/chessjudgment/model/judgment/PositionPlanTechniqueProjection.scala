@@ -553,7 +553,7 @@ object PositionPlanTechniqueProjection:
       .distinctBy(_.signature)
       .sortBy(binding => (binding.sourceEvidenceId, binding.signature))
 
-  private final case class PositionPlanTechniqueDetailProjection(
+  private final case class PositionPlanTechniqueDetailCauseLinkage(
       causeEvidenceIds: List[String],
       proofRoles: List[RelativeCauseProofRole],
       contextCauseEvidenceIds: List[String],
@@ -604,22 +604,22 @@ object PositionPlanTechniqueProjection:
   ): List[PositionPlanTechniqueSemanticDetail] =
     details.map { detail =>
       val taggedDetail = positionPlanTechniqueWithStructuralMotifs(detail)
-      val projection = positionPlanTechniqueDetailProjection(taggedDetail, graph, fallbackEvidenceIds)
+      val causeLinkage = positionPlanTechniqueDetailCauseLinkage(taggedDetail, graph, fallbackEvidenceIds)
       taggedDetail.copy(
-        causeEvidenceIds = projection.causeEvidenceIds,
-        proofRoles = projection.proofRoles,
-        contextCauseEvidenceIds = projection.contextCauseEvidenceIds,
-        contextProofRoles = projection.contextProofRoles,
-        objectBindingSignatures = projection.objectBindingSignatures,
-        specificityTier = projection.specificityTier
+        causeEvidenceIds = causeLinkage.causeEvidenceIds,
+        proofRoles = causeLinkage.proofRoles,
+        contextCauseEvidenceIds = causeLinkage.contextCauseEvidenceIds,
+        contextProofRoles = causeLinkage.contextProofRoles,
+        objectBindingSignatures = causeLinkage.objectBindingSignatures,
+        specificityTier = causeLinkage.specificityTier
       )
     }
 
-  private def positionPlanTechniqueDetailProjection(
+  private def positionPlanTechniqueDetailCauseLinkage(
       detail: PositionPlanTechniqueSemanticDetail,
       graph: TypedEvidenceGraph,
       fallbackEvidenceIds: List[String]
-  ): PositionPlanTechniqueDetailProjection =
+  ): PositionPlanTechniqueDetailCauseLinkage =
     val localEvidenceIds =
       (
         detail.sourceEvidenceIds ++
@@ -672,7 +672,7 @@ object PositionPlanTechniqueProjection:
             positionPlanTechniqueAdmissibleProofRoles(cause)
           }
       ).distinct.sortBy(_.toString)
-    PositionPlanTechniqueDetailProjection(
+    PositionPlanTechniqueDetailCauseLinkage(
       causeEvidenceIds = causeRecords.map(_._1.id).distinct.sorted,
       proofRoles = proofRoles,
       contextCauseEvidenceIds = contextCauseRecords.map(_._1.id).distinct.sorted,
