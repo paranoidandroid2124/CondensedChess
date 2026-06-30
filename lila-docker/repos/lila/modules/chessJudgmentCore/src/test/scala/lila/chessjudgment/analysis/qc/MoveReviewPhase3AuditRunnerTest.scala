@@ -2451,6 +2451,37 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
 
     assertEquals(view.moveMeaningClaims, Nil)
 
+  test("move meaning claims do not surface plan-pressure-only break option as current move function"):
+    val planPressureSignature =
+      "actor=Move:e2e3|actor=Square:e2|target=PlanSubject:spaceadvantage|mechanism=Mechanism:plan-pressure|consequence=Consequence:plancoherence:support:pawnbreakpreparation,spaceadvantage|witness=PlanSubject:evidenceatom(pawnadvance(4,2,3,white,0,some(e2e3)),0.16)"
+    val detail = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.PlanOptionSet,
+      axisKey = Some("PlanCoherence:Support:PawnBreakPreparation,SpaceAdvantage"),
+      axisKind = Some(StrategicAxisKind.PlanCoherence),
+      axisPolarity = Some(StrategicAxisPolarity.Support),
+      label = Some("PawnBreakPreparation,SpaceAdvantage"),
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.ReferenceOnly),
+      referenceEvidenceIds = List("strategic-mechanism:plan-pressure:e2e3:before-position"),
+      sourceEvidenceIds = List("strategic-mechanism:plan-pressure:e2e3:before-position"),
+      breakFile = Some("e"),
+      objectBindingSignatures = List(planPressureSignature),
+      specificityTier = PositionPlanTechniqueSpecificityTier.BroadAxis
+    )
+    val view = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(detail)
+    )
+
+    assertEquals(
+      view.moveMeaningClaims.exists(claim =>
+        claim.meaningKind == "PlanContinuity" &&
+          claim.role == "PreparesBreakOption" &&
+          claim.surfaceLane == "current_move_function"
+      ),
+      false
+    )
+
   test("move meaning claims do not surface generic structure shift from current-move route alone"):
     val routeSignature =
       "actor=Move:e2e3|actor=Piece:knight|actor=Square:e2|target=Square:e3|mechanism=Mechanism:developmentchoice|consequence=Consequence:developmentpieceactivated"

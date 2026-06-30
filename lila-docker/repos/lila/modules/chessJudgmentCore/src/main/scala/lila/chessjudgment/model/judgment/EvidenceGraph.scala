@@ -625,16 +625,25 @@ object EvidenceObjectBinding:
 
   private def fromActivePlans(ref: EvidenceRef, activePlans: ActivePlans): List[EvidenceObjectBinding] =
     (activePlans.primary :: activePlans.secondary.toList).map { plan =>
+      val evidenceAtoms = plan.evidence
       EvidenceObjectBinding(
         source = ref,
-        actor = Nil,
+        actor = evidenceAtoms.flatMap(planEvidenceActorObjects(_, ref)).distinctBy(_.signaturePart),
         target = objectOf(EvidenceObjectKind.PlanSubject, plan.plan.id.toString),
         mechanism = objectOf(EvidenceObjectKind.Mechanism, "plan-pressure"),
         consequence = objectOf(EvidenceObjectKind.Consequence, plan.plan.id.toString),
-        witness = plan.evidence.flatMap(evidence => objectOf(EvidenceObjectKind.PlanSubject, evidence.toString)),
+        witness = evidenceAtoms.flatMap(evidence => objectOf(EvidenceObjectKind.PlanSubject, evidence.toString)),
         line = ref.line
       )
     }.distinctBy(_.signature)
+
+  private def planEvidenceActorObjects(
+      evidence: lila.chessjudgment.model.EvidenceAtom,
+      ref: EvidenceRef
+  ): List[ConcreteChessObject] =
+    evidence.motif.move.toList
+      .filter(move => ref.line.exists(line => EvidenceRef.sameMove(line.rootMove, move)))
+      .flatMap(moveObjects)
 
   private def fromStructuralDelta(ref: EvidenceRef, payload: StructuralDeltaEvidence): List[EvidenceObjectBinding] =
     val actor =
