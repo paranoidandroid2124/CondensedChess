@@ -1822,12 +1822,14 @@ object MoveMeaningSurface:
         "counterplay_race"
       case PositionPlanTechniqueUnit.SpacePreventionResourceDenial =>
         "counterplay_control"
-      case PositionPlanTechniqueUnit.PieceRerouteRoute if hasPublicDetailSignal(claim, "outpost") =>
+      case PositionPlanTechniqueUnit.PieceRerouteRoute if claim.meaningKind == "PieceRoute" && hasPublicDetailSignal(claim, "outpost") =>
         "outpost_attempt"
-      case PositionPlanTechniqueUnit.PieceRerouteRoute if hasLongDiagonalPressureSignal(claim) =>
+      case PositionPlanTechniqueUnit.PieceRerouteRoute if claim.meaningKind == "PieceRoute" && hasLongDiagonalPressureSignal(claim) =>
         "long_diagonal_pressure"
-      case PositionPlanTechniqueUnit.PieceRerouteRoute =>
+      case PositionPlanTechniqueUnit.PieceRerouteRoute if claim.meaningKind == "PieceRoute" =>
         "piece_route"
+      case PositionPlanTechniqueUnit.PieceRerouteRoute =>
+        "piece_activity"
       case PositionPlanTechniqueUnit.EndgameTechniqueRecipe =>
         "endgame_technique"
       case PositionPlanTechniqueUnit.CompensationSource =>
@@ -2174,7 +2176,7 @@ object MoveMeaningClaim:
       val surfaceObjectSignatures = surfaceObjectBindingSignatures(detail, objectSignatures, claimMove)
       val surfaceTarget = MoveMeaningSurfaceTarget.fromDetail(detail, surfaceObjectSignatures)
       val surfaceMeaningKind =
-        if meaningKind == "PieceRoute" && !pieceRouteQualifiedCarrier(detail, surfaceObjectSignatures) then
+        if meaningKind == "PieceRoute" && !pieceRouteQualifiedCarrierForMove(detail, surfaceObjectSignatures, claimMove) then
           "PieceActivity"
         else meaningKind
       val surfaceClaimRole =
@@ -2584,6 +2586,13 @@ object MoveMeaningClaim:
       normalized.contains("concede") ||
       normalized.contains("concession") ||
       normalized.contains("failed") ||
+      normalized.contains("developmentunsafeplacement") ||
+      normalized.contains("development-unsafe") ||
+      normalized.contains("unsafeplacement") ||
+      normalized.contains("unsafe-placement") ||
+      normalized.contains("developmentpieceretreated") ||
+      normalized.contains("development-piece-retreated") ||
+      normalized.contains("retreated") ||
       normalized.contains("targetpressurerelease") ||
       normalized.contains("target-pressure-release") ||
       normalized.contains("centercontrolloss") ||
@@ -3283,12 +3292,13 @@ object MoveMeaningClaim:
     val surface =
       detail.unit match
         case PositionPlanTechniqueUnit.PieceRerouteRoute =>
+          val detailMoveOwnsClaim = detail.structuralRouteMove.exists(move => sameMove(move, claimMove))
           val routeSignatures =
             objectSignatures.filter(signature =>
               pieceRouteObjectSignature(signature) &&
                 (
                   moveTokens(List(signature)).contains(normalizedClaimMove) ||
-                    moveTokens(List(signature)).isEmpty
+                    (moveTokens(List(signature)).isEmpty && detailMoveOwnsClaim)
                 )
             )
           if routeSignatures.nonEmpty then routeSignatures
@@ -3537,10 +3547,24 @@ object MoveMeaningClaim:
           normalized.contains("mechanism=mechanism:file-access") ||
           normalized.contains("mechanism=mechanism:fileoccupation") ||
           normalized.contains("mechanism=mechanism:file-occupation") ||
+          routeWeakSquareObjectSignature(normalized) ||
           normalized.contains("consequence=consequence:outpost") ||
           normalized.contains("consequence=consequence:batteryline") ||
           normalized.contains("consequence=consequence:diagonalpressure")
       )
+
+  private def routeWeakSquareObjectSignature(normalized: String): Boolean =
+    (
+      normalized.contains("mechanism=mechanism:weaksquare") ||
+        normalized.contains("mechanism=mechanism:weak-square") ||
+        normalized.contains("mechanism=mechanism:weaksquaretargetcreated") ||
+        normalized.contains("mechanism=mechanism:weak-square-target-created") ||
+        normalized.contains("consequence=consequence:weaksquare") ||
+        normalized.contains("consequence=consequence:weak-square") ||
+        normalized.contains("consequence=consequence:weaksquaretargetcreated") ||
+        normalized.contains("consequence=consequence:weak-square-target-created")
+    ) &&
+      normalized.contains("target=square:")
 
   private def qualifiedRouteToken(token: String): Boolean =
     val normalized = token.toLowerCase
@@ -3553,7 +3577,9 @@ object MoveMeaningClaim:
       normalized.contains("fileaccess") ||
       normalized.contains("file-access") ||
       normalized.contains("fileoccupation") ||
-      normalized.contains("file-occupation")
+      normalized.contains("file-occupation") ||
+      normalized.contains("weak-square") ||
+      normalized.contains("weaksquare")
 
   private def pieceRouteObjectSignature(signature: String): Boolean =
     val normalized = signature.toLowerCase
@@ -3572,7 +3598,8 @@ object MoveMeaningClaim:
       normalized.contains("maneuver") ||
       normalized.contains("battery") ||
       normalized.contains("bishop-long-diagonal") ||
-      normalized.contains("diagonalpressure")
+      normalized.contains("diagonalpressure") ||
+      routeWeakSquareObjectSignature(normalized)
 
   private def crossComparisonLineOwnsClaimMove(
       frame: MoveJudgmentCauseFrame,
@@ -3924,6 +3951,12 @@ object MoveMeaningClaim:
       if detail.unit == PositionPlanTechniqueUnit.CounterplayRace then
         counterplayRaceReasonTokens(detail, verdict, claimMove, positionFen, claimRole)
       else Nil
+    val routeReasonTokens =
+      if detail.unit == PositionPlanTechniqueUnit.PieceRerouteRoute &&
+          pieceRouteQualifiedCarrierForMove(detail, objectSignatures, claimMove)
+      then
+        pieceRouteReasonTokens(detail, objectSignatures, claimMove)
+      else Nil
     (
       List(
         Some(s"unit:${detail.unit}"),
@@ -3943,6 +3976,7 @@ object MoveMeaningClaim:
         Some(s"specificityTier:${detail.specificityTier}")
       ).flatten ++
         raceReasonTokens ++
+        routeReasonTokens ++
         detail.tensionSquares.map(value => s"tensionSquare:$value") ++
         detail.tensionEdges.map(value => s"tensionEdge:$value") ++
         detail.counterBreakFiles.map(value => s"counterBreakFile:$value") ++
@@ -3968,6 +4002,60 @@ object MoveMeaningClaim:
         detail.contextProofRoles.map(value => s"contextProofRole:$value") ++
         comparisonLossTokens ++
         objectSignatures.take(5).map(value => s"objectBinding:$value")
+    ).distinct.sorted
+
+  private def pieceRouteReasonTokens(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String
+  ): List[String] =
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
+    val currentMoveObjects =
+      objectSignatures.filter(signature =>
+        val moves = moveTokens(List(signature))
+        moves.contains(normalizedClaimMove) ||
+          (moves.isEmpty && detail.structuralRouteMove.exists(move => sameMove(move, claimMove)))
+      )
+    val objectTokens =
+      currentMoveObjects.flatMap { signature =>
+        val mechanisms = EvidenceObjectBinding.signatureTokens(List(signature), "mechanism=").map(value => s"routeMechanism:$value")
+        val consequences = EvidenceObjectBinding.signatureTokens(List(signature), "consequence=").map(value => s"routeConsequence:$value")
+        val targets = EvidenceObjectBinding.signatureTokens(List(signature), "target=").map(value => s"routeTarget:$value")
+        val actors = EvidenceObjectBinding.signatureTokens(List(signature), "actor=").map(value => s"routeActor:$value")
+        mechanisms ++ consequences ++ targets ++ actors
+      }
+    val subjectTokens =
+      detail.structuralPurposeSubjects.flatMap { subject =>
+        StructuralPurposeSubject.parse(subject) match
+          case Some(StructuralPurposeSubject.PieceRoute(piece, from, to)) =>
+            List(s"routePiece:$piece", s"routeFrom:$from", s"routeTo:$to", s"routeSubject:$subject")
+          case Some(StructuralPurposeSubject.Outpost(piece, square)) =>
+            List(s"routePiece:$piece", s"routeTarget:$square", s"routeCarrier:outpost", s"routeSubject:$subject")
+          case Some(StructuralPurposeSubject.Battery(axis, from, to, roles)) =>
+            roles.map(role => s"routePiece:$role") ++
+              List(s"routeAxis:$axis", s"routeFrom:$from", s"routeTo:$to", s"routeCarrier:battery", s"routeSubject:$subject")
+          case Some(StructuralPurposeSubject.PieceRestriction(piece, square, blocker)) =>
+            List(
+              s"routePiece:$piece",
+              s"routeTarget:$square",
+              s"routeBlocker:$blocker",
+              "routeAxis:diagonal",
+              "routeCarrier:diagonal-denial",
+              s"routeSubject:$subject"
+            )
+          case _ =>
+            Nil
+      }
+    val motifCarriers =
+      detail.structuralMotifTags
+        .filter(tag => qualifiedRouteToken(tag) || tag.equalsIgnoreCase("route") || tag.equalsIgnoreCase("reroute"))
+        .map(tag => s"routeCarrier:$tag")
+    (
+      detail.structuralRouteMove.map(value => s"routeMove:$value").toList ++
+        detail.structuralRouteRole.map(value => s"routeRole:$value").toList ++
+        subjectTokens ++
+        objectTokens ++
+        motifCarriers
     ).distinct.sorted
 
   private def counterplayRaceReasonTokens(

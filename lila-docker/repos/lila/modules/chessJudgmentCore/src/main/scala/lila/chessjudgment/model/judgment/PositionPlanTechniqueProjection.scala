@@ -1061,7 +1061,9 @@ object PositionPlanTechniqueProjection:
       normalized.contains("fileaccess") ||
       normalized.contains("file-access") ||
       normalized.contains("fileoccupation") ||
-      normalized.contains("file-occupation")
+      normalized.contains("file-occupation") ||
+      normalized.contains("weak-square") ||
+      normalized.contains("weaksquare")
 
   private def positionPlanTechniqueConcreteStructuralPlanCauseKind(
       detail: PositionPlanTechniqueSemanticDetail,

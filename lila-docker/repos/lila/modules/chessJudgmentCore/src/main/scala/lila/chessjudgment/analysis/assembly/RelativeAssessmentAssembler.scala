@@ -1096,7 +1096,7 @@ object RelativeAssessmentAssembler:
           eventLine.forall(line => sourceRef.line.contains(line) && structural.line.contains(line)) &&
             normalizeMove(structural.moveUci) == normalizedRoot &&
             provingConsequences.nonEmpty &&
-            strategicStructuralProofReady(kind, structural, provingConsequences)
+            strategicStructuralProofReady(kind, provingConsequences)
         case _ =>
           false
       }
@@ -1120,7 +1120,7 @@ object RelativeAssessmentAssembler:
             case EvidenceRecord(_, structural: StructuralDeltaEvidence, _) =>
               val provingConsequences = structuralConsequencesForCause(kind, structural, signal.axis)
               provingConsequences.nonEmpty &&
-                strategicStructuralProofReady(kind, structural, provingConsequences)
+                strategicStructuralProofReady(kind, provingConsequences)
             case _ =>
               false
           }
@@ -1133,15 +1133,44 @@ object RelativeAssessmentAssembler:
       kind: RelativeCauseKind,
       structural: StructuralDeltaEvidence
   ): Boolean =
-    strategicStructuralProofReady(kind, structural, structuralConsequencesForCause(kind, structural))
+    strategicStructuralProofReady(kind, structuralConsequencesForCause(kind, structural))
 
   private def strategicStructuralProofReady(
       kind: RelativeCauseKind,
-      structural: StructuralDeltaEvidence,
       provingConsequences: List[TransitionConsequence]
   ): Boolean =
-    provingConsequences.exists(consequenceHasConcreteStrategicTarget) ||
-      (kind == RelativeCauseKind.ActivityGain && structural.developmentChoices.nonEmpty)
+    if kind == RelativeCauseKind.ActivityGain then
+      provingConsequences.exists(activityGainConsequenceHasConcreteRoute)
+    else
+      provingConsequences.exists(consequenceHasConcreteStrategicTarget)
+
+  private def activityGainConsequenceHasConcreteRoute(consequence: TransitionConsequence): Boolean =
+    import TransitionConsequenceKind.*
+    val routeKind =
+      consequence.kind == OutpostGain ||
+        consequence.kind == BatteryPressureGain ||
+        consequence.kind == FileOccupationGain ||
+        consequence.kind == FileAccessGain ||
+        consequence.kind == RookLiftActivation ||
+        consequence.kind == LineUnlockGain
+    consequenceHasConcreteStrategicTarget(consequence) &&
+      (
+        routeKind ||
+          consequence.subjects.exists(activityGainQualifiedRouteSubject)
+      )
+
+  private def activityGainQualifiedRouteSubject(subject: String): Boolean =
+    val normalized = Option(subject).getOrElse("").trim.toLowerCase
+    normalized.contains("outpost") ||
+      normalized.contains("battery") ||
+      normalized.contains("diagonal") ||
+      normalized.contains("filecontrol") ||
+      normalized.contains("file-control") ||
+      normalized.contains("fileaccess") ||
+      normalized.contains("file-access") ||
+      normalized.contains("fileoccupation") ||
+      normalized.contains("file-occupation") ||
+      normalized.contains("maneuver")
 
   private def consequenceHasConcreteStrategicTarget(consequence: TransitionConsequence): Boolean =
     consequence.subjects.exists(subject =>
