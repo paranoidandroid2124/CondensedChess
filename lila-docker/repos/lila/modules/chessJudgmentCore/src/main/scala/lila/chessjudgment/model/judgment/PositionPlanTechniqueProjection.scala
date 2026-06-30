@@ -690,7 +690,9 @@ object PositionPlanTechniqueProjection:
   private def positionPlanTechniqueRouteObjectSignatures(
       detail: PositionPlanTechniqueSemanticDetail
   ): List[String] =
-    if detail.unit != PositionPlanTechniqueUnit.PieceRerouteRoute then Nil
+    if detail.unit != PositionPlanTechniqueUnit.PieceRerouteRoute &&
+        detail.unit != PositionPlanTechniqueUnit.PlanOptionSet
+    then Nil
     else
       detail.structuralPurposeSubjects.flatMap { subject =>
         StructuralPurposeSubject.parse(subject) match
@@ -1472,6 +1474,22 @@ object PositionPlanTechniqueProjection:
                   Set(TransitionConsequenceKind.PawnTensionGain, TransitionConsequenceKind.PawnTensionResolution)
             purpose.consequenceKinds.exists(acceptedKinds)
           else true
+        case Some(StrategicAxisKind.Target) =>
+          purpose.consequenceKinds.exists(positionPlanTechniqueTargetConsequence) ||
+            purpose.categories.contains(TransitionConsequenceCategory.TargetPressure.toString)
+        case Some(StrategicAxisKind.SpaceCenter) =>
+          purpose.consequenceKinds.exists(positionPlanTechniqueCenterConsequence) ||
+            purpose.categories.exists(category =>
+              category == TransitionConsequenceCategory.CenterControl.toString ||
+                category == TransitionConsequenceCategory.OpeningCenterControl.toString
+            )
+        case Some(StrategicAxisKind.Activity) if detail.unit == PositionPlanTechniqueUnit.PieceRerouteRoute =>
+          purpose.consequenceKinds.exists(positionPlanTechniquePieceRouteConsequence) ||
+            purpose.categories.exists(category =>
+              category == TransitionConsequenceCategory.PieceActivity.toString ||
+                category == TransitionConsequenceCategory.Development.toString ||
+                category == TransitionConsequenceCategory.OpeningDevelopment.toString
+            )
         case _ =>
           true
     val polarityMatches =
@@ -1493,6 +1511,35 @@ object PositionPlanTechniqueProjection:
   private def positionPlanTechniquePawnTensionConsequence(kind: TransitionConsequenceKind): Boolean =
     kind == TransitionConsequenceKind.PawnTensionGain ||
       kind == TransitionConsequenceKind.PawnTensionResolution
+
+  private def positionPlanTechniqueTargetConsequence(kind: TransitionConsequenceKind): Boolean =
+    kind == TransitionConsequenceKind.TargetPressureGain ||
+      kind == TransitionConsequenceKind.TargetPressureRelease ||
+      kind == TransitionConsequenceKind.WeakPawnTargetCreated ||
+      kind == TransitionConsequenceKind.WeakSquareTargetCreated
+
+  private def positionPlanTechniqueCenterConsequence(kind: TransitionConsequenceKind): Boolean =
+    kind == TransitionConsequenceKind.CenterControlGain ||
+      kind == TransitionConsequenceKind.CenterControlLoss ||
+      kind == TransitionConsequenceKind.DevelopmentCenterControlGain ||
+      kind == TransitionConsequenceKind.DevelopmentCenterControlLoss
+
+  private def positionPlanTechniquePieceRouteConsequence(kind: TransitionConsequenceKind): Boolean =
+    kind == TransitionConsequenceKind.DevelopmentLagReduced ||
+      kind == TransitionConsequenceKind.DevelopmentLagIncreased ||
+      kind == TransitionConsequenceKind.DevelopmentPieceActivated ||
+      kind == TransitionConsequenceKind.DevelopmentPieceRetreated ||
+      kind == TransitionConsequenceKind.DevelopmentMobilityGain ||
+      kind == TransitionConsequenceKind.DevelopmentMobilityLoss ||
+      kind == TransitionConsequenceKind.MobilityGain ||
+      kind == TransitionConsequenceKind.MobilityLoss ||
+      kind == TransitionConsequenceKind.LineUnlockGain ||
+      kind == TransitionConsequenceKind.FileAccessGain ||
+      kind == TransitionConsequenceKind.FileAccessLoss ||
+      kind == TransitionConsequenceKind.OutpostGain ||
+      kind == TransitionConsequenceKind.OutpostConcession ||
+      kind == TransitionConsequenceKind.RookLiftActivation ||
+      kind == TransitionConsequenceKind.BatteryPressureGain
 
   private def positionPlanTechniqueStructuralPolaritiesForAxis(polarity: StrategicAxisPolarity): Set[String] =
     polarity match

@@ -2100,9 +2100,12 @@ object MoveMeaningClaim:
       roleCompatibleCauseFrames = claimSelection._5
       support <- supportLevel(
         detail,
+        meaningKind,
         linkedCauseFrames,
         roleCompatibleCauseFrames,
         objectSignatures,
+        verdict,
+        claimLineRole,
         claimMove,
         frame.position.fen,
         claimRole
@@ -2130,7 +2133,8 @@ object MoveMeaningClaim:
         conflictKey = conflictKey(surfaceMeaningKind, detail, surfaceObjectSignatures),
         supportLevel = support,
         visibility = visibility(support),
-        surfaceLane = surfaceLane(detail, verdict, claimLineRole, claimMove, support, roleCompatibleCauseFrames),
+        surfaceLane =
+          surfaceLane(surfaceMeaningKind, detail, verdict, claimLineRole, claimMove, frame.position.fen, support, roleCompatibleCauseFrames),
         lineRole = claimLineRole,
         moveUci = moveUci(verdict, claimLineRole),
         frameId = frame.id,
@@ -2152,9 +2156,12 @@ object MoveMeaningClaim:
 
   private def supportLevel(
       detail: PositionPlanTechniqueSemanticDetail,
+      meaningKind: String,
       allLinkedCauseFrames: List[MoveJudgmentCauseFrame],
       roleCompatibleCauseFrames: List[MoveJudgmentCauseFrame],
       objectSignatures: List[String],
+      verdict: MoveJudgmentVerdictFrame,
+      claimLineRole: String,
       claimMove: String,
       positionFen: String,
       claimRole: String
@@ -2163,7 +2170,10 @@ object MoveMeaningClaim:
     val specificObjectAxis = detailHasSpecificObjectAxis(detail)
     val direct = detailHasDirectOrContrastProof(detail)
     val hasDetailEvidence = detailHasEvidenceLink(detail)
-    val currentMoveFunctionalProof = currentMoveFunctionalDetailProof(detail, objectSignatures, claimMove, positionFen)
+    val currentMoveClaim = currentMoveMeaningClaim(verdict, claimLineRole, claimMove)
+    val currentMoveFunctionalProof =
+      currentMoveFunctionalDetailProof(detail, objectSignatures, claimMove, positionFen, currentMoveClaim)
+    val currentMoveSurfaceProof = currentMoveSurfaceReady(meaningKind, detail, objectSignatures, claimMove, positionFen, currentMoveClaim)
     val ownedCause =
       roleCompatibleCauseFrames.exists(frame => frame.concreteObjectReady && frame.hasOwnedAdmissibleLongTermProof) ||
         roleCompatibleCauseFrames.exists(frame => frame.concreteObjectReady && frame.attributionDirectProofEligible)
@@ -2178,23 +2188,29 @@ object MoveMeaningClaim:
           pawnBreakOwnedCauseReady(detail, objectSignatures, claimMove, positionFen)
         case PositionPlanTechniqueUnit.CounterplayRace =>
           counterplayRaceOwnedCauseReady(detail, objectSignatures, claimMove, positionFen)
-        case PositionPlanTechniqueUnit.PieceRerouteRoute =>
+        case PositionPlanTechniqueUnit.PieceRerouteRoute if meaningKind == "PieceRoute" =>
           pieceRouteOwnedCauseReady(detail, objectSignatures, claimMove)
         case _ =>
           true
     val viewMeaningReady =
       detail.unit match
         case PositionPlanTechniqueUnit.TensionBreakPolicyRoute =>
-          currentMoveFunctionalProof
+          currentMoveSurfaceProof
         case PositionPlanTechniqueUnit.CounterplayRace =>
-          counterplayRaceViewReady(detail, objectSignatures, claimMove, positionFen)
+          currentMoveSurfaceProof
         case PositionPlanTechniqueUnit.PieceRerouteRoute =>
-          pieceRouteViewReady(detail, objectSignatures, claimMove)
+          currentMoveSurfaceProof
+        case PositionPlanTechniqueUnit.SpacePreventionResourceDenial | PositionPlanTechniqueUnit.StructuralTransformation =>
+          if currentMoveClaim then currentMoveSurfaceProof
+          else true
         case _ =>
           true
-    if roleCompatibleCauseFrames.nonEmpty && ownedCause && hasConcreteObject && specificObjectAxis && direct && ownedMeaningReady then
+    val laneOwnershipReady =
+      !currentMoveClaim ||
+        currentMoveSurfaceProof
+    if roleCompatibleCauseFrames.nonEmpty && ownedCause && laneOwnershipReady && hasConcreteObject && specificObjectAxis && direct && ownedMeaningReady then
       Some("owned_cause_linked")
-    else if viewMeaningReady && hasConcreteObject && (specificObjectAxis || currentMoveFunctionalProof) && hasDetailEvidence &&
+    else if laneOwnershipReady && viewMeaningReady && hasConcreteObject && (specificObjectAxis || currentMoveFunctionalProof) && hasDetailEvidence &&
         (detailHasAnyProofLink(detail) || currentMoveFunctionalProof) &&
         !rejectedPositiveCause
     then
@@ -2207,7 +2223,8 @@ object MoveMeaningClaim:
       detail: PositionPlanTechniqueSemanticDetail,
       objectSignatures: List[String],
       claimMove: String,
-      positionFen: String
+      positionFen: String,
+      currentMoveClaim: Boolean
   ): Boolean =
     val moveOwnedSource =
       detail.sourceEvidenceIds.exists(JudgmentSubjectBinding.sourceIdOwnsCurrentPlayedMove(_, claimMove))
@@ -2221,6 +2238,7 @@ object MoveMeaningClaim:
         moveOwnedSource &&
           detail.structuralRouteMove.exists(move => sameMove(move, claimMove)) &&
           generalDetailOwnsClaimMove(detail, objectSignatures, claimMove) &&
+          !currentMoveNegativeStructuralHook(detail, objectSignatures, claimMove) &&
           detail.axisKind.exists(kind =>
             kind == StrategicAxisKind.Target ||
               kind == StrategicAxisKind.SpaceCenter
@@ -2242,8 +2260,147 @@ object MoveMeaningClaim:
       case PositionPlanTechniqueUnit.CounterplayRace =>
         moveOwnedSource &&
           counterplayRaceViewReady(detail, objectSignatures, claimMove, positionFen)
+      case PositionPlanTechniqueUnit.PlanOptionSet =>
+        planContinuityCurrentMoveFunctionalProof(detail, objectSignatures, claimMove, currentMoveClaim)
       case _ =>
         false
+
+  private def currentMoveMeaningClaim(
+      verdict: MoveJudgmentVerdictFrame,
+      claimLineRole: String,
+      claimMove: String
+  ): Boolean =
+    val candidateMove = JudgmentSubjectBinding.normalizeMove(verdict.candidateLine.rootMove)
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove)
+    (
+      verdict.comparisonKind == CandidateComparisonKind.PlayedVsBest ||
+        verdict.comparisonKind == CandidateComparisonKind.PlayedVsAlternative
+    ) &&
+      claimLineRole == "candidate" &&
+      normalizedClaimMove == candidateMove
+
+  private def currentMoveSurfaceReady(
+      meaningKind: String,
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String,
+      positionFen: String,
+      currentMoveClaim: Boolean
+  ): Boolean =
+    detail.unit match
+      case PositionPlanTechniqueUnit.TensionBreakPolicyRoute =>
+        currentMoveFunctionalDetailProof(detail, objectSignatures, claimMove, positionFen, currentMoveClaim)
+      case PositionPlanTechniqueUnit.CounterplayRace =>
+        currentMoveFunctionalDetailProof(detail, objectSignatures, claimMove, positionFen, currentMoveClaim) ||
+          (
+            counterplayRaceViewReady(detail, objectSignatures, claimMove, positionFen) &&
+              moveTokens(objectSignatures).contains(JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase)
+          )
+      case PositionPlanTechniqueUnit.PieceRerouteRoute if meaningKind == "PieceRoute" =>
+        pieceRouteViewReady(detail, objectSignatures, claimMove) &&
+          detailOwnsClaimMove(detail, objectSignatures, claimMove) &&
+          !currentMoveNegativeStructuralHook(detail, objectSignatures, claimMove)
+      case PositionPlanTechniqueUnit.PieceRerouteRoute =>
+        generalDetailOwnsClaimMove(detail, objectSignatures, claimMove) &&
+          !currentMoveNegativeStructuralHook(detail, objectSignatures, claimMove)
+      case PositionPlanTechniqueUnit.StructuralTransformation if meaningKind == "PieceActivity" =>
+        generalDetailOwnsClaimMove(detail, objectSignatures, claimMove) &&
+          !currentMoveNegativeStructuralHook(detail, objectSignatures, claimMove)
+      case PositionPlanTechniqueUnit.SpacePreventionResourceDenial | PositionPlanTechniqueUnit.StructuralTransformation =>
+        currentMoveFunctionalDetailProof(detail, objectSignatures, claimMove, positionFen, currentMoveClaim)
+      case PositionPlanTechniqueUnit.PlanOptionSet =>
+        planContinuityCurrentMoveFunctionalProof(detail, objectSignatures, claimMove, currentMoveClaim)
+      case _ =>
+        detailOwnsClaimMove(detail, objectSignatures, claimMove)
+
+  private def planContinuityCurrentMoveFunctionalProof(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String,
+      currentMoveClaim: Boolean
+  ): Boolean =
+    val ownsMove =
+      detail.structuralRouteMove.exists(move => sameMove(move, claimMove))
+    val ownsCurrentMoveSource =
+      currentMoveClaim &&
+        (detail.sourceEvidenceIds ++ detail.candidateEvidenceIds)
+          .exists(planContinuitySourceIdOwnsClaimMove(_, claimMove))
+    val planSignal =
+      detail.axisKind.contains(StrategicAxisKind.PlanCoherence) ||
+        detail.matchedPlanIds.nonEmpty ||
+        detail.referencePlanIds.nonEmpty ||
+        detail.candidatePlanIds.nonEmpty ||
+        detail.semanticAnchorKeys.exists(anchor =>
+          anchor.startsWith("Plan:") ||
+            anchor.startsWith("PlanPressure:")
+        )
+    val concretePlanHook =
+      detail.structuralPurposeSubjects.exists(concreteSubject) &&
+        planContinuityCurrentMoveRouteObject(objectSignatures, claimMove)
+    ownsMove && ownsCurrentMoveSource && planSignal && concretePlanHook && !currentMoveNegativeStructuralHook(detail, objectSignatures, claimMove)
+
+  private def planContinuityCurrentMoveRouteObject(
+      objectSignatures: List[String],
+      claimMove: String
+  ): Boolean =
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
+    objectSignatures.exists(signature =>
+      moveTokens(List(signature)).contains(normalizedClaimMove) &&
+        planContinuityRouteObjectSignature(signature)
+    )
+
+  private def planContinuityRouteObjectSignature(signature: String): Boolean =
+    val mechanisms = EvidenceObjectBinding.signatureTokens(List(signature), "mechanism=")
+    val consequences = EvidenceObjectBinding.signatureTokens(List(signature), "consequence=")
+    mechanisms.exists(token =>
+      token.endsWith("Mechanism:developmentchoice") ||
+        token.endsWith("Mechanism:plan-pressure") ||
+        token.endsWith("Mechanism:planpressure")
+    ) &&
+      consequences.exists(token =>
+        token.endsWith("Consequence:developmentpieceactivated") ||
+          token.contains("Consequence:plancoherence:") ||
+          token.endsWith("Consequence:pawnbreakpreparation")
+      )
+
+  private def planContinuitySourceIdOwnsClaimMove(sourceId: String, claimMove: String): Boolean =
+    val normalizedId = sourceId.toLowerCase
+    val normalizedMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
+    JudgmentSubjectBinding.sourceIdOwnsCurrentPlayedMove(sourceId, claimMove) ||
+      normalizedId.contains(s":$normalizedMove:before-position") ||
+      normalizedId.contains(s":$normalizedMove:after-position") ||
+      normalizedId.contains(s":$normalizedMove:position:before:") ||
+      normalizedId.contains(s":$normalizedMove:position:after:")
+
+  private def currentMoveNegativeStructuralHook(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String
+  ): Boolean =
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
+    val currentMoveSignatures =
+      objectSignatures.filter(signature => moveTokens(List(signature)).contains(normalizedClaimMove))
+    val signatures =
+      if currentMoveSignatures.nonEmpty then currentMoveSignatures else objectSignatures
+    detail.axisPolarity.exists(negativePolarity) ||
+      detail.contrastOutcome.contains(StrategicAxisComparisonOutcome.CandidateConcession) ||
+      detail.structuralPurposePolarities.exists(negativeStructuralToken) ||
+      detail.structuralPurposeConsequences.exists(negativeStructuralToken) ||
+      signatures.exists(signature =>
+        EvidenceObjectBinding.signatureTokens(List(signature), "consequence=").exists(negativeStructuralToken) ||
+          EvidenceObjectBinding.signatureTokens(List(signature), "mechanism=").exists(negativeStructuralToken)
+      )
+
+  private def negativeStructuralToken(token: String): Boolean =
+    val normalized = token.toLowerCase
+    normalized.contains("loss") ||
+      normalized.contains("concede") ||
+      normalized.contains("concession") ||
+      normalized.contains("failed") ||
+      normalized.contains("targetpressurerelease") ||
+      normalized.contains("target-pressure-release") ||
+      normalized.contains("centercontrolloss") ||
+      normalized.contains("center-control-loss")
 
   private def causeFrameOwnsMeaningClaim(
       frame: MoveJudgmentCauseFrame,
@@ -2472,9 +2629,6 @@ object MoveMeaningClaim:
       detail.structuralPurposeSubjects.exists(pawnBreakTensionSubject)
 
   private def pawnBreakCurrentMoveFunctionalCarrier(detail: PositionPlanTechniqueSemanticDetail): Boolean =
-    pawnBreakConcreteTransitionCarrier(detail)
-
-  private def pawnBreakTransitionCarrier(detail: PositionPlanTechniqueSemanticDetail): Boolean =
     pawnBreakConcreteTransitionCarrier(detail)
 
   private def pawnBreakConcreteTransitionCarrier(detail: PositionPlanTechniqueSemanticDetail): Boolean =
@@ -3419,20 +3573,19 @@ object MoveMeaningClaim:
       case _                    => "soft_context"
 
   private def surfaceLane(
+      meaningKind: String,
       detail: PositionPlanTechniqueSemanticDetail,
       verdict: MoveJudgmentVerdictFrame,
       claimLineRole: String,
       claimMove: String,
+      positionFen: String,
       supportLevel: String,
       linkedCauseFrames: List[MoveJudgmentCauseFrame]
   ): String =
     val candidateMove = JudgmentSubjectBinding.normalizeMove(verdict.candidateLine.rootMove)
     val referenceMove = JudgmentSubjectBinding.normalizeMove(verdict.referenceLine.rootMove)
     val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove)
-    val playedCandidateComparison =
-      verdict.comparisonKind == CandidateComparisonKind.PlayedVsBest ||
-        verdict.comparisonKind == CandidateComparisonKind.PlayedVsAlternative
-    val currentMove = playedCandidateComparison && normalizedClaimMove == candidateMove
+    val currentMove = currentMoveMeaningClaim(verdict, claimLineRole, claimMove)
     val referenceMoveOnly = normalizedClaimMove == referenceMove && candidateMove != referenceMove
     val referenceOwnedCause =
       linkedCauseFrames.exists(frame => frame.causeSourceSide == RelativeCauseSourceSide.Reference)
@@ -3442,24 +3595,13 @@ object MoveMeaningClaim:
       detail.referenceEvidenceIds.nonEmpty &&
         detail.candidateEvidenceIds.isEmpty &&
         !currentMove
-    val currentMoveSurfaceReady =
-      detail.unit match
-        case PositionPlanTechniqueUnit.TensionBreakPolicyRoute =>
-          pawnBreakTransitionCarrier(detail) &&
-            pawnBreakEvidenceOwnsClaimMove(detail, detail.objectBindingSignatures, claimMove)
-        case PositionPlanTechniqueUnit.PieceRerouteRoute =>
-          pieceRouteViewReady(detail, detail.objectBindingSignatures, claimMove)
-        case PositionPlanTechniqueUnit.CounterplayRace =>
-          counterplayRaceShapeReady(detail) &&
-            counterplayRaceOrderProof(detail) &&
-            counterplayRaceOwnsClaimMove(detail, detail.objectBindingSignatures, claimMove)
-        case _ =>
-          detailOwnsClaimMove(detail, detail.objectBindingSignatures, claimMove)
+    val currentMoveSurfaceReadyForLane =
+      currentMoveSurfaceReady(meaningKind, detail, detail.objectBindingSignatures, claimMove, positionFen, currentMove)
     if referenceMoveOnly || (referenceOwnedCause && !candidateOwnedCause) || referenceDetailOnly then
       "reference_or_opponent_resource"
-    else if supportLevel == "owned_cause_linked" && currentMove && claimLineRole == "candidate" && candidateOwnedCause && currentMoveSurfaceReady then
+    else if supportLevel == "owned_cause_linked" && currentMove && candidateOwnedCause && currentMoveSurfaceReadyForLane then
       "current_move_owned"
-    else if supportLevel == "view_surfaced" && currentMove && claimLineRole == "candidate" && currentMoveSurfaceReady then
+    else if supportLevel == "view_surfaced" && currentMove && claimLineRole == "candidate" && currentMoveSurfaceReadyForLane then
       "current_move_function"
     else if supportLevel == "contextual" || contextualMeaningDetail(detail) then
       "inherited_context"
