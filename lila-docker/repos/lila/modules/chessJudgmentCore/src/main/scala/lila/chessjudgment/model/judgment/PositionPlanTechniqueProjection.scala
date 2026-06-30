@@ -1042,12 +1042,7 @@ object PositionPlanTechniqueProjection:
     else PositionPlanTechniqueSpecificityTier.ContextOnly
 
   private def positionPlanTechniqueNonBroadObjectSignature(signature: String): Boolean =
-    signature
-      .split("\\|")
-      .exists(part =>
-        (part.startsWith("target=") || part.startsWith("actor=")) &&
-          !part.contains("=Side:")
-      )
+    EvidenceObjectBinding.hasConcreteActorOrTargetSignature(signature)
 
   private def mechanismPlanTechniqueDetails(
       payload: StrategicMechanismEvidence,
@@ -1458,6 +1453,11 @@ object PositionPlanTechniqueProjection:
   ): Boolean =
     val kindMatches =
       detail.axisKind match
+        case Some(StrategicAxisKind.Counterplay)
+            if detail.axisPolarity.contains(StrategicAxisPolarity.Restrain) &&
+              detail.label.exists(_.equalsIgnoreCase("opponent-diagonal-restriction")) =>
+          purpose.consequenceKinds.contains(TransitionConsequenceKind.OpponentMobilityRestriction) &&
+            purpose.subjects.exists(StructuralDeltaEvidence.validOpponentMobilityRestrictionSubject)
         case Some(StrategicAxisKind.PawnBreak) =>
           if positionPlanTechniquePawnTensionDetail(detail) ||
             purpose.consequenceKinds.exists(positionPlanTechniquePawnTensionConsequence)

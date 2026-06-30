@@ -43,6 +43,7 @@ private[chessjudgment] final case class TransitionStructuralDelta(
     outpostRemoved: List[String] = Nil,
     rookLiftCreated: List[String] = Nil,
     batteryCreated: List[String] = Nil,
+    opponentMobilityRestrictions: List[String] = Nil,
     kingRingPressureDelta: Int = 0
 ):
   def pawnTensionDelta: Int = pawnTensionAfter - pawnTensionBefore
@@ -278,6 +279,14 @@ private[chessjudgment] object StructuralDeltaContracts:
         Option.when(delta.batteryCreated.nonEmpty)(
           TransitionConsequence(BatteryPressureGain, Gain, delta.batteryCreated.size, delta.batteryCreated)
         ),
+        Option.when(delta.opponentMobilityRestrictions.nonEmpty)(
+          TransitionConsequence(
+            OpponentMobilityRestriction,
+            Gain,
+            delta.opponentMobilityRestrictions.size,
+            delta.opponentMobilityRestrictions
+          )
+        ),
         Option.when(delta.kingRingPressureDelta > 0)(
           TransitionConsequence(KingRingPressureGain, Gain, delta.kingRingPressureDelta)
         ),
@@ -407,6 +416,7 @@ private[chessjudgment] object StructuralDeltaAnalyzer:
         outpostRemoved = outpostDelta.removed,
         rookLiftCreated = rookLiftLabels(moveMotifs, side),
         batteryCreated = batteryLines(afterFen, side).diff(batteryLines(beforeFen, side)).toList.sorted,
+        opponentMobilityRestrictions = opponentDiagonalRestrictions(beforeBoard, afterBoard, after.features, side, moveUci),
         kingRingPressureDelta = kingRingPressureDelta(before.features, after.features, side)
       )
     )
@@ -561,6 +571,67 @@ private[chessjudgment] object StructuralDeltaAnalyzer:
           s"battery:${axis.toString.toLowerCase}:${endpoints.map(_._1).mkString("-")}:${endpoints.map(_._2).mkString("-")}"
       }
     }.toSet
+
+  private def opponentDiagonalRestrictions(
+      beforeBoard: Board,
+      afterBoard: Board,
+      afterFeatures: Option[PositionFeatures],
+      side: Color,
+      moveUci: Option[String]
+  ): List[String] =
+    moveUci.toList.flatMap { uci =>
+      val origin = squareAt(uci.take(2))
+      val dest = squareAt(uci.drop(2).take(2))
+      val movedPiece = origin.flatMap(beforeBoard.pieceAt)
+      (origin, dest, movedPiece) match
+        case (Some(_), Some(to), Some(piece))
+            if piece.color == side &&
+              piece.role == Pawn &&
+              centralDiagonalBlocker(to) &&
+              afterFeatures.exists(_.centralSpace.lockedCenter) &&
+              afterBoard.pieceAt(to).exists(afterPiece => afterPiece.color == side && afterPiece.role == Pawn) =>
+          fianchettoBishopSquares(!side).flatMap { bishopSquare =>
+            val bishopBefore = beforeBoard.pieceAt(bishopSquare).exists(piece => piece.color == !side && piece.role == Bishop)
+            val bishopAfter = afterBoard.pieceAt(bishopSquare).exists(piece => piece.color == !side && piece.role == Bishop)
+            val beforeMobility = if bishopBefore then slidingMobility(beforeBoard, bishopSquare, Bishop, !side) else 0
+            val afterMobility = if bishopAfter then slidingMobility(afterBoard, bishopSquare, Bishop, !side) else 0
+            Option.when(
+              bishopBefore &&
+                bishopAfter &&
+                diagonalAligned(bishopSquare, to) &&
+                firstOccupiedSquareOnRay(afterBoard, bishopSquare, to).contains(to) &&
+                beforeMobility > afterMobility
+            )(
+              s"bishop:${bishopSquare.key}:diagonal-denial:blocked-by:${to.key}:locked-center:mobility-$beforeMobility-to-$afterMobility"
+            )
+          }
+        case _ =>
+          Nil
+    }.distinct.sorted
+
+  private def fianchettoBishopSquares(side: Color): List[Square] =
+    if side.white then List(Square.G2, Square.B2) else List(Square.G7, Square.B7)
+
+  private def centralDiagonalBlocker(square: Square): Boolean =
+    Set("c", "d", "e", "f").contains(square.key.take(1)) &&
+      Set(4, 5).contains(rankOf(square.key).getOrElse(0))
+
+  private def diagonalAligned(left: Square, right: Square): Boolean =
+    (left.file.value - right.file.value).abs == (left.rank.value - right.rank.value).abs
+
+  private def firstOccupiedSquareOnRay(board: Board, from: Square, through: Square): Option[Square] =
+    if !diagonalAligned(from, through) then None
+    else
+      val fileStep = Integer.compare(through.file.value, from.file.value)
+      val rankStep = Integer.compare(through.rank.value, from.rank.value)
+      def loop(file: Int, rank: Int): Option[Square] =
+        if file < 0 || file > 7 || rank < 0 || rank > 7 then None
+        else
+          squareAt(s"${('a' + file).toChar}${rank + 1}") match
+            case Some(square) if board.pieceAt(square).nonEmpty => Some(square)
+            case Some(_)                                        => loop(file + fileStep, rank + rankStep)
+            case None                                           => None
+      loop(from.file.value + fileStep, from.rank.value + rankStep)
 
   private final case class PieceTargetPressureDelta(
       released: List[String],

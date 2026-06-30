@@ -120,6 +120,208 @@ class RelativeCauseSignalProfileTest extends munit.FunSuite:
     assert(axes.contains("PawnBreak:Support:break-file-d-created-tension-d5-e6"), axes)
     assert(!axes.exists(axis => axis.contains("created-tension") && axis.contains("resolved-tension")), axes)
 
+  test("structural delta records current pawn move restricting opponent fianchetto bishop"):
+    val beforeFen = "4k3/6b1/8/3p4/3PP3/8/8/4K3 w - - 0 1"
+    val afterFen = "4k3/6b1/8/3pP3/3P4/8/8/4K3 b - - 0 1"
+    val beforeBoard = Fen.read(Standard, Fen.Full(beforeFen)).get.board
+    val afterBoard = Fen.read(Standard, Fen.Full(afterFen)).get.board
+    val delta =
+      StructuralDeltaAnalyzer
+        .delta(
+          beforeFen = beforeFen,
+          beforeBoard = beforeBoard,
+          afterFen = afterFen,
+          afterBoard = afterBoard,
+          side = Color.White,
+          files = ('a' to 'h').toList,
+          targets = Nil,
+          moveUci = Some("e4e5")
+        )
+        .get
+    val consequences = StructuralDeltaContracts.consequences(delta)
+
+    assert(
+      delta.opponentMobilityRestrictions.exists(_.startsWith("bishop:g7:diagonal-denial:blocked-by:e5:")),
+      delta.opponentMobilityRestrictions
+    )
+    assert(
+      consequences.exists(consequence =>
+        consequence.kind == TransitionConsequenceKind.OpponentMobilityRestriction &&
+          consequence.subjects.exists(_.startsWith("bishop:g7:diagonal-denial:blocked-by:e5:"))
+      ),
+      consequences
+    )
+
+  test("does not record diagonal restriction without a locked center"):
+    val beforeFen = "4k3/6b1/3p4/8/3PP3/8/8/4K3 w - - 0 1"
+    val afterFen = "4k3/6b1/3p4/4P3/3P4/8/8/4K3 b - - 0 1"
+    val beforeBoard = Fen.read(Standard, Fen.Full(beforeFen)).get.board
+    val afterBoard = Fen.read(Standard, Fen.Full(afterFen)).get.board
+    val delta =
+      StructuralDeltaAnalyzer
+        .delta(
+          beforeFen = beforeFen,
+          beforeBoard = beforeBoard,
+          afterFen = afterFen,
+          afterBoard = afterBoard,
+          side = Color.White,
+          files = ('a' to 'h').toList,
+          targets = Nil,
+          moveUci = Some("e4e5")
+        )
+        .get
+
+    assertEquals(delta.opponentMobilityRestrictions, Nil)
+    assert(!StructuralDeltaContracts.consequences(delta).exists(_.kind == TransitionConsequenceKind.OpponentMobilityRestriction))
+
+  test("maps concrete opponent diagonal restriction to current move opponent restriction"):
+    val root = PositionNodeRef("4k3/6b1/8/3p4/3PP3/8/8/4K3 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val after = PositionNodeRef("4k3/6b1/8/3pP3/3P4/8/8/4K3 b - - 0 1", 2, Some(Color.Black), Some("after"))
+    val playedLine = LineNodeRef("played-line", "e4e5", 1, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "e4e5", 1, LineNodeRole.BestReference)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:played:e4e5:opponent-diagonal-restriction",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val structuralRecord = EvidenceRecord(
+      structuralRef,
+      StructuralDeltaEvidence(
+        transition = StructuralTransitionBinding(
+          moveUci = "e4e5",
+          role = TransitionEdgeRole.Played,
+          from = root,
+          to = after,
+          line = Some(playedLine),
+          perspective = Color.White
+        ),
+        signals = Nil,
+        consequences = List(
+          TransitionConsequence(
+            TransitionConsequenceKind.OpponentMobilityRestriction,
+            StructuralSignalPolarity.Gain,
+            strength = 1,
+            subjects = List("bishop:g7:diagonal-denial:blocked-by:e5:locked-center:mobility-5-to-3")
+          )
+        )
+      )
+    )
+    val mechanismRecord = EvidenceRecord(
+      EvidenceRef(
+        id = "strategic-mechanism:counterplay:e4e5:opponent-diagonal-restriction",
+        producer = EvidenceProducer.StrategicMechanismProducer,
+        layer = EvidenceLayer.StrategicMechanism,
+        position = root,
+        line = Some(playedLine),
+        scope = EvidenceScope.PlayedTransition,
+        confidence = EvidenceConfidence.EngineBacked
+      ),
+      StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.CenterControl,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "opponent-diagonal-restriction",
+            source = structuralRef,
+            strength = 3,
+            axis = Some(
+              StrategicAxisDetail(
+                StrategicAxisKind.Counterplay,
+                StrategicAxisPolarity.Restrain,
+                "opponent-diagonal-restriction"
+              )
+            )
+          )
+        ),
+        semanticAnchors = Nil
+      ),
+      parents = List(structuralRef)
+    )
+    val graph = TypedEvidenceGraph(List(structuralRecord, mechanismRecord))
+    val signatures = EvidenceObjectBinding.objectSignatures(EvidenceObjectBinding.fromEvidenceRefs(graph, List(structuralRef)))
+    val profile = exactPlayedProfile(referenceLine, playedLine, List(structuralRecord, mechanismRecord))
+
+    val drafts = RelativeCauseDraftPlanner.drafts(profile)
+    assertEquals(drafts.map(_.kind), List(RelativeCauseKind.OpponentRestriction))
+    assertEquals(drafts.map(_.sourceSide), List(Some(RelativeCauseSourceSide.Candidate)))
+    assertEquals(drafts.map(_.attributionKind), List(CauseAttributionKind.CandidateCreatesValue))
+    assert(signatures.exists(signature => signature.contains("target=Piece:bishop") && signature.contains("target=Square:g7")), signatures)
+
+  test("does not draft current move opponent restriction from side-only restraint"):
+    val root = PositionNodeRef("4k3/6b1/8/3p4/3PP3/8/8/4K3 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val after = PositionNodeRef("4k3/6b1/8/3pP3/3P4/8/8/4K3 b - - 0 1", 2, Some(Color.Black), Some("after"))
+    val playedLine = LineNodeRef("played-line", "e4e5", 1, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "e4e5", 1, LineNodeRole.BestReference)
+    val structuralRef = EvidenceRef(
+      id = "structural-delta:played:e4e5:side-only-restraint",
+      producer = EvidenceProducer.StructuralDeltaProducer,
+      layer = EvidenceLayer.StructuralDelta,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition,
+      confidence = EvidenceConfidence.EngineBacked
+    )
+    val structuralRecord = EvidenceRecord(
+      structuralRef,
+      StructuralDeltaEvidence(
+        transition = StructuralTransitionBinding(
+          moveUci = "e4e5",
+          role = TransitionEdgeRole.Played,
+          from = root,
+          to = after,
+          line = Some(playedLine),
+          perspective = Color.White
+        ),
+        signals = Nil,
+        consequences = List(
+          TransitionConsequence(
+            TransitionConsequenceKind.OpponentMobilityRestriction,
+            StructuralSignalPolarity.Gain,
+            strength = 1,
+            subjects = List("side:black")
+          )
+        )
+      )
+    )
+    val mechanismRecord = EvidenceRecord(
+      EvidenceRef(
+        id = "strategic-mechanism:counterplay:e4e5:side-only-restraint",
+        producer = EvidenceProducer.StrategicMechanismProducer,
+        layer = EvidenceLayer.StrategicMechanism,
+        position = root,
+        line = Some(playedLine),
+        scope = EvidenceScope.PlayedTransition,
+        confidence = EvidenceConfidence.EngineBacked
+      ),
+      StrategicMechanismEvidence(
+        kind = StrategicMechanismKind.CenterControl,
+        signals = List(
+          StrategicMechanismSignal(
+            kind = StrategicMechanismSignalKind.StructuralDelta,
+            label = "opponent-diagonal-restriction",
+            source = structuralRef,
+            strength = 3,
+            axis = Some(
+              StrategicAxisDetail(
+                StrategicAxisKind.Counterplay,
+                StrategicAxisPolarity.Restrain,
+                "opponent-diagonal-restriction"
+              )
+            )
+          )
+        ),
+        semanticAnchors = Nil
+      ),
+      parents = List(structuralRef)
+    )
+    val profile = exactPlayedProfile(referenceLine, playedLine, List(structuralRecord, mechanismRecord))
+
+    assertEquals(RelativeCauseDraftPlanner.drafts(profile), Nil)
+
   private def relativeCauseWithLongTermProof(kind: RelativeCauseKind): RelativeCauseFact =
     val root = PositionNodeRef("8/8/8/8/8/8/8/8 w - - 0 1", 1, Some(Color.White), Some("root"))
     val after = PositionNodeRef("8/8/8/8/8/8/8/8 b - - 1 1", 2, Some(Color.Black), Some("after"))

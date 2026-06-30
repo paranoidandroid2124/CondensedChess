@@ -347,12 +347,15 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
           val causeKinds =
             currentMoveStrategicSupportCauseKinds(payload, profile.fact.candidateLine)
               .filter(kind =>
-                exactReferenceMove ||
-                  candidateCurrentMoveCanOwnValue &&
-                    (
-                      kind == RelativeCauseKind.PawnBreakOpportunity ||
-                        currentMoveConcreteActivityCanOwnValue(kind, payload, profile)
-                    )
+                if kind == RelativeCauseKind.OpponentRestriction then
+                  currentMoveConcreteCounterplayCanOwnValue(kind, payload, profile)
+                else
+                  exactReferenceMove ||
+                    candidateCurrentMoveCanOwnValue &&
+                      (
+                        kind == RelativeCauseKind.PawnBreakOpportunity ||
+                          currentMoveConcreteActivityCanOwnValue(kind, payload, profile)
+                      )
               )
           causeKinds.map(kind =>
             RelativeCauseDraft(
@@ -403,6 +406,41 @@ private[chessjudgment] object RelativeCauseDraftPlanner:
   private def currentMoveDiagonalBatterySubject(subject: String): Boolean =
     val normalized = Option(subject).getOrElse("").trim.toLowerCase
     normalized.startsWith("battery:diagonal:")
+
+  private def currentMoveConcreteCounterplayCanOwnValue(
+      kind: RelativeCauseKind,
+      payload: StrategicMechanismEvidence,
+      profile: RelativeCauseSignalProfile
+  ): Boolean =
+    kind == RelativeCauseKind.OpponentRestriction &&
+      currentMoveConcreteCounterplaySignals(payload, profile.fact.candidateLine)
+        .exists(signal => currentMoveConcreteCounterplaySource(signal.source, profile.allRecords))
+
+  private def currentMoveConcreteCounterplaySignals(
+      payload: StrategicMechanismEvidence,
+      candidateLine: LineNodeRef
+  ): List[StrategicMechanismSignal] =
+    payload.signals.filter(signal =>
+      RelativeCauseSignalProfile.currentMoveStrategicSupportSignal(signal, candidateLine) &&
+        signal.axis.exists(axis =>
+          axis.kind == StrategicAxisKind.Counterplay &&
+            axis.polarity == StrategicAxisPolarity.Restrain &&
+            axis.label == "opponent-diagonal-restriction"
+        )
+    )
+
+  private def currentMoveConcreteCounterplaySource(
+      source: EvidenceRef,
+      records: List[EvidenceRecord]
+  ): Boolean =
+    records.exists {
+      case EvidenceRecord(ref, payload: StructuralDeltaEvidence, _) if ref.id == source.id =>
+        payload.consequencesOf(TransitionConsequenceKind.OpponentMobilityRestriction).exists(consequence =>
+          consequence.subjects.exists(StructuralDeltaEvidence.validOpponentMobilityRestrictionSubject)
+        )
+      case _ =>
+        false
+    }
 
   private def currentMoveStrategicSupportCauseKinds(
       payload: StrategicMechanismEvidence,
@@ -956,6 +994,10 @@ private[chessjudgment] object RelativeCauseSignalProfile:
         List(RelativeCauseKind.TargetPressureGain)
       case StrategicAxisKind.Activity if axis.polarity == StrategicAxisPolarity.Gain =>
         List(RelativeCauseKind.ActivityGain)
+      case StrategicAxisKind.Counterplay
+          if axis.polarity == StrategicAxisPolarity.Restrain &&
+            axis.label == "opponent-diagonal-restriction" =>
+        List(RelativeCauseKind.OpponentRestriction)
       case StrategicAxisKind.PawnBreak
           if currentMovePawnBreakAxis(axis) &&
             (

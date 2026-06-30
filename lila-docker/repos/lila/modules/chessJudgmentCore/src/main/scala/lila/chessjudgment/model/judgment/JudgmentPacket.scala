@@ -1658,11 +1658,11 @@ object MoveMeaningSurfaceTarget:
       detail: PositionPlanTechniqueSemanticDetail,
       objectSignatures: List[String]
   ): MoveMeaningSurfaceTarget =
-    val pawnTargets = signatureValues(objectSignatures, "target", "Pawn")
+    val pawnTargets = EvidenceObjectBinding.signatureValues(objectSignatures, "target", "Pawn")
     MoveMeaningSurfaceTarget(
       squares =
         (
-          signatureValues(objectSignatures, "target", "Square") ++
+          EvidenceObjectBinding.signatureValues(objectSignatures, "target", "Square") ++
             pawnTargets.flatMap(squareFromText) ++
             detail.tensionSquares ++
             detail.resourceContestSquares ++
@@ -1672,24 +1672,16 @@ object MoveMeaningSurfaceTarget:
         ).flatMap(cleanSquare).distinct.sorted,
       files =
         (
-          signatureValues(objectSignatures, "target", "File") ++
+          EvidenceObjectBinding.signatureValues(objectSignatures, "target", "File") ++
             detail.breakFile.toList ++
             detail.counterBreakFiles ++
             detail.resourceContestFiles
         ).flatMap(cleanFile).distinct.sorted,
       pieces =
         (
-          signatureValues(objectSignatures, "target", "Piece").flatMap(cleanPiece) ++
+          EvidenceObjectBinding.signatureValues(objectSignatures, "target", "Piece").flatMap(cleanPiece) ++
             Option.when(pawnTargets.nonEmpty)("pawn").toList
         ).distinct.sorted
-    )
-
-  private def signatureValues(signatures: List[String], key: String, kind: String): List[String] =
-    signatures.flatMap(signature =>
-      signature.split("\\|").toList.collect {
-        case part if part.startsWith(s"$key=$kind:") =>
-          part.stripPrefix(s"$key=$kind:")
-      }
     )
 
   private def cleanSquare(value: String): Option[String] =
@@ -2226,7 +2218,7 @@ object MoveMeaningClaim:
           ) &&
           (
             detail.structuralPurposeSubjects.exists(concreteSubject) ||
-              signatureTokens(objectSignatures, "target=").exists(concreteTargetToken)
+              EvidenceObjectBinding.signatureTokens(objectSignatures, "target=").exists(EvidenceObjectBinding.concreteTargetToken)
           )
       case PositionPlanTechniqueUnit.TensionBreakPolicyRoute =>
         moveOwnedSource &&
@@ -2627,7 +2619,7 @@ object MoveMeaningClaim:
       detail.resourceContestFiles.nonEmpty ||
       detail.defenseMove.nonEmpty ||
       detail.structuralPurposeSubjects.exists(concreteSubject) ||
-      signatureTokens(objectSignatures, "target=").exists(concreteTargetToken)
+      EvidenceObjectBinding.signatureTokens(objectSignatures, "target=").exists(EvidenceObjectBinding.concreteTargetToken)
 
   private def counterplayRaceOwnedCauseReady(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -2806,12 +2798,8 @@ object MoveMeaningClaim:
       detail.raceReferenceRootMove.exists(move => sameMove(move, claimMove))
 
   private def moveTokens(signatures: List[String]): Set[String] =
-    signatures.flatMap(signature =>
-      signature.split("\\|").toList.collect {
-        case part if part.toLowerCase.startsWith("actor=move:") =>
-          JudgmentSubjectBinding.normalizeMove(part.drop("actor=Move:".length)).toLowerCase
-      }
-    ).toSet
+    EvidenceObjectBinding.signatureTokens(signatures, "actor=Move:")
+      .map(part => JudgmentSubjectBinding.normalizeMove(part.stripPrefix("actor=Move:")).toLowerCase)
 
   private def moveTouchesBreakFile(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -2842,7 +2830,7 @@ object MoveMeaningClaim:
       claimMove: String
   ): Boolean =
     moveEndpoints(claimMove).exists { case (from, to) =>
-      signatureTokens(objectSignatures, "target=").exists { token =>
+      EvidenceObjectBinding.signatureTokens(objectSignatures, "target=").exists { token =>
         val normalized = token.toLowerCase
         normalized.contains(from) ||
           normalized.contains(to) ||
@@ -3185,47 +3173,25 @@ object MoveMeaningClaim:
       frame: MoveJudgmentCauseFrame,
       objectSignatures: List[String]
   ): Boolean =
-    val frameTargets = signatureTokens(frame.objectBindingSignatures, "target=").filter(concreteTargetToken)
-    val detailTargets = signatureTokens(objectSignatures, "target=").filter(concreteTargetToken)
+    val frameTargets =
+      EvidenceObjectBinding.signatureTokens(frame.objectBindingSignatures, "target=").filter(EvidenceObjectBinding.concreteTargetToken)
+    val detailTargets =
+      EvidenceObjectBinding.signatureTokens(objectSignatures, "target=").filter(EvidenceObjectBinding.concreteTargetToken)
     val sharedTargets = frameTargets.intersect(detailTargets)
     if sharedTargets.nonEmpty then true
     else
-      val frameActors = signatureTokens(frame.objectBindingSignatures, "actor=").filter(specificActorToken)
-      val detailActors = signatureTokens(objectSignatures, "actor=").filter(specificActorToken)
+      val frameActors =
+        EvidenceObjectBinding.signatureTokens(frame.objectBindingSignatures, "actor=").filter(EvidenceObjectBinding.specificActorToken)
+      val detailActors =
+        EvidenceObjectBinding.signatureTokens(objectSignatures, "actor=").filter(EvidenceObjectBinding.specificActorToken)
       val sharedActors = frameActors.intersect(detailActors)
       val sharedMechanisms =
-        signatureTokens(frame.objectBindingSignatures, "mechanism=")
-          .intersect(signatureTokens(objectSignatures, "mechanism="))
+        EvidenceObjectBinding.signatureTokens(frame.objectBindingSignatures, "mechanism=")
+          .intersect(EvidenceObjectBinding.signatureTokens(objectSignatures, "mechanism="))
       val sharedConsequences =
-        signatureTokens(frame.objectBindingSignatures, "consequence=")
-          .intersect(signatureTokens(objectSignatures, "consequence="))
+        EvidenceObjectBinding.signatureTokens(frame.objectBindingSignatures, "consequence=")
+          .intersect(EvidenceObjectBinding.signatureTokens(objectSignatures, "consequence="))
       sharedActors.nonEmpty && (sharedMechanisms.nonEmpty || sharedConsequences.nonEmpty)
-
-  private def signatureTokens(signatures: List[String], prefix: String): Set[String] =
-    signatures.flatMap(signature =>
-      signature.split("\\|").toList.collect {
-        case part if part.startsWith(prefix) => part
-      }
-    ).toSet
-
-  private def concreteTargetToken(token: String): Boolean =
-    !token.contains("=Side:") &&
-      (
-        token.contains("=Square:") ||
-          token.contains("=File:") ||
-          token.toLowerCase.contains("square:") ||
-          token.toLowerCase.contains("file:") ||
-          token.toLowerCase.matches(".*[a-h][1-8].*")
-      )
-
-  private def specificActorToken(token: String): Boolean =
-    !token.contains("=Side:") &&
-      !token.contains("=Move:") &&
-      (
-        token.contains("=Square:") ||
-          token.toLowerCase.contains("square:") ||
-          token.toLowerCase.matches(".*[a-h][1-8].*")
-      )
 
   private def contextualMeaningDetail(detail: PositionPlanTechniqueSemanticDetail): Boolean =
     detail.unit == PositionPlanTechniqueUnit.PlanOptionSet ||
@@ -3235,7 +3201,7 @@ object MoveMeaningClaim:
       detail: PositionPlanTechniqueSemanticDetail,
       objectSignatures: List[String]
   ): Boolean =
-    objectSignatures.exists(concreteObjectSignature) ||
+    objectSignatures.exists(EvidenceObjectBinding.hasConcreteActorOrTargetSignature) ||
       detail.requiredSquares.nonEmpty ||
       detail.maintainedSquares.nonEmpty ||
       detail.resourceContestSquares.nonEmpty ||
@@ -3244,14 +3210,6 @@ object MoveMeaningClaim:
       detail.tensionEdges.nonEmpty ||
       detail.breakFile.nonEmpty ||
       detail.structuralPurposeSubjects.exists(concreteSubject)
-
-  private def concreteObjectSignature(signature: String): Boolean =
-    signature
-      .split("\\|")
-      .exists(part =>
-        (part.startsWith("target=") || part.startsWith("actor=")) &&
-          !part.contains("=Side:")
-      )
 
   private def concreteSubject(subject: String): Boolean =
     val normalized = subject.toLowerCase.trim
@@ -4185,7 +4143,8 @@ object MoveJudgmentView:
   private def exactCurrentMoveStrategicSupportKind(kind: RelativeCauseKind): Boolean =
     kind == RelativeCauseKind.ActivityGain ||
       kind == RelativeCauseKind.TargetPressureGain ||
-      kind == RelativeCauseKind.PawnBreakOpportunity
+      kind == RelativeCauseKind.PawnBreakOpportunity ||
+      kind == RelativeCauseKind.OpponentRestriction
 
   private def exactCurrentMoveStrategicSupportFrame(frame: MoveJudgmentCauseFrame): Boolean =
     ClaimEventCluster.kindForCause(frame.causeKind).isEmpty &&

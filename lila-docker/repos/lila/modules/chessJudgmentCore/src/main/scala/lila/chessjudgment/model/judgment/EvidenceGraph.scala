@@ -149,6 +149,46 @@ object EvidenceObjectBinding:
   def objectSignatures(bindings: List[EvidenceObjectBinding]): List[String] =
     bindings.filter(_.hasConcreteObject).map(_.signature).distinct.sorted
 
+  private[chessjudgment] def signatureParts(signature: String): List[String] =
+    signature.split("\\|").toList.map(_.trim).filter(_.nonEmpty)
+
+  private[chessjudgment] def signatureTokens(signatures: List[String], prefix: String): Set[String] =
+    val normalizedPrefix = prefix.toLowerCase
+    signatures.flatMap(signature =>
+      signatureParts(signature).collect {
+        case part if part.toLowerCase.startsWith(normalizedPrefix) => part
+      }
+    ).toSet
+
+  private[chessjudgment] def signatureValues(signatures: List[String], role: String, kind: String): List[String] =
+    val prefix = s"$role=$kind:"
+    signatureTokens(signatures, prefix).toList.map(_.drop(prefix.length)).sorted
+
+  private[chessjudgment] def hasConcreteActorOrTargetSignature(signature: String): Boolean =
+    signatureParts(signature).exists(part =>
+      (part.toLowerCase.startsWith("target=") || part.toLowerCase.startsWith("actor=")) &&
+        !part.toLowerCase.contains("=side:")
+    )
+
+  private[chessjudgment] def concreteTargetToken(token: String): Boolean =
+    !token.toLowerCase.contains("=side:") &&
+      (
+        token.contains("=Square:") ||
+          token.contains("=File:") ||
+          token.toLowerCase.contains("square:") ||
+          token.toLowerCase.contains("file:") ||
+          token.toLowerCase.matches(".*[a-h][1-8].*")
+      )
+
+  private[chessjudgment] def specificActorToken(token: String): Boolean =
+    !token.toLowerCase.contains("=side:") &&
+      !token.toLowerCase.contains("=move:") &&
+      (
+        token.contains("=Square:") ||
+          token.toLowerCase.contains("square:") ||
+          token.toLowerCase.matches(".*[a-h][1-8].*")
+      )
+
   def playerFacingReady(bindings: List[EvidenceObjectBinding]): Boolean =
     bindings.exists(_.playerFacingReady)
 
@@ -637,6 +677,12 @@ object EvidenceObjectBinding:
         objectOf(EvidenceObjectKind.Piece, role) ++ objectOf(EvidenceObjectKind.Square, to)
       case Some(StructuralPurposeSubject.Outpost(role, square)) =>
         objectOf(EvidenceObjectKind.Piece, role) ++ objectOf(EvidenceObjectKind.Square, square)
+      case Some(StructuralPurposeSubject.PieceRestriction(role, square, blocker)) =>
+        objectOf(EvidenceObjectKind.Piece, role) ++
+          objectOf(EvidenceObjectKind.Square, square) ++
+          objectOf(EvidenceObjectKind.Square, blocker)
+      case Some(StructuralPurposeSubject.PieceSquare(role, square)) =>
+        objectOf(EvidenceObjectKind.Piece, role) ++ objectOf(EvidenceObjectKind.Square, square)
       case Some(StructuralPurposeSubject.Battery(_, from, to, roles)) =>
         roles.flatMap(role => objectOf(EvidenceObjectKind.Piece, role)) ++
           objectOf(EvidenceObjectKind.Square, from) ++
@@ -669,11 +715,15 @@ private[judgment] object StructuralPurposeSubject:
   sealed trait Parsed
   final case class PieceRoute(piece: String, from: String, to: String) extends Parsed
   final case class Outpost(piece: String, square: String) extends Parsed
+  final case class PieceRestriction(piece: String, square: String, blocker: String) extends Parsed
+  final case class PieceSquare(piece: String, square: String) extends Parsed
   final case class Battery(axis: String, from: String, to: String, roles: List[String]) extends Parsed
   final case class TensionEdge(from: String, to: String) extends Parsed
 
   private val pieceRoute = raw"([a-z]+):([a-h][1-8])-([a-h][1-8]).*".r
   private val outpost = raw"outpost:([a-z]+):([a-h][1-8]).*".r
+  private val pieceRestriction = raw"([a-z]+):([a-h][1-8]):diagonal-denial:blocked-by:([a-h][1-8]).*".r
+  private val pieceSquare = raw"([a-z]+):([a-h][1-8])(?::.*)?".r
   private val battery = raw"battery:([a-z]+):([a-h][1-8])-([a-h][1-8])(?::([a-z-]+))?.*".r
   private val tensionEdge = raw"([a-h][1-8])-([a-h][1-8])".r
 
@@ -685,6 +735,10 @@ private[judgment] object StructuralPurposeSubject:
         Some(Battery(axis, from, to, Option(roles).toList.flatMap(_.split("-").toList).filter(_.nonEmpty).distinct.sorted))
       case pieceRoute(piece, from, to) =>
         Some(PieceRoute(piece, from, to))
+      case pieceRestriction(piece, square, blocker) =>
+        Some(PieceRestriction(piece, square, blocker))
+      case pieceSquare(piece, square) =>
+        Some(PieceSquare(piece, square))
       case tensionEdge(from, to) =>
         Some(TensionEdge(from, to))
       case _ =>
@@ -1668,6 +1722,18 @@ object StrategicMechanismEvidence:
               record.ref,
               3,
               concreteAxis(record, structuralDeltaAxis(StrategicAxisKind.Activity, StrategicAxisPolarity.Gain, "outpost-gain"))
+            )
+          ),
+          Option.when(payload.hasOpponentMobilityRestriction)(
+            StrategicMechanismKind.CenterControl -> signal(
+              StrategicMechanismSignalKind.StructuralDelta,
+              "opponent-diagonal-restriction",
+              record.ref,
+              3,
+              concreteAxis(
+                record,
+                structuralDeltaAxis(StrategicAxisKind.Counterplay, StrategicAxisPolarity.Restrain, "opponent-diagonal-restriction")
+              )
             )
           ),
           Option.when(
@@ -3218,6 +3284,7 @@ enum TransitionConsequenceKind:
   case OutpostConcession
   case RookLiftActivation
   case BatteryPressureGain
+  case OpponentMobilityRestriction
   case KingRingPressureGain
   case KingRingPressureConcession
 
@@ -3508,6 +3575,10 @@ final case class StructuralDeltaEvidence(
     hasConsequence(RookLiftActivation)
   def hasBatteryPressureGain: Boolean =
     hasConsequence(BatteryPressureGain)
+  def hasOpponentMobilityRestriction: Boolean =
+    consequencesOf(OpponentMobilityRestriction).exists(consequence =>
+      consequence.subjects.exists(StructuralDeltaEvidence.validOpponentMobilityRestrictionSubject)
+    )
   def hasKingRingPressureGain: Boolean =
     hasConsequence(KingRingPressureGain)
   def hasStrategicConcession: Boolean =
@@ -3578,8 +3649,21 @@ object StructuralDeltaEvidence:
   def isStrategicSupportConsequence(kind: TransitionConsequenceKind): Boolean =
     hasConsequenceCategory(kind, StrategicSupport)
 
+  private[chessjudgment] def validOpponentMobilityRestrictionSubject(subject: String): Boolean =
+    val normalized = Option(subject).getOrElse("").trim.toLowerCase
+    normalized match
+      case opponentMobilityRestrictionSubject(bishopSquare, blockerSquare, before, after) =>
+        Set("g7", "b7", "g2", "b2").contains(bishopSquare) &&
+          blockerSquare.matches("[c-f][45]") &&
+          after.toIntOption.exists(afterValue => before.toIntOption.exists(beforeValue => afterValue < beforeValue))
+      case _ =>
+        false
+
   private def consequenceKindsFor(category: TransitionConsequenceCategory): Set[TransitionConsequenceKind] =
     consequenceCategories.collect { case (kind, categories) if categories.contains(category) => kind }.toSet
+
+  private val opponentMobilityRestrictionSubject =
+    raw"bishop:(g7|b7|g2|b2):diagonal-denial:blocked-by:([c-f][45]):locked-center:mobility-([0-9]+)-to-([0-9]+)".r
 
   private lazy val consequenceCategories: Map[TransitionConsequenceKind, Set[TransitionConsequenceCategory]] =
     Map(
@@ -3619,6 +3703,7 @@ object StructuralDeltaEvidence:
       OutpostConcession -> Set(StrategicSupport),
       RookLiftActivation -> Set(StructuralAnchor, StrategicMove, StrategicSupport),
       BatteryPressureGain -> Set(PieceActivity, StructuralAnchor, StrategicMove, StrategicSupport),
+      OpponentMobilityRestriction -> Set(StrategicMove, StrategicSupport, PlanAnchor),
       KingRingPressureGain -> Set(StructuralAnchor, StrategicMove, StrategicSupport),
       KingRingPressureConcession -> Set(StrategicSupport)
     )
