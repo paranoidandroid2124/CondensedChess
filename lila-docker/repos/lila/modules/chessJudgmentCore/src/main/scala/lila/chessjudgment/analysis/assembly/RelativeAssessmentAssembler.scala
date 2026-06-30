@@ -1285,6 +1285,10 @@ object RelativeAssessmentAssembler:
         payload.consequencesOf(TargetPressureRelease)
       case RelativeCauseKind.CenterControlGain =>
         payload.consequencesOf(CenterControlGain)
+      case RelativeCauseKind.OpponentRestriction =>
+        payload.consequencesOf(OpponentMobilityRestriction).filter(consequence =>
+          consequence.subjects.exists(StructuralDeltaEvidence.validOpponentMobilityRestrictionSubject)
+        )
       case RelativeCauseKind.KingSafetyConcession =>
         payload.consequencesOf(KingSafetyConcession) ++
           payload.consequencesOf(KingRingPressureConcession)

@@ -1146,6 +1146,13 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       claim.reasonTokens.contains("structuralSubject:bishop:g7:diagonal-denial:blocked-by:e5:locked-center:mobility-3-to-2"),
       claim.reasonTokens
     )
+    assert(claim.reasonTokens.contains("rayRole:denial"), claim.reasonTokens)
+    assert(claim.reasonTokens.contains("rayAxis:diagonal"), claim.reasonTokens)
+    assert(claim.reasonTokens.contains("rayPiece:bishop"), claim.reasonTokens)
+    assert(claim.reasonTokens.contains("raySquare:g7"), claim.reasonTokens)
+    assert(claim.reasonTokens.contains("rayBlockedSquare:e5"), claim.reasonTokens)
+    assert(claim.reasonTokens.contains("resourceDenied:diagonal"), claim.reasonTokens)
+    assert(claim.reasonTokens.contains("counterplayDelay:diagonal"), claim.reasonTokens)
     assert(claim.reasonTokens.contains(s"causeEvidenceId:${causeRef.id}"), claim.reasonTokens)
     assert(
       claim.objectBindingSignatures.exists(signature =>
@@ -1155,6 +1162,11 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       ),
       claim.objectBindingSignatures
     )
+    val surface = MoveMeaningSurface.from(view).find(_.ideaType == "ray_denial").getOrElse(fail(MoveMeaningSurface.from(view).toString))
+    assertEquals(surface.subject, "played_move")
+    assertEquals(surface.priority, "primary")
+    assertEquals(surface.target.pieces, List("bishop"))
+    assertEquals(surface.target.squares, List("e5", "g7"))
 
   test("preserves central open structural transformation ownership from structural-delta anchors"):
     val root = PositionNodeRef("8/8/4p3/8/8/8/8/8 b - - 0 1", 1, Some(Color.Black), Some("root"))
@@ -1468,14 +1480,15 @@ class MoveJudgmentViewTest extends munit.FunSuite:
       semanticAnchors = Nil
     )
 
+    val graph = TypedEvidenceGraph(
+      List(
+        EvidenceRecord(structuralRef, structuralDelta),
+        EvidenceRecord(mechanismRef, mechanism, parents = List(structuralRef))
+      )
+    )
     val frame = PositionPlanTechniqueProjection
       .frames(
-        TypedEvidenceGraph(
-          List(
-            EvidenceRecord(structuralRef, structuralDelta),
-            EvidenceRecord(mechanismRef, mechanism, parents = List(structuralRef))
-          )
-        ),
+        graph,
         Nil,
         Nil,
         None
@@ -1487,6 +1500,19 @@ class MoveJudgmentViewTest extends munit.FunSuite:
     assert(detail.objectBindingSignatures.exists(_.contains("actor=Piece:bishop")), detail.objectBindingSignatures)
     assert(!detail.objectBindingSignatures.exists(_.contains("mechanism=Mechanism:bishop-long-diagonal")), detail.objectBindingSignatures)
     assert(!detail.objectBindingSignatures.exists(_.contains("consequence=Consequence:diagonalpressure")), detail.objectBindingSignatures)
+    val view = MoveJudgmentView
+      .from(
+        relativeAssessments = Nil,
+        evidenceGraph = graph,
+        ideas = Nil,
+        claims = Nil,
+        claimLifecycle = Nil,
+        ideaVerdict = None,
+        claimSupportClusters = Nil,
+        claimEventClusters = Nil
+      )
+      .get
+    assert(!MoveMeaningSurface.from(view).exists(surface => surface.ideaType == "ray_denial" || surface.ideaType == "long_diagonal_pressure"))
 
   test("decodes counterplay race line lead from strategic contrast"):
     val root = PositionNodeRef("8/8/8/8/8/8/4P3/4K3 w - - 0 1", 1, Some(Color.White), Some("root"))

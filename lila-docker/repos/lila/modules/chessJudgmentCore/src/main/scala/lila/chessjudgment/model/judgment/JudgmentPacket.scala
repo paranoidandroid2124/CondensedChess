@@ -1820,6 +1820,8 @@ object MoveMeaningSurface:
         "pawn_break_timing"
       case PositionPlanTechniqueUnit.CounterplayRace =>
         "counterplay_race"
+      case PositionPlanTechniqueUnit.SpacePreventionResourceDenial if hasRayDenialSignal(claim) =>
+        "ray_denial"
       case PositionPlanTechniqueUnit.SpacePreventionResourceDenial =>
         "counterplay_control"
       case PositionPlanTechniqueUnit.PieceRerouteRoute if claim.meaningKind == "PieceRoute" && hasPublicDetailSignal(claim, "outpost") =>
@@ -1952,6 +1954,12 @@ object MoveMeaningSurface:
         normalized.contains("mechanism=mechanism:battery-diagonal") ||
         normalized.contains("mechanism=mechanism:bishop-long-diagonal")
     )
+
+  private def hasRayDenialSignal(claim: MoveMeaningClaim): Boolean =
+    val normalizedTokens = claim.reasonTokens.map(_.toLowerCase)
+    normalizedTokens.contains("rayrole:denial") &&
+      normalizedTokens.contains("rayaxis:diagonal") &&
+      normalizedTokens.contains("resourcedenied:diagonal")
 
   private def surfaceSortKey(surface: MoveMeaningSurface): (Int, String, String) =
     (
@@ -3951,6 +3959,8 @@ object MoveMeaningClaim:
       if detail.unit == PositionPlanTechniqueUnit.CounterplayRace then
         counterplayRaceReasonTokens(detail, verdict, claimMove, positionFen, claimRole)
       else Nil
+    val rayReasonTokens =
+      rayCarrierReasonTokens(detail, objectSignatures, claimMove)
     val routeReasonTokens =
       if detail.unit == PositionPlanTechniqueUnit.PieceRerouteRoute &&
           pieceRouteQualifiedCarrierForMove(detail, objectSignatures, claimMove)
@@ -3976,6 +3986,7 @@ object MoveMeaningClaim:
         Some(s"specificityTier:${detail.specificityTier}")
       ).flatten ++
         raceReasonTokens ++
+        rayReasonTokens ++
         routeReasonTokens ++
         detail.tensionSquares.map(value => s"tensionSquare:$value") ++
         detail.tensionEdges.map(value => s"tensionEdge:$value") ++
@@ -4057,6 +4068,81 @@ object MoveMeaningClaim:
         objectTokens ++
         motifCarriers
     ).distinct.sorted
+
+  private def rayCarrierReasonTokens(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String
+  ): List[String] =
+    if detail.unit != PositionPlanTechniqueUnit.PieceRerouteRoute &&
+        detail.unit != PositionPlanTechniqueUnit.SpacePreventionResourceDenial
+    then return Nil
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
+    val currentMoveObjects =
+      objectSignatures.filter(signature =>
+        val moves = moveTokens(List(signature))
+        moves.contains(normalizedClaimMove) ||
+          (moves.isEmpty && detail.structuralRouteMove.exists(move => sameMove(move, claimMove)))
+      )
+    val currentMoveOwnsRaySubject =
+      currentMoveObjects.nonEmpty ||
+        detail.structuralRouteMove.exists(move => sameMove(move, claimMove))
+    val hasValidatedDenialSubject =
+      detail.structuralPurposeSubjects.exists(StructuralDeltaEvidence.validOpponentMobilityRestrictionSubject)
+    val subjectTokens =
+      if currentMoveOwnsRaySubject then
+        detail.structuralPurposeSubjects.flatMap { subject =>
+          StructuralPurposeSubject.parse(subject) match
+            case Some(StructuralPurposeSubject.PieceRestriction(piece, square, blocker))
+                if StructuralDeltaEvidence.validOpponentMobilityRestrictionSubject(subject) =>
+              List(
+                "rayRole:denial",
+                "rayAxis:diagonal",
+                s"rayPiece:$piece",
+                s"raySquare:$square",
+                s"rayBlockedSquare:$blocker",
+                s"resourceDenied:diagonal",
+                s"counterplayDelay:diagonal",
+                s"raySubject:$subject"
+              )
+            case Some(StructuralPurposeSubject.Battery(axis, from, to, roles)) if axis.equalsIgnoreCase("diagonal") =>
+              List("rayRole:pressure", "rayAxis:diagonal", s"rayFrom:$from", s"rayTo:$to", "resourcePressure:diagonal", s"raySubject:$subject") ++
+                roles.map(role => s"rayPiece:$role")
+            case _ =>
+              Nil
+        }
+      else Nil
+    val objectTokens =
+      currentMoveObjects.flatMap { signature =>
+        val normalized = signature.toLowerCase
+        val diagonalPressure =
+          normalized.contains("mechanism=mechanism:battery-diagonal") ||
+            normalized.contains("mechanism=mechanism:bishop-long-diagonal") ||
+            normalized.contains("consequence=consequence:diagonalpressure")
+        val diagonalDenial =
+          normalized.contains("diagonal-denial") ||
+            (hasValidatedDenialSubject &&
+              (
+                normalized.contains("mechanism=mechanism:opponentmobilityrestriction") ||
+                  normalized.contains("consequence=consequence:opponentmobilityrestriction")
+              ))
+        val targets =
+          EvidenceObjectBinding.signatureTokens(List(signature), "target=").flatMap { token =>
+            val normalizedToken = token.toLowerCase
+            if normalizedToken.contains("piece:bishop") then List("rayPiece:bishop")
+            else if normalizedToken.contains("square:") then List(s"rayTarget:$token")
+            else Nil
+          }
+        Option.when(diagonalPressure)("rayRole:pressure").toList ++
+          Option.when(diagonalPressure)("rayAxis:diagonal").toList ++
+          Option.when(diagonalPressure)("resourcePressure:diagonal").toList ++
+          Option.when(diagonalDenial)("rayRole:denial").toList ++
+          Option.when(diagonalDenial)("rayAxis:diagonal").toList ++
+          Option.when(diagonalDenial)("resourceDenied:diagonal").toList ++
+          Option.when(diagonalDenial)("counterplayDelay:diagonal").toList ++
+          targets
+      }
+    (subjectTokens ++ objectTokens).distinct.sorted
 
   private def counterplayRaceReasonTokens(
       detail: PositionPlanTechniqueSemanticDetail,
