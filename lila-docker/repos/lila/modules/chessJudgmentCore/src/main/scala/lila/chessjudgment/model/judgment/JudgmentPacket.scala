@@ -2925,12 +2925,16 @@ object MoveMeaningClaim:
       claimMove: String
   ): Boolean =
     val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
-    moveTokens(objectSignatures).contains(normalizedClaimMove) ||
+    val directlyOwnsMove =
+      moveTokens(objectSignatures).contains(normalizedClaimMove) ||
       detail.structuralRouteMove.exists(move => sameMove(move, claimMove)) ||
-      detail.defenseMove.exists(move => sameMove(move, claimMove)) ||
-      moveTouchesSquares(claimMove, detail.resourceContestSquares) ||
-      moveTouchesFiles(claimMove, detail.resourceContestFiles) ||
-      targetTokensTouchMove(objectSignatures, claimMove)
+      detail.defenseMove.exists(move => sameMove(move, claimMove))
+    if detail.prophylaxisNeeded.contains(true) || detail.threatKind.nonEmpty then directlyOwnsMove
+    else
+      directlyOwnsMove ||
+        moveTouchesSquares(claimMove, detail.resourceContestSquares) ||
+        moveTouchesFiles(claimMove, detail.resourceContestFiles) ||
+        targetTokensTouchMove(objectSignatures, claimMove)
 
   private def resourceDetailHasConcreteCarrier(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -2938,7 +2942,6 @@ object MoveMeaningClaim:
   ): Boolean =
     detail.resourceContestSquares.nonEmpty ||
       detail.resourceContestFiles.nonEmpty ||
-      detail.defenseMove.nonEmpty ||
       detail.structuralPurposeSubjects.exists(concreteSubject) ||
       EvidenceObjectBinding.signatureTokens(objectSignatures, "target=").exists(EvidenceObjectBinding.concreteTargetToken)
 

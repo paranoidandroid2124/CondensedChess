@@ -1212,11 +1212,11 @@ object PositionPlanTechniqueProjection:
           detail.copy(
             resourceContestActorSide = resource.actorSide,
             resourceContestTargetSide = resource.targetSide,
-            resourceContestKinds = resource.kinds,
-            resourceContestSignals = resource.signals,
-            resourceContestSquares = resource.squares,
-            resourceContestFiles = resource.files,
-            resourceContestScopes = resource.scopes,
+            resourceContestKinds = (detail.resourceContestKinds ++ resource.kinds).distinct.sorted,
+            resourceContestSignals = (detail.resourceContestSignals ++ resource.signals).distinct.sorted,
+            resourceContestSquares = (detail.resourceContestSquares ++ resource.squares).distinct.sorted,
+            resourceContestFiles = (detail.resourceContestFiles ++ resource.files).distinct.sorted,
+            resourceContestScopes = (detail.resourceContestScopes ++ resource.scopes).distinct.sorted,
             resourceContestMagnitude = resource.magnitude
           )
         )
@@ -2180,6 +2180,10 @@ object PositionPlanTechniqueProjection:
         defenseMove = payload.onlyDefense.orElse(episode.bestDefense),
         prophylaxisNeeded = Some(payload.prophylaxisNeeded),
         maxWinPercentLossIfIgnored = payload.maxWinPercentLossIfIgnored,
+        resourceContestSquares = episode.attackSquares.map(_.key).distinct.sorted,
+        resourceContestScopes =
+          Option.when(episode.attackSquares.nonEmpty)("threat").toList ++
+            Option.when(payload.prophylaxisNeeded && episode.attackSquares.nonEmpty)("prophylaxis").toList,
         sourceEvidenceIds = evidenceIds
       )
     )

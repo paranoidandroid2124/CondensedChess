@@ -2545,6 +2545,62 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assert(view.moveMeaningClaims.head.reasonTokens.contains("resourceContestKind:CounterplayRestraint"))
     assert(view.moveMeaningClaims.head.reasonTokens.contains("resourceContestScope:counterplay"))
 
+  test("move meaning prophylaxis requires concrete threat carrier beyond defense move"):
+    val defenseOnly = PositionPlanTechniqueSemanticDetail(
+      unit = PositionPlanTechniqueUnit.SpacePreventionResourceDenial,
+      axisKey = Some("Counterplay:Restrain:prophylaxis-needed"),
+      axisKind = Some(StrategicAxisKind.Counterplay),
+      axisPolarity = Some(StrategicAxisPolarity.Restrain),
+      label = Some("prophylaxis-needed"),
+      candidateEvidenceIds = List("played-transition"),
+      sourceEvidenceIds = List("played-transition"),
+      objectBindingSignatures =
+        List("actor=Move:e2e3|target=Side:black|mechanism=Mechanism:PositionalThreat|consequence=Consequence:Important"),
+      specificityTier = PositionPlanTechniqueSpecificityTier.BroadAxis,
+      defenseMove = Some(candidateLine.rootMove),
+      prophylaxisNeeded = Some(true),
+      threatKind = Some("Positional"),
+      threatDriver = Some("PositionalThreat"),
+      threatSeverity = Some("Important"),
+      turnsToImpact = Some(3)
+    )
+    val concreteThreat = defenseOnly.copy(
+      objectBindingSignatures =
+        List("actor=Move:e2e3|target=Square:g4|mechanism=Mechanism:PositionalThreat|consequence=Consequence:Important"),
+      resourceContestSquares = List("g4"),
+      resourceContestScopes = List("prophylaxis", "threat")
+    )
+    val borrowedAnchorSquare = defenseOnly.copy(
+      defenseMove = None,
+      objectBindingSignatures =
+        List("target=Square:e3|target=Square:g4|mechanism=Mechanism:PositionalThreat|consequence=Consequence:Important"),
+      resourceContestSquares = List("e3", "g4"),
+      resourceContestScopes = List("counterplay", "prophylaxis", "threat")
+    )
+    val defenseOnlyView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(defenseOnly)
+    )
+    val concreteThreatView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(concreteThreat)
+    )
+    val borrowedAnchorSquareView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(borrowedAnchorSquare)
+    )
+
+    assertEquals(defenseOnlyView.moveMeaningClaims, Nil)
+    assertEquals(borrowedAnchorSquareView.moveMeaningClaims, Nil)
+    assertEquals(concreteThreatView.moveMeaningClaims.map(_.meaningKind), List("CounterplayControl"))
+    assertEquals(concreteThreatView.moveMeaningClaims.head.surfaceLane, "current_move_function")
+    assert(concreteThreatView.moveMeaningClaims.head.reasonTokens.contains("resourceContestSquare:g4"))
+    assert(concreteThreatView.moveMeaningClaims.head.reasonTokens.contains("resourceContestScope:prophylaxis"))
+    assert(concreteThreatView.moveMeaningClaims.head.reasonTokens.contains("resourceContestScope:threat"))
+
   test("move meaning claims do not label center control or concessions as positive counterplay"):
     val centerDetail = PositionPlanTechniqueSemanticDetail(
       unit = PositionPlanTechniqueUnit.SpacePreventionResourceDenial,

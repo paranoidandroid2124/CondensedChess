@@ -572,15 +572,18 @@ object EvidenceObjectBinding:
 
   private def fromThreatEpisode(ref: EvidenceRef, payload: ThreatEpisodeEvidence): EvidenceObjectBinding =
     val episode = payload.episode
+    val attackSquareObjects = episode.attackSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key))
     EvidenceObjectBinding(
       source = ref,
-      actor = episode.attackSquares.flatMap(square => objectOf(EvidenceObjectKind.Square, square.key)),
-      target = objectOf(EvidenceObjectKind.Side, colorKey(episode.sideUnderPressure)) ++
+      actor = attackSquareObjects,
+      target = attackSquareObjects ++
+        objectOf(EvidenceObjectKind.Side, colorKey(episode.sideUnderPressure)) ++
         episode.targetPieces.flatMap(role => objectOf(EvidenceObjectKind.Piece, role.name)),
       mechanism = objectOf(EvidenceObjectKind.Mechanism, episode.kind.toString) ++
         objectOf(EvidenceObjectKind.Mechanism, episode.driver.toString),
       consequence = objectOf(EvidenceObjectKind.Consequence, episode.severity.toString),
       witness = episode.bestDefense.toList.flatMap(move => objectOf(EvidenceObjectKind.Move, move)) ++
+        attackSquareObjects ++
         episode.motifs.flatMap(motif =>
           objectOf(EvidenceObjectKind.Motif, motif.getClass.getSimpleName.stripSuffix("$"))
         ),

@@ -1914,8 +1914,8 @@ class MoveJudgmentViewTest extends munit.FunSuite:
     assertEquals(preventionDetail.maxWinPercentLossIfIgnored, Some(12.0))
     assertEquals(preventionDetail.resourceContestKinds, List("CounterplayRestraint"))
     assertEquals(preventionDetail.resourceContestSignals, List("OpponentLowMobility"))
-    assertEquals(preventionDetail.resourceContestSquares, List("g5"))
-    assertEquals(preventionDetail.resourceContestScopes, List("counterplay", "kingside", "space"))
+    assertEquals(preventionDetail.resourceContestSquares, List("d4", "g5"))
+    assertEquals(preventionDetail.resourceContestScopes, List("counterplay", "kingside", "prophylaxis", "space", "threat"))
     assertEquals(preventionDetail.causeEvidenceIds, List(causeRef.id))
     assertEquals(preventionDetail.proofRoles, List(RelativeCauseProofRole.DirectProof))
 
