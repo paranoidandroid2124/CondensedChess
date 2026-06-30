@@ -1664,8 +1664,26 @@ object PositionPlanTechniqueProjection:
       detail: PositionPlanTechniqueSemanticDetail
   ): PositionPlanTechniqueSemanticDetail =
     val motifTags = positionPlanTechniqueStructuralMotifTags(detail)
-    if motifTags.isEmpty then detail
-    else detail.copy(structuralMotifTags = (detail.structuralMotifTags ++ motifTags).distinct.sorted)
+    val axisAnchors = positionPlanTechniqueStructuralAxisAnchors(detail)
+    if motifTags.isEmpty && axisAnchors.isEmpty then detail
+    else
+      detail.copy(
+        semanticAnchorKeys = (detail.semanticAnchorKeys ++ axisAnchors).distinct.sorted,
+        structuralMotifTags = (detail.structuralMotifTags ++ motifTags).distinct.sorted
+      )
+
+  private def positionPlanTechniqueStructuralAxisAnchors(
+      detail: PositionPlanTechniqueSemanticDetail
+  ): List[String] =
+    detail.structuralPurposeSubjects.flatMap { subject =>
+      StructuralPurposeSubject.parse(subject) match
+        case Some(StructuralPurposeSubject.Battery(axis, _, _, _)) if axis.equalsIgnoreCase("diagonal") =>
+          List("axis:Diagonal")
+        case Some(StructuralPurposeSubject.PieceRestriction(_, _, _)) =>
+          List("axis:Diagonal")
+        case _ =>
+          Nil
+    }.distinct.sorted
 
   private def positionPlanTechniqueStructuralMotifTags(
       detail: PositionPlanTechniqueSemanticDetail

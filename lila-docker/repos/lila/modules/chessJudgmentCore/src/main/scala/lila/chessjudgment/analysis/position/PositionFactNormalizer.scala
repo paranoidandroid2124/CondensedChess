@@ -94,6 +94,7 @@ object PositionFactNormalizer:
                 attackerColor = Some(!owner),
                 attackerSquares = evidenceSquares(focus.attackerSquares),
                 defenderSquares = evidenceSquares(focus.defenderSquares),
+                axis = attackRayAxis(focus.attackerSquares, focus.subjectSquares.headOption),
                 materialLossCp = Some(value)
               )
             )
@@ -117,6 +118,7 @@ object PositionFactNormalizer:
                 attackerColor = Some(!owner),
                 attackerSquares = evidenceSquares(focus.attackerSquares),
                 defenderSquares = evidenceSquares(focus.defenderSquares),
+                axis = attackRayAxis(focus.attackerSquares, focus.subjectSquares.headOption),
                 materialLossCp = Some(MaterialValue.materialValueCp(pieceRole))
               )
             )
@@ -627,6 +629,17 @@ object PositionFactNormalizer:
     else if rankDiff == 0 then Some(BoardAnchorAxis.Rank)
     else if fileDiff.abs == rankDiff.abs then Some(BoardAnchorAxis.Diagonal)
     else None
+
+  private def attackRayAxis(attackers: List[Square], target: Option[Square]): Option[BoardAnchorAxis] =
+    target.flatMap { square =>
+      val attackerAxes = attackers.distinct.map(attacker => rayAxis(attacker, square))
+      val axes = attackerAxes.flatten.distinct
+      if attackerAxes.nonEmpty && attackerAxes.forall(_.nonEmpty) then
+        axes match
+          case axis :: Nil => Some(axis)
+          case _           => None
+      else None
+    }
 
   private def colorKey(color: Color): String =
     if color.white then "white" else "black"

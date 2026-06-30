@@ -1794,6 +1794,8 @@ object CandidateComparisonDiagnostic:
   private def positionPlanTechniqueStructuralSubjectTokens(subject: String): List[String] =
     val normalized = subject.toLowerCase
     val pieceRoute = """([a-z]+):([a-h][1-8])-([a-h][1-8]).*""".r
+    val pieceRestriction = """([a-z]+):([a-h][1-8]):diagonal-denial:blocked-by:([a-h][1-8]).*""".r
+    val battery = """battery:([a-z]+):([a-h][1-8])-([a-h][1-8])(?::([a-z-]+))?.*""".r
     normalized match
       case pieceRoute(piece, from, to) =>
         val routeTokens =
@@ -1806,6 +1808,44 @@ object CandidateComparisonDiagnostic:
             s"route:$from-$to"
           )
         routeTokens ++ positionPlanTechniqueMoveAxisTokens(from + to)
+      case pieceRestriction(piece, square, blocker) =>
+        List(
+          "piece",
+          s"piece:$piece",
+          piece,
+          s"structuralPurposeSubject:$piece",
+          "restriction",
+          "diagonal-denial",
+          "diagonal",
+          "axis:Diagonal",
+          s"targetSquare:$square",
+          s"blockedSquare:$blocker",
+          s"objectTarget:Square:$square",
+          s"objectTarget:Square:$blocker"
+        )
+      case battery(axis, from, to, roles) =>
+        val axisTokens =
+          axis match
+            case "diagonal" => List("diagonal", "axis:Diagonal")
+            case "file"     => List("file", "axis:File")
+            case "rank"     => List("rank", "axis:Rank")
+            case other      => List(other)
+        val geometryAxisTokens =
+          positionPlanTechniqueMoveAxisTokens(from + to)
+        val compatibleGeometryAxisTokens =
+          axisTokens.find(_.startsWith("axis:")) match
+            case Some(declaredAxis) => geometryAxisTokens.filter(_ == declaredAxis)
+            case None               => geometryAxisTokens
+        val roleTokens =
+          Option(roles).toList
+            .flatMap(_.split("-").toList)
+            .filter(_.nonEmpty)
+            .distinct
+            .flatMap(role => List("piece", role, s"piece:$role", s"structuralPurposeSubject:$role"))
+        List("battery", s"battery:$axis", s"route:$from-$to", s"targetSquare:$from", s"targetSquare:$to") ++
+          axisTokens ++
+          roleTokens ++
+          compatibleGeometryAxisTokens
       case _ =>
         Nil
 

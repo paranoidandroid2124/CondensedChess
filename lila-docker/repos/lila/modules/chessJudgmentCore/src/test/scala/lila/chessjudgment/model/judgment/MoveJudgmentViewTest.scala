@@ -1,7 +1,8 @@
 package lila.chessjudgment.model.judgment
 
 import chess.Color
-import lila.chessjudgment.model.{ PlanSequenceSummary, TransitionType }
+import lila.chessjudgment.analysis.position.PositionFactNormalizer
+import lila.chessjudgment.model.{ Fact, FactScope, PlanSequenceSummary, TransitionType }
 import lila.chessjudgment.analysis.singlePosition.{
   DefenseAssessment,
   Threat,
@@ -14,6 +15,21 @@ import lila.chessjudgment.analysis.singlePosition.{
 import lila.chessjudgment.model.strategic.VariationLine
 
 class MoveJudgmentViewTest extends munit.FunSuite:
+
+  test("board target anchors keep a clear diagonal attack axis"):
+    val target = chess.Square.fromKey("h7").get
+    val attacker = chess.Square.fromKey("d3").get
+    val record = PositionFactNormalizer.fromBoardFacts(
+      id = "board:diagonal-target",
+      facts = List(Fact.TargetPiece(Color.Black, target, chess.Pawn, List(attacker), Nil, FactScope.Now)),
+      features = None,
+      position = PositionNodeRef("8/7p/8/8/8/3B4/8/4K3 w - - 0 1", 1, Some(Color.White), Some("root")),
+      scope = EvidenceScope.CurrentPosition
+    )
+    val anchor = record.payload.asInstanceOf[BoardFactEvidence].boardAnchors.head
+
+    assert(anchor.detail.flatMap(_.axis).contains(BoardAnchorAxis.Diagonal), anchor.detail)
+    assert(anchor.semanticGroupingAnchor.stableKey.contains("axis:Diagonal"), anchor.semanticGroupingAnchor.stableKey)
 
   test("links plan technique frames to ideas and claims through relative cause evidence"):
     val root = PositionNodeRef("8/8/8/8/8/8/2P5/8 w - - 0 1", 1, Some(Color.White), Some("root"))
@@ -1380,6 +1396,7 @@ class MoveJudgmentViewTest extends munit.FunSuite:
     val detail = frame.semanticDetails.find(_.unit == PositionPlanTechniqueUnit.PieceRerouteRoute).get
 
     assertEquals(detail.structuralPurposeSubjects, List("battery:diagonal:c1-h6:bishop-queen"))
+    assert(detail.semanticAnchorKeys.contains("axis:Diagonal"), detail.semanticAnchorKeys)
     assert(detail.structuralMotifTags.contains("battery"), detail.structuralMotifTags)
     assert(detail.structuralMotifTags.contains("diagonal"), detail.structuralMotifTags)
     assertEquals(detail.causeEvidenceIds, List(causeRef.id))
