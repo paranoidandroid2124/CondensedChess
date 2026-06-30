@@ -1831,7 +1831,13 @@ object MoveMeaningSurface:
       case PositionPlanTechniqueUnit.StructuralTransformation =>
         axisIdeaType(claim).getOrElse("structure_shift")
       case PositionPlanTechniqueUnit.PlanOptionSet =>
-        "plan_continuity"
+        planOptionIdeaType(claim)
+
+  private def planOptionIdeaType(claim: MoveMeaningClaim): String =
+    claim.role match
+      case "PreparesBreakOption"  => "pawn_break_timing"
+      case "DevelopsPieceForPlan" => "piece_activity"
+      case _                      => "plan_continuity"
 
   private def axisIdeaType(claim: MoveMeaningClaim): Option[String] =
     claim.axisKind.map {
@@ -1940,29 +1946,60 @@ object MoveMeaningClaim:
       view: MoveJudgmentView,
       causeFrames: List[MoveJudgmentCauseFrame]
   ): List[MoveMeaningClaim] =
-    view.verdict.toList
-      .flatMap(verdict =>
-        val causeFramesById =
-          causeFrames
-            .flatMap(frame => frame.causeEvidenceIds.map(_ -> frame))
-            .groupMap(_._1)(_._2)
-        view.positionPlanTechniqueFrames
-          .filter(frame => frameMatches(evidenceGraph, frame, verdict))
-          .flatMap(frame =>
-            frame.semanticDetails.flatMap(detail =>
-              fromDetail(frame, detail, verdict, causeFramesById)
+    val claims =
+      view.verdict.toList
+        .flatMap(verdict =>
+          val causeFramesById =
+            causeFrames
+              .flatMap(frame => frame.causeEvidenceIds.map(_ -> frame))
+              .groupMap(_._1)(_._2)
+          view.positionPlanTechniqueFrames
+            .filter(frame => frameMatches(evidenceGraph, frame, verdict))
+            .flatMap(frame =>
+              frame.semanticDetails.flatMap(detail =>
+                fromDetail(frame, detail, verdict, causeFramesById)
+              )
             )
-          )
-      )
-      .groupBy(claim => (claim.laneKey, claim.role, claim.lineRole, claim.moveUci, provenanceKey(claim)))
-      .values
-      .flatMap(mergeMeaningClaims)
-      .toList
-      .groupBy(claim => duplicateMeaningKey(claim))
-      .values
-      .flatMap(mergeMeaningClaims)
-      .toList
+        )
+        .groupBy(claim => (claim.laneKey, claim.role, claim.lineRole, claim.moveUci, provenanceKey(claim)))
+        .values
+        .flatMap(mergeMeaningClaims)
+        .toList
+        .groupBy(claim => duplicateMeaningKey(claim))
+        .values
+        .flatMap(mergeMeaningClaims)
+        .toList
+    suppressShadowedPlanContinuity(claims)
       .sortBy(claim => (claim.meaningKind, claim.role, claim.lineRole, claim.laneKey, claim.frameId))
+
+  private def suppressShadowedPlanContinuity(claims: List[MoveMeaningClaim]): List[MoveMeaningClaim] =
+    val concreteOwnedCurrentClaims =
+      claims
+        .filter(claim =>
+          claim.meaningKind != "PlanContinuity" &&
+            claim.surfaceLane == "current_move_owned"
+        )
+    claims.filterNot(claim =>
+      claim.meaningKind == "PlanContinuity" &&
+        claim.surfaceLane == "current_move_function" &&
+        concreteOwnedCurrentClaims.exists(concreteClaimShadowsPlanContinuity(claim, _))
+    )
+
+  private def concreteClaimShadowsPlanContinuity(
+      planClaim: MoveMeaningClaim,
+      concreteClaim: MoveMeaningClaim
+  ): Boolean =
+    planClaim.moveUci == concreteClaim.moveUci &&
+      (
+        planClaim.role match
+          case "PreparesBreakOption" =>
+            concreteClaim.meaningKind == "PawnBreakTiming"
+          case "DevelopsPieceForPlan" =>
+            concreteClaim.meaningKind == "PieceRoute" ||
+              concreteClaim.meaningKind == "PieceActivity"
+          case _ =>
+            true
+      )
 
   private def mergeMeaningClaims(claims: Iterable[MoveMeaningClaim]): Option[MoveMeaningClaim] =
     val list = claims.toList
@@ -2177,6 +2214,9 @@ object MoveMeaningClaim:
     val ownedCause =
       roleCompatibleCauseFrames.exists(frame => frame.concreteObjectReady && frame.hasOwnedAdmissibleLongTermProof) ||
         roleCompatibleCauseFrames.exists(frame => frame.concreteObjectReady && frame.attributionDirectProofEligible)
+    val planOptionCurrentFunctionOnly =
+      currentMoveClaim &&
+        detail.unit == PositionPlanTechniqueUnit.PlanOptionSet
     val rejectedPositiveCause =
       allLinkedCauseFrames.nonEmpty &&
         roleCompatibleCauseFrames.isEmpty &&
@@ -2208,7 +2248,9 @@ object MoveMeaningClaim:
     val laneOwnershipReady =
       !currentMoveClaim ||
         currentMoveSurfaceProof
-    if roleCompatibleCauseFrames.nonEmpty && ownedCause && laneOwnershipReady && hasConcreteObject && specificObjectAxis && direct && ownedMeaningReady then
+    if roleCompatibleCauseFrames.nonEmpty && ownedCause && laneOwnershipReady && hasConcreteObject && specificObjectAxis && direct && ownedMeaningReady &&
+        !planOptionCurrentFunctionOnly
+    then
       Some("owned_cause_linked")
     else if laneOwnershipReady && viewMeaningReady && hasConcreteObject && (specificObjectAxis || currentMoveFunctionalProof) && hasDetailEvidence &&
         (detailHasAnyProofLink(detail) || currentMoveFunctionalProof) &&
@@ -2261,7 +2303,7 @@ object MoveMeaningClaim:
         moveOwnedSource &&
           counterplayRaceViewReady(detail, objectSignatures, claimMove, positionFen)
       case PositionPlanTechniqueUnit.PlanOptionSet =>
-        planContinuityCurrentMoveFunctionalProof(detail, objectSignatures, claimMove, currentMoveClaim)
+        planContinuityCurrentMoveFunctionalProof(detail, objectSignatures, claimMove, positionFen, currentMoveClaim)
       case _ =>
         false
 
@@ -2309,7 +2351,7 @@ object MoveMeaningClaim:
       case PositionPlanTechniqueUnit.SpacePreventionResourceDenial | PositionPlanTechniqueUnit.StructuralTransformation =>
         currentMoveFunctionalDetailProof(detail, objectSignatures, claimMove, positionFen, currentMoveClaim)
       case PositionPlanTechniqueUnit.PlanOptionSet =>
-        planContinuityCurrentMoveFunctionalProof(detail, objectSignatures, claimMove, currentMoveClaim)
+        planContinuityCurrentMoveFunctionalProof(detail, objectSignatures, claimMove, positionFen, currentMoveClaim)
       case _ =>
         detailOwnsClaimMove(detail, objectSignatures, claimMove)
 
@@ -2317,10 +2359,15 @@ object MoveMeaningClaim:
       detail: PositionPlanTechniqueSemanticDetail,
       objectSignatures: List[String],
       claimMove: String,
+      positionFen: String,
       currentMoveClaim: Boolean
   ): Boolean =
+    val ownsCurrentMoveObject =
+      planContinuityObjectOwnsClaimMove(objectSignatures, claimMove)
     val ownsMove =
-      detail.structuralRouteMove.exists(move => sameMove(move, claimMove))
+      detail.structuralRouteMove.exists(move => sameMove(move, claimMove)) ||
+        detail.defenseMove.exists(move => sameMove(move, claimMove)) ||
+        ownsCurrentMoveObject
     val ownsCurrentMoveSource =
       currentMoveClaim &&
         (detail.sourceEvidenceIds ++ detail.candidateEvidenceIds)
@@ -2335,8 +2382,12 @@ object MoveMeaningClaim:
             anchor.startsWith("PlanPressure:")
         )
     val concretePlanHook =
-      detail.structuralPurposeSubjects.exists(concreteSubject) &&
-        planContinuityCurrentMoveRouteObject(objectSignatures, claimMove)
+      (
+        detail.structuralPurposeSubjects.exists(concreteSubject) &&
+          planContinuityCurrentMoveRouteObject(objectSignatures, claimMove)
+      ) ||
+        planContinuityCurrentMoveBreakOption(detail, objectSignatures, claimMove, positionFen) ||
+        planContinuityCurrentMoveDevelopmentOption(detail, objectSignatures, claimMove)
     ownsMove && ownsCurrentMoveSource && planSignal && concretePlanHook && !currentMoveNegativeStructuralHook(detail, objectSignatures, claimMove)
 
   private def planContinuityCurrentMoveRouteObject(
@@ -2348,6 +2399,102 @@ object MoveMeaningClaim:
       moveTokens(List(signature)).contains(normalizedClaimMove) &&
         planContinuityRouteObjectSignature(signature)
     )
+
+  private def planContinuityCurrentMoveBreakOption(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String,
+      positionFen: String
+  ): Boolean =
+    planContinuityBreakOptionDetail(detail) &&
+      pawnMoveFromPawn(positionFen, claimMove) &&
+      (
+        detail.structuralRouteMove.exists(move => sameMove(move, claimMove)) ||
+          planContinuityObjectOwnsClaimMoveWith(objectSignatures, claimMove, planContinuityBreakOptionSignature)
+      )
+
+  private def planContinuityCurrentMoveDevelopmentOption(
+      detail: PositionPlanTechniqueSemanticDetail,
+      objectSignatures: List[String],
+      claimMove: String
+  ): Boolean =
+    planContinuityDevelopmentOptionDetail(detail) &&
+      (
+        detail.structuralRouteMove.exists(move => sameMove(move, claimMove)) ||
+          planContinuityObjectOwnsClaimMoveWith(objectSignatures, claimMove, planContinuityDevelopmentOptionSignature)
+      )
+
+  private def planContinuityBreakOptionDetail(
+      detail: PositionPlanTechniqueSemanticDetail
+  ): Boolean =
+    detail.breakFile.exists(_.trim.nonEmpty) &&
+      planContinuityTextTokens(detail).exists(token =>
+        token.contains("pawnbreakpreparation") ||
+          token.contains("pawn-break-preparation") ||
+          token.contains("breakpreparation") ||
+          token.contains("centerbreak") ||
+          token.contains("center-break")
+      )
+
+  private def planContinuityDevelopmentOptionDetail(
+      detail: PositionPlanTechniqueSemanticDetail
+  ): Boolean =
+    detail.structuralRouteMove.nonEmpty &&
+      detail.structuralPurposeSubjects.exists(subject =>
+        val normalized = subject.toLowerCase
+        normalized.contains("bishop") ||
+          normalized.contains("knight") ||
+          normalized.contains("rook") ||
+          normalized.contains("queen")
+      )
+
+  private def planContinuityTextTokens(
+      detail: PositionPlanTechniqueSemanticDetail
+  ): List[String] =
+    (
+      detail.semanticAnchorKeys ++
+        detail.referencePlanIds ++
+        detail.candidatePlanIds ++
+        detail.matchedPlanIds ++
+        detail.planAlignmentReasonCodes ++
+        detail.structuralPurposeSubjects ++
+        detail.structuralPurposeConsequences ++
+        detail.structuralPurposeCategories ++
+        detail.objectBindingSignatures
+    ).map(_.toLowerCase)
+
+  private def planContinuityObjectOwnsClaimMove(
+      objectSignatures: List[String],
+      claimMove: String
+  ): Boolean =
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
+    objectSignatures.exists(signature => moveTokens(List(signature)).contains(normalizedClaimMove))
+
+  private def planContinuityObjectOwnsClaimMoveWith(
+      objectSignatures: List[String],
+      claimMove: String,
+      signaturePredicate: String => Boolean
+  ): Boolean =
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove).toLowerCase
+    objectSignatures.exists(signature =>
+      signaturePredicate(signature) &&
+        moveTokens(List(signature)).contains(normalizedClaimMove)
+    )
+
+  private def planContinuityBreakOptionSignature(signature: String): Boolean =
+    val normalized = signature.toLowerCase
+    normalized.contains("pawnbreakpreparation") ||
+      normalized.contains("pawn-break-preparation") ||
+      normalized.contains("breakpreparation") ||
+      normalized.contains("centerbreak") ||
+      normalized.contains("center-break")
+
+  private def planContinuityDevelopmentOptionSignature(signature: String): Boolean =
+    val normalized = signature.toLowerCase
+    normalized.contains("developmentchoice") ||
+      normalized.contains("developmentpieceactivated") ||
+      normalized.contains("mobility") ||
+      normalized.contains("pieceactivation")
 
   private def planContinuityRouteObjectSignature(signature: String): Boolean =
     val mechanisms = EvidenceObjectBinding.signatureTokens(List(signature), "mechanism=")
@@ -3077,7 +3224,9 @@ object MoveMeaningClaim:
       role == "SupportsCurrentPlan" ||
       role == "KeepsAlternativeAvailable" ||
       role == "ReferencePreservesPlan" ||
-      role == "SharedCompatiblePlan"
+      role == "SharedCompatiblePlan" ||
+      role == "PreparesBreakOption" ||
+      role == "DevelopsPieceForPlan"
 
   private def negativeCauseKind(kind: RelativeCauseKind): Boolean =
     kind == RelativeCauseKind.ActivityLoss ||
@@ -3474,16 +3623,19 @@ object MoveMeaningClaim:
   ): String =
     meaningKind match
       case "PlanContinuity" =>
-        detail.contrastOutcome match
-          case Some(StrategicAxisComparisonOutcome.SharedSustained) =>
-            "SharedCompatiblePlan"
-          case Some(StrategicAxisComparisonOutcome.ReferenceOnly | StrategicAxisComparisonOutcome.ReferenceStronger |
-              StrategicAxisComparisonOutcome.ReferencePreservesPlan) =>
-            "ReferencePreservesPlan"
-          case _ if detail.missingPlanIds.nonEmpty =>
-            "KeepsAlternativeAvailable"
-          case _ =>
-            "SupportsCurrentPlan"
+        if planContinuityBreakOptionDetail(detail) then "PreparesBreakOption"
+        else if planContinuityDevelopmentOptionDetail(detail) then "DevelopsPieceForPlan"
+        else
+          detail.contrastOutcome match
+            case Some(StrategicAxisComparisonOutcome.SharedSustained) =>
+              "SharedCompatiblePlan"
+            case Some(StrategicAxisComparisonOutcome.ReferenceOnly | StrategicAxisComparisonOutcome.ReferenceStronger |
+                StrategicAxisComparisonOutcome.ReferencePreservesPlan) =>
+              "ReferencePreservesPlan"
+            case _ if detail.missingPlanIds.nonEmpty =>
+              "KeepsAlternativeAvailable"
+            case _ =>
+              "SupportsCurrentPlan"
       case "PawnBreakTiming" =>
         if pawnBreakResolutionDetail(detail)
         then "ReleasesPawnTension"
