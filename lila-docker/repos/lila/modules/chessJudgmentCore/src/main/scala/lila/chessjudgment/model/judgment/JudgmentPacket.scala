@@ -1908,6 +1908,7 @@ object MoveMeaningSurface:
     then Some("missed_defense")
     else if claim.causeKinds.contains(RelativeCauseKind.OnlyMoveNecessity) then Some("missed_only_move")
     else if claim.causeKinds.contains(RelativeCauseKind.TempoLoss) then Some("too_slow")
+    else if claim.role == "AllowsOpponentCounterplayRace" then Some("opponent_counterplay_arrives_first")
     else if claim.unit == PositionPlanTechniqueUnit.CounterplayRace && claim.targetFiles.nonEmpty then Some("loses_race")
     else if claim.role == "ReleasesPawnTension" then Some("tension_released_early")
     else if claim.unit == PositionPlanTechniqueUnit.TensionBreakPolicyRoute then Some("break_timing")
@@ -2133,7 +2134,7 @@ object MoveMeaningClaim:
               )
             )
           val optionMeaningKind = kind(detail, objectSignatures, Some(optionMove)).getOrElse(baseMeaningKind)
-          val optionClaimRole = role(optionMeaningKind, detail, optionMove, frame.position.fen)
+          val optionClaimRole = role(optionMeaningKind, detail, optionMove, frame.position.fen, optionLineRole)
           val optionRoleCompatibleCauseFrames =
             optionLinkedCauseFrames.filter(linkedFrame =>
               causeFrameOwnsMeaningClaim(
@@ -2178,7 +2179,7 @@ object MoveMeaningClaim:
         else meaningKind
       val surfaceClaimRole =
         if surfaceMeaningKind == meaningKind then claimRole
-        else role(surfaceMeaningKind, detail, claimMove, frame.position.fen)
+        else role(surfaceMeaningKind, detail, claimMove, frame.position.fen, claimLineRole)
       val linkedCauseIds =
         roleCompatibleCauseFrames
           .flatMap(_.causeEvidenceIds)
@@ -2207,7 +2208,7 @@ object MoveMeaningClaim:
         causeEvidenceIds = linkedCauseIds,
         sourceEvidenceIds = detail.sourceEvidenceIds.distinct.sorted,
         objectBindingSignatures = surfaceObjectSignatures,
-        reasonTokens = reasonTokens(detail, surfaceObjectSignatures, linkedCauseIds, verdict),
+        reasonTokens = reasonTokens(detail, surfaceObjectSignatures, linkedCauseIds, verdict, claimMove, frame.position.fen, surfaceClaimRole),
         targetSquares = surfaceTarget.squares,
         targetFiles = surfaceTarget.files,
         targetPieces = surfaceTarget.pieces
@@ -2884,15 +2885,79 @@ object MoveMeaningClaim:
       meaningKind: String,
       detail: PositionPlanTechniqueSemanticDetail,
       claimMove: String,
-      positionFen: String
+      positionFen: String,
+      claimLineRole: String
   ): String =
-    if meaningKind != "PawnBreakTiming" then role(meaningKind, detail)
-    else if pawnBreakMoveResolvesTrackedTension(detail, claimMove, positionFen) then "ReleasesPawnTension"
-    else if pawnBreakMovePreservesTrackedTension(detail, claimMove, positionFen) then "PreservesTension"
-    else if detail.axisPolarity.exists(negativePolarity) ||
-        detail.contrastOutcome.contains(StrategicAxisComparisonOutcome.CandidateConcession)
-    then "ReleasesPawnTension"
-    else "PreparesBreak"
+    meaningKind match
+      case "PawnBreakTiming" =>
+        if pawnBreakMoveResolvesTrackedTension(detail, claimMove, positionFen) then "ReleasesPawnTension"
+        else if pawnBreakMovePreservesTrackedTension(detail, claimMove, positionFen) then "PreservesTension"
+        else if detail.axisPolarity.exists(negativePolarity) ||
+            detail.contrastOutcome.contains(StrategicAxisComparisonOutcome.CandidateConcession)
+        then "ReleasesPawnTension"
+        else "PreparesBreak"
+      case "CounterplayRace" =>
+        counterplayRaceRole(detail, claimMove, positionFen, claimLineRole)
+      case _ =>
+        role(meaningKind, detail)
+
+  private def counterplayRaceRole(
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String,
+      positionFen: String,
+      claimLineRole: String
+  ): String =
+    if claimLineRole == "reference" then "ReferenceStartsCounterplayRace"
+    else if counterplayRaceNegative(detail) then "AllowsOpponentCounterplayRace"
+    else if counterplayRaceDelayDetail(detail, claimMove, positionFen) then "DelaysOpponentCounterplayRace"
+    else if counterplayRaceOwnRaceLead(detail, claimMove) then "StartsOwnCounterplayRace"
+    else "StartsCounterplayRace"
+
+  private def counterplayRaceNegative(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detail.axisPolarity.exists(negativePolarity) ||
+      detail.contrastOutcome.contains(StrategicAxisComparisonOutcome.CandidateConcession) ||
+      (
+        PositionPlanTechniqueSemanticDetail.comparisonLossSides(detail).contains("candidate") &&
+          PositionPlanTechniqueSemanticDetail
+            .comparisonLossKinds(detail)
+            .exists(kind => kind == "counter_break_allowed" || kind == "break_option_missed")
+      )
+
+  private def counterplayRaceDelayDetail(
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String,
+      positionFen: String
+  ): Boolean =
+    detail.unit == PositionPlanTechniqueUnit.CounterplayRace &&
+      detail.resourceContestKinds.exists(_.equalsIgnoreCase(BoardAnchorKind.CounterplayRestraint.toString)) &&
+      counterplayRaceConcreteCarrier(detail) &&
+      counterplayRaceResourceTargetsOpponent(detail, claimMove, positionFen) &&
+      counterplayRaceOwnRaceLead(detail, claimMove)
+
+  private def counterplayRaceResourceTargetsOpponent(
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String,
+      positionFen: String
+  ): Boolean =
+    moveSide(positionFen, claimMove).exists { moverSide =>
+      detail.resourceContestActorSide.exists(_.equalsIgnoreCase(moverSide)) &&
+        detail.resourceContestTargetSide.exists(target => target.nonEmpty && !target.equalsIgnoreCase(moverSide))
+    }
+
+  private def counterplayRaceOwnRaceLead(
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String
+  ): Boolean =
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove)
+    (
+      counterplayRacePawnBreakDetail(detail) &&
+        !Set(LineNodeRole.BestReference, LineNodeRole.Alternative).exists(detail.raceLeadingLineRole.contains) &&
+        counterplayRacePawnBreakCarrierOwnsClaimMove(detail, normalizedClaimMove)
+    ) ||
+      (
+        detail.raceLeadingLineRole.contains(LineNodeRole.Played) &&
+          detail.raceCandidateRootMove.exists(move => sameMove(move, normalizedClaimMove))
+      )
 
   private def pawnBreakMoveResolvesTrackedTension(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -3190,6 +3255,21 @@ object MoveMeaningClaim:
       normalized.take(2) -> normalized.slice(2, 4)
     )
 
+  private def moveSide(positionFen: String, move: String): Option[String] =
+    moveEndpoints(move).flatMap { case (from, _) =>
+      Fen
+        .read(chess.variant.Standard, Fen.Full(positionFen))
+        .flatMap(position =>
+          Square
+            .fromKey(from)
+            .flatMap(square =>
+              position.board
+                .pieceAt(square)
+                .map(piece => if piece.color.white then "white" else "black")
+            )
+        )
+    }
+
   private def surfaceObjectBindingSignatures(
       detail: PositionPlanTechniqueSemanticDetail,
       objectSignatures: List[String],
@@ -3262,6 +3342,8 @@ object MoveMeaningClaim:
       role == "PreservesTension" ||
       role == "PreventsCounterplay" ||
       role == "StartsCounterplayRace" ||
+      role == "StartsOwnCounterplayRace" ||
+      role == "DelaysOpponentCounterplayRace" ||
       role == "MaintainsTechnique" ||
       role == "SupportsCurrentPlan" ||
       role == "KeepsAlternativeAvailable" ||
@@ -3690,7 +3772,7 @@ object MoveMeaningClaim:
         else "PreventsCounterplay"
       case "CounterplayRace" =>
         if detail.axisPolarity.exists(negativePolarity) || detail.contrastOutcome.contains(StrategicAxisComparisonOutcome.CandidateConcession)
-        then "ConcedesCounterplayRace"
+        then "AllowsOpponentCounterplayRace"
         else "StartsCounterplayRace"
       case "PieceRoute" =>
         "ImprovesPieceRoute"
@@ -3822,7 +3904,10 @@ object MoveMeaningClaim:
       detail: PositionPlanTechniqueSemanticDetail,
       objectSignatures: List[String],
       linkedCauseIds: List[String],
-      verdict: MoveJudgmentVerdictFrame
+      verdict: MoveJudgmentVerdictFrame,
+      claimMove: String,
+      positionFen: String,
+      claimRole: String
   ): List[String] =
     val comparisonLossTokens =
       if distinctCandidateReferenceMoves(verdict) then
@@ -3837,13 +3922,7 @@ object MoveMeaningClaim:
       else Nil
     val raceReasonTokens =
       if detail.unit == PositionPlanTechniqueUnit.CounterplayRace then
-        List(
-          detail.raceLeadingLineRole.map(value => s"raceLeadingLineRole:$value"),
-          detail.raceCandidateRootMove.map(value => s"raceCandidateRootMove:$value"),
-          detail.raceReferenceRootMove.map(value => s"raceReferenceRootMove:$value"),
-          detail.resourceContestActorSide.map(value => s"resourceContestActorSide:$value"),
-          detail.resourceContestTargetSide.map(value => s"resourceContestTargetSide:$value")
-        ).flatten
+        counterplayRaceReasonTokens(detail, verdict, claimMove, positionFen, claimRole)
       else Nil
     (
       List(
@@ -3890,6 +3969,78 @@ object MoveMeaningClaim:
         comparisonLossTokens ++
         objectSignatures.take(5).map(value => s"objectBinding:$value")
     ).distinct.sorted
+
+  private def counterplayRaceReasonTokens(
+      detail: PositionPlanTechniqueSemanticDetail,
+      verdict: MoveJudgmentVerdictFrame,
+      claimMove: String,
+      positionFen: String,
+      claimRole: String
+  ): List[String] =
+    List(
+      Some(s"raceRole:${counterplayRaceRoleToken(claimRole)}"),
+      detail.raceLeadingLineRole.map(value => s"raceLeadingLineRole:$value"),
+      detail.raceCandidateRootMove.map(value => s"raceCandidateRootMove:$value"),
+      detail.raceReferenceRootMove.map(value => s"raceReferenceRootMove:$value"),
+      detail.resourceContestActorSide.map(value => s"resourceContestActorSide:$value"),
+      detail.resourceContestTargetSide.map(value => s"resourceContestTargetSide:$value"),
+      moveSide(positionFen, claimMove).map(value => s"raceActorSide:$value")
+    ).flatten ++
+      counterplayRaceTempoTokens(detail, verdict, claimMove) ++
+      counterplayRaceCarrierTokens(detail, claimMove)
+
+  private def counterplayRaceRoleToken(role: String): String =
+    role match
+      case "StartsOwnCounterplayRace"       => "starts_own_race"
+      case "DelaysOpponentCounterplayRace"  => "delays_opponent_counterplay"
+      case "AllowsOpponentCounterplayRace"  => "allows_opponent_race"
+      case "ReferenceStartsCounterplayRace" => "reference_starts_race"
+      case "StartsCounterplayRace"          => "starts_counterplay_race"
+      case "ConcedesCounterplayRace"        => "allows_opponent_race"
+      case _                                => role.trim.toLowerCase.replaceAll("[^a-z0-9]+", "_").stripPrefix("_").stripSuffix("_")
+
+  private def counterplayRaceTempoTokens(
+      detail: PositionPlanTechniqueSemanticDetail,
+      verdict: MoveJudgmentVerdictFrame,
+      claimMove: String
+  ): List[String] =
+    val candidateMove = JudgmentSubjectBinding.normalizeMove(verdict.candidateLine.rootMove)
+    val referenceMove = JudgmentSubjectBinding.normalizeMove(verdict.referenceLine.rootMove)
+    val normalizedClaimMove = JudgmentSubjectBinding.normalizeMove(claimMove)
+    val comparisonLossKinds = PositionPlanTechniqueSemanticDetail.comparisonLossKinds(detail).toSet
+    List(
+      Option.when(candidateMove == referenceMove && candidateMove.nonEmpty)("raceTempoOrder:shared_first_move"),
+      Option.when(
+        detail.raceLeadingLineRole.contains(LineNodeRole.Played) &&
+          detail.raceCandidateRootMove.exists(move => sameMove(move, normalizedClaimMove))
+      )("raceTempoOrder:played_starts_first"),
+      Option.when(
+        Set(LineNodeRole.BestReference, LineNodeRole.Alternative).exists(detail.raceLeadingLineRole.contains) &&
+          detail.raceReferenceRootMove.exists(move => sameMove(move, normalizedClaimMove))
+      )("raceTempoOrder:reference_starts_first"),
+      Option.when(
+        detail.contrastOutcome.contains(StrategicAxisComparisonOutcome.CandidateConcession) ||
+          comparisonLossKinds.contains("counter_break_allowed") ||
+          comparisonLossKinds.contains("break_option_missed")
+      )("raceTempoOrder:opponent_arrives_first")
+    ).flatten.distinct
+
+  private def counterplayRaceCarrierTokens(
+      detail: PositionPlanTechniqueSemanticDetail,
+      claimMove: String
+  ): List[String] =
+    val carrierKinds =
+      List(
+        Option.when(detail.breakFile.nonEmpty)("raceCarrier:break_file"),
+        Option.when(detail.counterBreakFiles.nonEmpty)("raceCarrier:counter_break_file"),
+        Option.when(detail.resourceContestSquares.nonEmpty)("raceCarrier:square"),
+        Option.when(detail.resourceContestFiles.nonEmpty)("raceCarrier:file"),
+        Option.when(detail.threatKind.nonEmpty && detail.turnsToImpact.nonEmpty)("raceCarrier:tempo_threat")
+      ).flatten
+    carrierKinds ++
+      detail.breakFile.map(value => s"raceBreakFile:${counterplayRaceFileToken(value)}").toList ++
+      detail.counterBreakFiles.map(value => s"raceCounterBreakFile:${counterplayRaceFileToken(value)}") ++
+      Option.when(counterplayRacePawnBreakCarrierOwnsClaimMove(detail, claimMove))(s"raceBreakMove:${JudgmentSubjectBinding.normalizeMove(claimMove)}").toList
 
   private def distinctCandidateReferenceMoves(verdict: MoveJudgmentVerdictFrame): Boolean =
     JudgmentSubjectBinding.normalizeMove(verdict.candidateLine.rootMove) !=

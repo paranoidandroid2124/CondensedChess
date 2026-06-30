@@ -2742,6 +2742,26 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       label = Some("counterplay-race-e-vs-e"),
       counterBreakFiles = List("e")
     )
+    val delaysOpponentRace = raceDetail.copy(
+      causeEvidenceIds = Nil,
+      proofRoles = List(RelativeCauseProofRole.DirectProof),
+      resourceContestActorSide = Some("white"),
+      resourceContestTargetSide = Some("black"),
+      resourceContestKinds = List("CounterplayRestraint"),
+      resourceContestSignals = List("OpponentLowMobility"),
+      resourceContestScopes = List("counterplay")
+    )
+    val allowedCounterplayRace = pawnBreakRace.copy(
+      axisPolarity = Some(StrategicAxisPolarity.Concede),
+      contrastOutcome = Some(StrategicAxisComparisonOutcome.CandidateConcession),
+      raceLeadingLineRole = Some(LineNodeRole.Played),
+      raceCandidateRootMove = Some(candidateLine.rootMove),
+      raceReferenceRootMove = Some(referenceLine.rootMove),
+      candidateEvidenceIds = List("played-transition"),
+      sourceEvidenceIds = List("structural-delta:played:e2e3", "played-transition"),
+      causeEvidenceIds = Nil,
+      proofRoles = List(RelativeCauseProofRole.DirectProof)
+    )
     val linkedView = meaningClaimView(
       verdict = MoveChoiceVerdict.MatchesReference,
       auditCauses = List(restrictionCause),
@@ -2782,14 +2802,41 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
       auditCauses = List(pawnBreakRaceCause),
       details = List(sameFilePawnBreakRace)
     )
+    val allowedCounterplayRaceView = meaningClaimView(
+      verdict = MoveChoiceVerdict.PlayableLoss,
+      auditCauses = Nil,
+      details = List(allowedCounterplayRace)
+    )
+    val delaysOpponentRaceView = meaningClaimView(
+      verdict = MoveChoiceVerdict.MatchesReference,
+      auditCauses = Nil,
+      details = List(delaysOpponentRace)
+    )
 
     assertEquals(linkedView.moveMeaningClaims.map(_.meaningKind), List("CounterplayRace"))
-    assertEquals(linkedView.moveMeaningClaims.map(_.role), List("StartsCounterplayRace"))
+    assertEquals(linkedView.moveMeaningClaims.map(_.role), List("StartsOwnCounterplayRace"))
     assertEquals(linkedView.moveMeaningClaims.head.supportLevel, "owned_cause_linked")
+    assert(linkedView.moveMeaningClaims.head.reasonTokens.contains("raceRole:starts_own_race"))
+    assert(linkedView.moveMeaningClaims.head.reasonTokens.contains("raceTempoOrder:played_starts_first"))
+    assert(linkedView.moveMeaningClaims.head.reasonTokens.contains("raceCarrier:square"))
+    assertEquals(delaysOpponentRaceView.moveMeaningClaims.map(_.role), List("DelaysOpponentCounterplayRace"))
+    assert(delaysOpponentRaceView.moveMeaningClaims.head.reasonTokens.contains("raceRole:delays_opponent_counterplay"))
+    assert(delaysOpponentRaceView.moveMeaningClaims.head.reasonTokens.contains("resourceContestActorSide:white"))
+    assert(delaysOpponentRaceView.moveMeaningClaims.head.reasonTokens.contains("resourceContestTargetSide:black"))
     assertEquals(pawnBreakRaceView.moveMeaningClaims.map(_.meaningKind), List("CounterplayRace"))
+    assertEquals(pawnBreakRaceView.moveMeaningClaims.map(_.role), List("StartsOwnCounterplayRace"))
     assertEquals(pawnBreakRaceView.moveMeaningClaims.head.supportLevel, "owned_cause_linked")
     assert(pawnBreakRaceView.moveMeaningClaims.head.reasonTokens.contains("breakFile:e"))
     assert(pawnBreakRaceView.moveMeaningClaims.head.reasonTokens.contains("counterBreakFile:c"))
+    assert(pawnBreakRaceView.moveMeaningClaims.head.reasonTokens.contains("raceRole:starts_own_race"))
+    assert(pawnBreakRaceView.moveMeaningClaims.head.reasonTokens.contains("raceBreakFile:e"))
+    assert(pawnBreakRaceView.moveMeaningClaims.head.reasonTokens.contains("raceCounterBreakFile:c"))
+    assert(pawnBreakRaceView.moveMeaningClaims.head.reasonTokens.contains("raceBreakMove:e2e3"))
+    assertEquals(allowedCounterplayRaceView.moveMeaningClaims.map(_.meaningKind), List("CounterplayRace"))
+    assertEquals(allowedCounterplayRaceView.moveMeaningClaims.map(_.role), List("AllowsOpponentCounterplayRace"))
+    assertEquals(allowedCounterplayRaceView.moveMeaningClaims.head.surfaceLane, "current_move_function")
+    assert(allowedCounterplayRaceView.moveMeaningClaims.head.reasonTokens.contains("raceRole:allows_opponent_race"))
+    assert(allowedCounterplayRaceView.moveMeaningClaims.head.reasonTokens.contains("raceTempoOrder:opponent_arrives_first"))
     assertEquals(actorOnlyView.moveMeaningClaims, Nil)
     assertEquals(restraintOnlyView.moveMeaningClaims, Nil)
     assertEquals(counterBreakOnlyView.moveMeaningClaims, Nil)
