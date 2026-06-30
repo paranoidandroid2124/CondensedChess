@@ -2795,8 +2795,8 @@ final case class LineFactEvidence(
         case _ =>
           Nil
     candidates.filter(horizon =>
-      horizon.triggerMove.forall(move => normalizeUci(move) == normalizedRoot) ||
-        horizon.entryPlyOffset <= 0
+      horizon.triggerMove.exists(move => normalizeUci(move) == normalizedRoot) ||
+        (LineEndgameTechniqueHorizon.maintained(horizon.status) && horizon.triggerMove.isEmpty && horizon.entryPlyOffset <= 0)
     )
   def lineReplayCount: Int =
     replay.size

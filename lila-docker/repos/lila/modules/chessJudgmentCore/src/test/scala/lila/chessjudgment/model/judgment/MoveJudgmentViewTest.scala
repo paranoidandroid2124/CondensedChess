@@ -4172,6 +4172,222 @@ class MoveJudgmentViewTest extends munit.FunSuite:
     assertEquals(JudgmentSubjectBinding.comparisonBinding(inaccuracyComparison, playedMoves), SubjectBindingClass.PrimaryPlayedCause)
     assertEquals(JudgmentSubjectBinding.relativeCauseBinding(playableCause, playedMoves), SubjectBindingClass.ContextPlayed)
 
+  test("rook technique horizon detail survives into move meaning claims"):
+    val root = PositionNodeRef("8/3P1K2/4k3/8/3R4/8/8/2r5 w - - 0 1", 1, Some(Color.White), Some("root"))
+    val afterPlayed = PositionNodeRef("3Q4/5K2/4k3/8/3R4/8/8/2r5 b - - 0 1", 2, Some(Color.Black), Some("after-played"))
+    val playedLine = LineNodeRef("played-line", "d7d8q", 1, LineNodeRole.Played)
+    val referenceLine = LineNodeRef("reference-line", "d7d8q", 1, LineNodeRole.BestReference)
+    val lineEvidenceRef = evidenceRef(
+      id = "line:lucena-horizon",
+      producer = EvidenceProducer.LegalLineProducer,
+      layer = EvidenceLayer.Line,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition
+    )
+    val causeRef = evidenceRef(
+      id = "relative-cause:played-best:lucena-horizon",
+      producer = EvidenceProducer.RelativeMoveProducer,
+      layer = EvidenceLayer.RelativeCause,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.Counterfactual
+    )
+    val relativeAssessmentEvidence = evidenceRef(
+      id = "relative-assessment:lucena-horizon",
+      producer = EvidenceProducer.RelativeMoveProducer,
+      layer = EvidenceLayer.RelativeAssessment,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.Counterfactual
+    )
+    val transitionEvidence = evidenceRef(
+      id = "move-transition:played:d7d8q",
+      producer = EvidenceProducer.MoveTransitionProducer,
+      layer = EvidenceLayer.MoveTransition,
+      position = root,
+      line = Some(playedLine),
+      scope = EvidenceScope.PlayedTransition
+    )
+    val horizon = LineEndgameTechniqueHorizon(
+      pattern = "Lucena",
+      rookPattern = "RookBehindPassedPawn",
+      techniqueSide = Color.White,
+      entryPlyOffset = 0,
+      terminalPlyOffset = 2,
+      status = LineEndgameTechniqueHorizonStatus.Transitioned,
+      triggerMove = Some("d7d8q"),
+      requiredSquares = List("d7", "d8", "e7"),
+      maintainedSquares = List("d7", "d8", "e7")
+    )
+    val linePayload =
+      new LineFactEvidence(playedLine, Some("d7d8q"), None, Nil, None, None)(
+        endgameHorizons = List(horizon)
+      )
+    val played = MoveTransitionEdge(
+      role = TransitionEdgeRole.Played,
+      id = "played-transition",
+      from = root,
+      moveUci = "d7d8q",
+      to = afterPlayed,
+      changedFacts = Nil,
+      planTransition = None,
+      evidence = transitionEvidence
+    )
+    val reference = CandidateLineNode(
+      role = LineNodeRole.BestReference,
+      ref = referenceLine,
+      line = VariationLine(List("d7d8q"), scoreCp = 100, depth = 16),
+      whitePovEvalCp = 100,
+      mate = None,
+      depth = 16,
+      evidence = lineEvidenceRef
+    )
+    val candidate = CandidateLineNode(
+      role = LineNodeRole.Played,
+      ref = playedLine,
+      line = VariationLine(List("d7d8q"), scoreCp = 100, depth = 16),
+      whitePovEvalCp = 100,
+      mate = None,
+      depth = 16,
+      evidence = lineEvidenceRef
+    )
+    val assessment = RelativeMoveAssessment(
+      played = played,
+      referenceTransition = None,
+      reference = reference,
+      candidate = candidate,
+      comparison = EvalComparison(
+        mover = Color.White,
+        referenceLine = referenceLine,
+        candidateLine = playedLine,
+        rawCandidateDeltaCpForDiagnostics = 0,
+        candidateWinPercentDeltaForMover = 0.0,
+        rawCpLossForDiagnostics = 0,
+        winPercentLossForMover = 0.0,
+        verdict = MoveChoiceVerdict.MatchesReference
+      ),
+      collapse = None,
+      confidence = EvidenceConfidence.EngineBacked,
+      evidence = relativeAssessmentEvidence,
+      counterfactualEvidence = Nil,
+      relativeCauseEvidence = List(causeRef)
+    )
+    val cause = RelativeCauseFact(
+      kind = RelativeCauseKind.ConversionSecured,
+      comparisonKind = CandidateComparisonKind.PlayedVsBest,
+      referenceLine = referenceLine,
+      candidateLine = playedLine,
+      verdict = MoveChoiceVerdict.MatchesReference,
+      winPercentLossForMover = 0.0,
+      candidateWinPercentDeltaForMover = 0.0,
+      supportEvidence = List(lineEvidenceRef),
+      evidenceLines = List(playedLine),
+      role = RelativeCauseRole.PrimaryPlayedCause,
+      eventLine = playedLine,
+      sourceSide = RelativeCauseSourceSide.Candidate,
+      importance = RelativeCauseImportance.Primary,
+      attribution = CauseAttribution(
+        kind = CauseAttributionKind.CandidateCreatesValue,
+        ownedEvidence = List(lineEvidenceRef),
+        rootMoveMatched = true,
+        directProofEligible = true
+      )
+    )(
+      Some(
+        RelativeCauseProof(
+          directProof = RelativeCauseProofSection(
+            role = RelativeCauseProofRole.DirectProof,
+            strength = RelativeCauseProofStrength.Primary,
+            lineConsequences = List(
+              LineConsequenceProof(
+                source = lineEvidenceRef,
+                kind = LineConsequenceKind.ForcedTheme,
+                eventMove = Some("d7d8q"),
+                lineMoves = List("d7d8q")
+              )
+            )
+          )
+        )
+      )
+    )
+    val graph = TypedEvidenceGraph(
+      List(
+        EvidenceRecord(lineEvidenceRef, linePayload),
+        EvidenceRecord(causeRef, RelativeCauseFactEvidence(cause), parents = List(lineEvidenceRef))
+      )
+    )
+
+    val view = MoveJudgmentView
+      .from(
+        relativeAssessments = List(assessment),
+        evidenceGraph = graph,
+        ideas = Nil,
+        claims = Nil,
+        claimLifecycle = Nil,
+        ideaVerdict = None,
+        claimSupportClusters = Nil,
+        claimEventClusters = Nil
+      )
+      .get
+    val claim = view.moveMeaningClaims
+      .find(claim => claim.meaningKind == "TechniqueConversion" && claim.reasonTokens.contains("pattern:Lucena"))
+      .getOrElse(fail(view.moveMeaningClaims.toString))
+
+    assertEquals(claim.role, "ReachesTechnique")
+    assertEquals(claim.supportLevel, "owned_cause_linked")
+    assert(claim.reasonTokens.contains("horizonStatus:Transitioned"), claim.reasonTokens)
+    assert(claim.reasonTokens.contains("triggerMove:d7d8q"), claim.reasonTokens)
+    assert(claim.reasonTokens.contains("sourceEvidenceId:line:lucena-horizon"), claim.reasonTokens)
+    assert(claim.reasonTokens.contains("requiredSquare:d8"), claim.reasonTokens)
+    assert(claim.reasonTokens.contains("maintainedSquare:d8"), claim.reasonTokens)
+
+    val mate = LineConsequence(
+      LineConsequenceKind.Mate,
+      List("d7d8q", "e6e7", "d8e7"),
+      proofSignal = true,
+      eventMove = Some("d7d8q")
+    )
+    val overriddenHorizon =
+      horizon.copy(
+        status = LineEndgameTechniqueHorizonStatus.SupersededByTactic,
+        terminalConsequenceKinds = List(LineConsequenceKind.Mate),
+        failureReason = Some("terminal-proof-supersedes-technique")
+      )
+    val overriddenPayload =
+      new LineFactEvidence(playedLine, Some("d7d8q"), None, Nil, None, None)(
+        consequences = List(mate),
+        endgameHorizons = List(overriddenHorizon)
+      )
+    val overriddenGraph = TypedEvidenceGraph(
+      List(
+        EvidenceRecord(lineEvidenceRef, overriddenPayload),
+        EvidenceRecord(causeRef, RelativeCauseFactEvidence(cause), parents = List(lineEvidenceRef))
+      )
+    )
+    val overriddenView = MoveJudgmentView
+      .from(
+        relativeAssessments = List(assessment),
+        evidenceGraph = overriddenGraph,
+        ideas = Nil,
+        claims = Nil,
+        claimLifecycle = Nil,
+        ideaVerdict = None,
+        claimSupportClusters = Nil,
+        claimEventClusters = Nil
+      )
+      .get
+    val overriddenDetail = overriddenView.positionPlanTechniqueFrames
+      .flatMap(_.semanticDetails)
+      .find(detail => detail.endgameTechniquePattern.contains("Lucena") && detail.endgameTechniqueHorizonStatus.contains("SupersededByTactic"))
+      .getOrElse(fail(overriddenView.positionPlanTechniqueFrames.toString))
+
+    assertEquals(overriddenDetail.causeEvidenceIds, Nil)
+    assertEquals(overriddenDetail.proofRoles, Nil)
+    assertEquals(overriddenDetail.terminalConsequenceKinds, List("Mate"))
+    assert(!overriddenView.moveMeaningClaims.exists(_.supportLevel == "owned_cause_linked"))
+    assert(!overriddenView.moveMeaningClaims.exists(_.reasonTokens.exists(_.startsWith("causeEvidenceId:"))))
+
   private def evidenceRef(
       id: String,
       producer: EvidenceProducer,

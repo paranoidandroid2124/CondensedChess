@@ -768,8 +768,12 @@ object PositionPlanTechniqueProjection:
     val localCauseRecords = positionPlanTechniqueCauseRecordsForDetail(detail, linkedCauseRecords, evidenceIdSet)
     val exactAxisFallbackCauseRecords =
       positionPlanTechniqueExactAxisFallbackCauseRecords(detail, fallbackCauseRecords)
-    val causeRecords = (localCauseRecords ++ exactAxisFallbackCauseRecords).distinctBy(_._1.id)
-    val contextCauseRecords = positionPlanTechniqueContextCauseRecordsForDetail(detail, linkedCauseRecords, evidenceIdSet)
+    val causeRecords =
+      if positionPlanTechniqueTerminalOverriddenEndgameTechnique(detail) then Nil
+      else (localCauseRecords ++ exactAxisFallbackCauseRecords).distinctBy(_._1.id)
+    val contextCauseRecords =
+      if positionPlanTechniqueTerminalOverriddenEndgameTechnique(detail) then Nil
+      else positionPlanTechniqueContextCauseRecordsForDetail(detail, linkedCauseRecords, evidenceIdSet)
     val causeBindings =
       causeRecords.flatMap { case (_, cause) => EvidenceObjectBinding.fromRelativeCause(cause, graph) }
     val localCauseBindings =
@@ -815,6 +819,14 @@ object PositionPlanTechniqueProjection:
       objectBindingSignatures = objectBindingSignatures,
       specificityTier = positionPlanTechniqueSpecificityTier(detail, causeRecords.map(_._2), objectBindingSignatures, proofRoles)
     )
+
+  private def positionPlanTechniqueTerminalOverriddenEndgameTechnique(
+      detail: PositionPlanTechniqueSemanticDetail
+  ): Boolean =
+    detail.unit == PositionPlanTechniqueUnit.EndgameTechniqueRecipe &&
+      detail.endgameTechniqueHorizonStatus.exists(status =>
+        status == "SupersededByTactic" || status == "ContradictedByTerminalProof"
+      )
 
   private def positionPlanTechniqueRouteObjectSignatures(
       detail: PositionPlanTechniqueSemanticDetail

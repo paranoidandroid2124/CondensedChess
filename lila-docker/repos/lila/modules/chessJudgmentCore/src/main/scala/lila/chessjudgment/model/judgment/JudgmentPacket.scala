@@ -2263,6 +2263,8 @@ object MoveMeaningClaim:
           counterplayRaceOwnedCauseReady(detail, objectSignatures, claimMove, positionFen)
         case PositionPlanTechniqueUnit.PieceRerouteRoute if meaningKind == "PieceRoute" =>
           pieceRouteOwnedCauseReady(detail, objectSignatures, claimMove)
+        case PositionPlanTechniqueUnit.EndgameTechniqueRecipe =>
+          endgameTechniqueHorizonOwnedShape(detail)
         case _ =>
           true
     val viewMeaningReady =
@@ -3363,6 +3365,7 @@ object MoveMeaningClaim:
       role == "StartsOwnCounterplayRace" ||
       role == "DelaysOpponentCounterplayRace" ||
       role == "MaintainsTechnique" ||
+      role == "ReachesTechnique" ||
       role == "SupportsCurrentPlan" ||
       role == "KeepsAlternativeAvailable" ||
       role == "ReferencePreservesPlan" ||
@@ -3489,9 +3492,7 @@ object MoveMeaningClaim:
       case PositionPlanTechniqueUnit.CounterplayRace =>
         counterplayRaceShapeReady(detail)
       case PositionPlanTechniqueUnit.EndgameTechniqueRecipe =>
-        detail.requiredSquares.nonEmpty ||
-          detail.maintainedSquares.nonEmpty ||
-          detail.endgameTechniquePattern.nonEmpty
+        endgameTechniqueHorizonOwnedShape(detail)
       case PositionPlanTechniqueUnit.StructuralTransformation | PositionPlanTechniqueUnit.CompensationSource =>
         detail.structuralPurposeSubjects.exists(concreteSubject) ||
           detail.structuralMotifTags.nonEmpty ||
@@ -3505,6 +3506,18 @@ object MoveMeaningClaim:
   private def pieceRouteDetailReady(detail: PositionPlanTechniqueSemanticDetail): Boolean =
     val hasRouteIntent = pieceRouteQualifiedCarrier(detail, detail.objectBindingSignatures)
     hasRouteIntent && detail.objectBindingSignatures.exists(pieceRouteObjectSignature)
+
+  private def endgameTechniqueHorizonOwnedShape(detail: PositionPlanTechniqueSemanticDetail): Boolean =
+    detail.unit == PositionPlanTechniqueUnit.EndgameTechniqueRecipe &&
+      detail.endgameTechniquePattern.nonEmpty &&
+      detail.endgameTechniqueRookPattern.nonEmpty &&
+      detail.endgameTechniqueHorizonStatus.exists(endgameTechniqueStatusOwnable) &&
+      detail.requiredSquares.nonEmpty &&
+      (detail.maintainedSquares.nonEmpty || detail.brokenSquares.nonEmpty) &&
+      detail.sourceEvidenceIds.exists(id => id.toLowerCase.contains(":line:") || id.toLowerCase.startsWith("line:"))
+
+  private def endgameTechniqueStatusOwnable(status: String): Boolean =
+    status != "SupersededByTactic" && status != "ContradictedByTerminalProof"
 
   private def pieceRouteQualifiedCarrier(
       detail: PositionPlanTechniqueSemanticDetail,
@@ -3814,9 +3827,18 @@ object MoveMeaningClaim:
       case "PieceActivity" =>
         "ImprovesPieceActivity"
       case "TechniqueConversion" =>
-        "MaintainsTechnique"
+        endgameTechniqueRole(detail)
       case _ =>
         "ExplainsMoveFunction"
+
+  private def endgameTechniqueRole(detail: PositionPlanTechniqueSemanticDetail): String =
+    detail.endgameTechniqueHorizonStatus match
+      case Some("Transitioned")                 => "ReachesTechnique"
+      case Some("Failed")                       => "BreaksTechnique"
+      case Some("SupersededByTactic")           => "TacticOverridesTechnique"
+      case Some("ContradictedByTerminalProof")  => "TerminalProofContradictsTechnique"
+      case Some("Active") | None                => "MaintainsTechnique"
+      case Some(_)                              => "MaintainsTechnique"
 
   private def pawnBreakResolutionDetail(detail: PositionPlanTechniqueSemanticDetail): Boolean =
     detail.axisPolarity.exists(negativePolarity) ||
@@ -3983,6 +4005,10 @@ object MoveMeaningClaim:
         detail.endgameTechniquePattern.map(value => s"pattern:$value"),
         detail.endgameTechniqueRookPattern.map(value => s"rook-pattern:$value"),
         detail.endgameTechniqueHorizonStatus.map(value => s"horizonStatus:$value"),
+        detail.endgameTechniqueTriggerMove.map(value => s"triggerMove:$value"),
+        detail.endgameTechniqueEntryPlyOffset.map(value => s"entryPlyOffset:$value"),
+        detail.endgameTechniqueTerminalPlyOffset.map(value => s"terminalPlyOffset:$value"),
+        detail.endgameTechniqueFailureReason.map(value => s"failureReason:$value"),
         Some(s"specificityTier:${detail.specificityTier}")
       ).flatten ++
         raceReasonTokens ++
@@ -4002,18 +4028,27 @@ object MoveMeaningClaim:
         detail.requiredSquares.map(value => s"requiredSquare:$value") ++
         detail.maintainedSquares.map(value => s"maintainedSquare:$value") ++
         detail.brokenSquares.map(value => s"brokenSquare:$value") ++
+        detail.terminalConsequenceKinds.map(value => s"terminalConsequenceKind:$value") ++
         detail.structuralMotifTags.map(value => s"structuralMotif:$value") ++
         detail.structuralPurposeSubjects.map(value => s"structuralSubject:$value") ++
         detail.structuralPurposeConsequences.map(value => s"structuralConsequence:$value") ++
         detail.structuralPurposeCategories.map(value => s"structuralCategory:$value") ++
         detail.boardAnchorSignals.map(value => s"boardAnchorSignal:$value") ++
         detail.planAlignmentReasonCodes.map(value => s"planReason:$value") ++
+        sourceEvidenceReasonTokens(detail) ++
         linkedCauseIds.map(value => s"causeEvidenceId:$value") ++
         detail.proofRoles.map(value => s"proofRole:$value") ++
         detail.contextProofRoles.map(value => s"contextProofRole:$value") ++
         comparisonLossTokens ++
         objectSignatures.take(5).map(value => s"objectBinding:$value")
     ).distinct.sorted
+
+  private def sourceEvidenceReasonTokens(detail: PositionPlanTechniqueSemanticDetail): List[String] =
+    detail.unit match
+      case PositionPlanTechniqueUnit.EndgameTechniqueRecipe =>
+        detail.sourceEvidenceIds.map(value => s"sourceEvidenceId:$value")
+      case _ =>
+        Nil
 
   private def pieceRouteReasonTokens(
       detail: PositionPlanTechniqueSemanticDetail,

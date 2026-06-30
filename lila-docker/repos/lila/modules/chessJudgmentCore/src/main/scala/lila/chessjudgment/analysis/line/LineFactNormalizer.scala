@@ -335,12 +335,38 @@ object LineFactNormalizer:
     val finalPlyOffset = if replay.nonEmpty then replay.size - 1 else -1
     val terminalKinds = consequences.filter(_.proofSignal).map(_.kind).distinct.sortBy(_.toString)
     val terminalOverrideKinds = terminalKinds.filter(terminalTechniqueOverride)
+    val replayMovesByPly =
+      replay.zipWithIndex.map { case (step, index) =>
+        index -> PrincipalVariationEvidence.normalizeUci(step.moveUci)
+      }.toMap
     snapshots
       .groupBy(_.key)
       .values
       .toList
-      .map(group => lineEndgameTechniqueHorizon(group.sortBy(_.plyOffset), snapshots, finalPlyOffset, terminalKinds, terminalOverrideKinds))
+      .flatMap(group =>
+        contiguousTechniqueEpisodes(group.sortBy(_.plyOffset)).map(episode =>
+          lineEndgameTechniqueHorizon(
+            episode,
+            snapshots,
+            replayMovesByPly,
+            finalPlyOffset,
+            terminalKinds,
+            terminalOverrideKinds
+          )
+        )
+      )
       .sortBy(horizon => (horizon.pattern, horizon.techniqueSideKey, horizon.entryPlyOffset))
+
+  private def contiguousTechniqueEpisodes(group: List[EndgameTechniqueSnapshot]): List[List[EndgameTechniqueSnapshot]] =
+    group.foldLeft(List.empty[List[EndgameTechniqueSnapshot]]) { case (episodes, snapshot) =>
+      episodes.lastOption match
+        case None =>
+          List(List(snapshot))
+        case Some(current) if snapshot.plyOffset <= current.last.plyOffset + 1 =>
+          episodes.dropRight(1) :+ (current :+ snapshot)
+        case Some(_) =>
+          episodes :+ List(snapshot)
+    }
 
   private def techniqueSnapshots(
       fen: String,
@@ -373,6 +399,7 @@ object LineFactNormalizer:
   private def lineEndgameTechniqueHorizon(
       group: List[EndgameTechniqueSnapshot],
       allSnapshots: List[EndgameTechniqueSnapshot],
+      replayMovesByPly: Map[Int, String],
       finalPlyOffset: Int,
       terminalKinds: List[LineConsequenceKind],
       terminalOverrideKinds: List[LineConsequenceKind]
@@ -396,14 +423,16 @@ object LineFactNormalizer:
       else
         LineEndgameTechniqueHorizonStatus.Failed
     val missingAfterLastMove =
-      allSnapshots
-        .filter(snapshot => snapshot.plyOffset > last.plyOffset)
-        .sortBy(_.plyOffset)
-        .find(snapshot => snapshot.key != first.key)
-        .flatMap(_.moveUci)
+      replayMovesByPly.get(last.plyOffset + 1).orElse(
+        allSnapshots
+          .filter(snapshot => snapshot.plyOffset > last.plyOffset)
+          .sortBy(_.plyOffset)
+          .find(snapshot => snapshot.key != first.key)
+          .flatMap(_.moveUci)
+      )
     val triggerMove =
-      if first.plyOffset > -1 then first.moveUci
-      else if baseStatus == LineEndgameTechniqueHorizonStatus.Failed then missingAfterLastMove
+      if baseStatus == LineEndgameTechniqueHorizonStatus.Failed then missingAfterLastMove.orElse(first.moveUci)
+      else if first.plyOffset > -1 then first.moveUci
       else None
     val brokenSquares = requiredSquares.diff(maintainedSquares).distinct.sorted
     LineEndgameTechniqueHorizon(

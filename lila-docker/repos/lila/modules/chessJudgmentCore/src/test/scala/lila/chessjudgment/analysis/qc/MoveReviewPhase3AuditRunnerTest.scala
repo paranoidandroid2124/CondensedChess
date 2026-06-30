@@ -966,6 +966,9 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     assertEquals(detail.endgameTechniquePattern, Some("Lucena"))
     assertEquals(detail.endgameTechniqueRookPattern, Some("RookBehindPassedPawn"))
     assertEquals(detail.endgameTechniqueHorizonStatus, Some("Transitioned"))
+    assertEquals(detail.endgameTechniqueTriggerMove, Some("d7d8q"))
+    assertEquals(detail.endgameTechniqueEntryPlyOffset, Some(0))
+    assertEquals(detail.endgameTechniqueTerminalPlyOffset, Some(2))
     assertEquals(detail.requiredSquares, List("d7", "d8", "e7"))
     assertEquals(detail.maintainedSquares, List("d7", "d8", "e7"))
 
@@ -973,6 +976,7 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
     val jsonDetail = json \ "semanticDetails" \ 0
     assertEquals((jsonDetail \ "endgameTechniquePattern").as[String], "Lucena")
     assertEquals((jsonDetail \ "endgameTechniqueHorizonStatus").as[String], "Transitioned")
+    assertEquals((jsonDetail \ "endgameTechniqueTriggerMove").as[String], "d7d8q")
     assertEquals((jsonDetail \ "maintainedSquares").as[List[String]], List("d7", "d8", "e7"))
 
   test("owned rook horizon slots require semantic anchors squares and line evidence"):
@@ -1095,15 +1099,61 @@ class MoveReviewPhase3AuditRunnerTest extends munit.FunSuite:
         position = position,
         scope = EvidenceScope.BestLine
       )
-    val horizons =
+    val payload =
       record.payload match
-        case payload: LineFactEvidence => payload.endgameTechniqueHorizons
-        case _                         => Nil
+        case payload: LineFactEvidence => payload
+        case _                         => fail("expected line fact evidence")
+    val horizons = payload.endgameTechniqueHorizons
     val lucena = horizons.find(_.pattern == "Lucena").get
 
     assertEquals(lucena.status, LineEndgameTechniqueHorizonStatus.Failed)
+    assertEquals(lucena.triggerMove, Some("f7f8q"))
     assert(lucena.requiredSquares.nonEmpty)
     assertEquals(lucena.brokenSquares, lucena.requiredSquares)
+    assert(payload.rootOwnedEndgameTechniqueHorizons("f7f8q", RelativeCauseKind.ConversionMiss).nonEmpty)
+
+  test("line normalizer uses breaking move as trigger for mid-line rook technique failure"):
+    val startFen = "8/2KP4/4k3/8/4R3/8/8/7r w - - 0 1"
+    val afterBridge = PrincipalVariationEvidence.legalFenAfter(startFen, "e4d4").get
+    val afterWaitingMove = PrincipalVariationEvidence.legalFenAfter(afterBridge, "h1h2").get
+    val afterBreak = PrincipalVariationEvidence.legalFenAfter(afterWaitingMove, "d4d3").get
+    val rawLine =
+      PrincipalVariationEvidence.LineVariationRef(
+        List(
+          PrincipalVariationEvidence.LineMoveRef(1, "e4d4", afterBridge),
+          PrincipalVariationEvidence.LineMoveRef(2, "h1h2", afterWaitingMove),
+          PrincipalVariationEvidence.LineMoveRef(3, "d4d3", afterBreak)
+        )
+      )
+    val validated = PrincipalVariationEvidence.validatedLine(startFen, rawLine, "e4d4").get
+    val facts =
+      PrincipalVariationEvidence.LineFacts(
+        line = validated.line,
+        first = validated.moves.head,
+        reply = validated.reply,
+        continuation = validated.continuation,
+        continuationTail = validated.moves.drop(3)
+      )
+    val position = PositionNodeRef(startFen, 1, Some(chess.Color.White), Some("root"))
+    val record =
+      LineFactNormalizer.fromValidatedLine(
+        id = "line:lucena-mid-line-fails",
+        lineRef = lineRef("lucena-mid-line-fails", "e4d4", 1, LineNodeRole.BestReference),
+        facts = facts,
+        position = position,
+        scope = EvidenceScope.BestLine
+      )
+    val payload =
+      record.payload match
+        case payload: LineFactEvidence => payload
+        case _                         => fail("expected line fact evidence")
+    val lucena = payload.endgameTechniqueHorizons.find(_.pattern == "Lucena").get
+
+    assertEquals(lucena.entryPlyOffset, 0)
+    assertEquals(lucena.status, LineEndgameTechniqueHorizonStatus.Failed)
+    assertEquals(lucena.triggerMove, Some("d4d3"))
+    assert(payload.rootOwnedEndgameTechniqueHorizons("e4d4", RelativeCauseKind.ConversionMiss).isEmpty)
+    assert(payload.rootOwnedEndgameTechniqueHorizons("d4d3", RelativeCauseKind.ConversionMiss).nonEmpty)
 
   test("line normalizer marks maintained defensive rook horizon as draw resource proof"):
     val startFen = "R7/4k3/7r/3KP3/8/8/8/8 b - - 0 1"
